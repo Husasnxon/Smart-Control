@@ -1,0 +1,482 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Customer, PaymentDetails, Currency } from '../types';
+import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
+import { 
+  X, 
+  CreditCard, 
+  Banknote, 
+  Coins, 
+  Gift, 
+  DollarSign,
+  ArrowRightLeft,
+  CheckCircle2
+} from 'lucide-react';
+
+interface PaymentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  totalAmount: number;
+  customer?: Customer;
+  onConfirmPayment: (payment: PaymentDetails, cashbackEarned: number) => void;
+  isOffline: boolean;
+  exchangeRate?: number;
+  baseCurrency?: Currency;
+}
+
+export const PaymentModal: React.FC<PaymentModalProps> = ({
+  isOpen,
+  onClose,
+  totalAmount,
+  customer,
+  onConfirmPayment,
+  isOffline,
+  exchangeRate = 12850,
+  baseCurrency = 'UZS'
+}) => {
+  const [cash, setCash] = useState<number>(0);         // So'mda naqd
+  const [cashUSD, setCashUSD] = useState<number>(0);   // Dollarda naqd ($)
+  const [card, setCard] = useState<number>(0);         // So'mda karta
+  const [debt, setDebt] = useState<number>(0);         // So'mda qarz
+  const [useCashback, setUseCashback] = useState<number>(0); // So'mda cashback
+
+  // Calculate total in USD
+  const totalAmountUSD = Number((totalAmount / exchangeRate).toFixed(2));
+
+  useEffect(() => {
+    if (isOpen) {
+      if (baseCurrency === 'USD') {
+        setCashUSD(totalAmountUSD);
+        setCash(0);
+      } else {
+        setCash(totalAmount);
+        setCashUSD(0);
+      }
+      setCard(0);
+      setDebt(0);
+      setUseCashback(0);
+    }
+  }, [isOpen, totalAmount, baseCurrency, totalAmountUSD]);
+
+  if (!isOpen) return null;
+
+  // Maximum cashback usable cannot exceed customer balance or total amount
+  const maxCashbackUsable = customer 
+    ? Math.min(customer.cashbackBalance, totalAmount) 
+    : 0;
+
+  const handleCashbackToggle = (use: boolean) => {
+    if (use) {
+      const cb = maxCashbackUsable;
+      setUseCashback(cb);
+      const remaining = Math.max(0, totalAmount - cb);
+      setCash(remaining);
+      setCashUSD(0);
+      setCard(0);
+      setDebt(0);
+    } else {
+      setUseCashback(0);
+      setCash(totalAmount);
+      setCashUSD(0);
+    }
+  };
+
+  // USD to UZS converted amount
+  const cashUSDInUZS = Math.round(cashUSD * exchangeRate);
+
+  // Total covered in UZS
+  const currentCovered = cash + cashUSDInUZS + card + debt + useCashback;
+  const remainingOrChange = currentCovered - totalAmount;
+  const isPaidEnough = currentCovered >= totalAmount;
+
+  // Change (Qaytim) in UZS and USD
+  const changeUZS = Math.max(0, remainingOrChange);
+  const changeUSD = changeUZS > 0 ? Number((changeUZS / exchangeRate).toFixed(2)) : 0;
+
+  // Cashback earned is based on cash (UZS + converted USD) + card payment only
+  const eligibleAmount = Math.max(0, cash + cashUSDInUZS + card);
+  const cashbackRate = customer?.cashbackRate || 1; // Default 1%
+  const cashbackEarned = Math.round((eligibleAmount * cashbackRate) / 100);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isPaidEnough) return;
+
+    let currencyPaid: 'UZS' | 'USD' | 'MIXED' = 'UZS';
+    if (cashUSD > 0 && cash === 0 && card === 0) {
+      currencyPaid = 'USD';
+    } else if (cashUSD > 0) {
+      currencyPaid = 'MIXED';
+    }
+
+    onConfirmPayment(
+      {
+        cash,
+        cashUSD: cashUSD > 0 ? cashUSD : undefined,
+        card,
+        debt,
+        cashbackUsed: useCashback,
+        exchangeRate,
+        currencyPaid,
+        total: totalAmount,
+        totalUSD: totalAmountUSD
+      },
+      cashbackEarned
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[95vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-emerald-500" />
+              To&apos;lovni Qabul Qilish ({baseCurrency === 'USD' ? 'Dollar / So\'m' : 'So\'m / Dollar'})
+            </h3>
+            <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+              <span>Kurs: 1$ = {formatNumberWithSpaces(exchangeRate)} so&apos;m</span>
+              <span className="text-slate-400">&bull;</span>
+              <span>Aralash to&apos;lov mumkin</span>
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+          {/* Total Amount Banner (Dual Currency: So'm + Dollar) */}
+          <div className="p-4 rounded-xl bg-slate-900 text-white flex items-center justify-between shadow-inner">
+            <div>
+              <span className="text-xs text-slate-400 block font-medium">To&apos;lov summasi</span>
+              {baseCurrency === 'USD' ? (
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-cyan-400 tracking-tight font-mono">
+                    ${formatUSDNumber(totalAmountUSD)} <small className="text-xs font-normal text-slate-300">USD</small>
+                  </span>
+                  <span className="text-sm font-semibold text-slate-400 font-mono">
+                    (~ {formatNumberWithSpaces(totalAmount)} so&apos;m)
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-emerald-400 tracking-tight font-mono">
+                    {formatNumberWithSpaces(totalAmount)} <small className="text-xs font-normal text-slate-300">so&apos;m</small>
+                  </span>
+                  <span className="text-base font-bold text-cyan-400 font-mono">
+                    (${formatUSDNumber(totalAmountUSD)})
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {customer && (
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Mijoz</span>
+                <span className="text-xs font-semibold text-slate-200">{customer.fullName}</span>
+                <span className="text-[11px] block text-purple-400">
+                  {customer.tier} ({customer.cashbackRate}% cashback)
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Cashback Selection if Customer has balance */}
+          {customer && customer.cashbackBalance > 0 && (
+            <div className="p-3 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50 dark:bg-purple-950/30 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-300 flex items-center justify-center">
+                  <Gift className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-purple-200">
+                    Mavjud Cashback: {formatNumberWithSpaces(customer.cashbackBalance)} so&apos;m
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {useCashback > 0 ? `${formatNumberWithSpaces(useCashback)} so'm yechildi` : 'Xariddan chegirma sifatida yechish'}
+                  </div>
+                </div>
+              </div>
+
+              {useCashback > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => handleCashbackToggle(false)}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 transition"
+                >
+                  Bekor qilish
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleCashbackToggle(true)}
+                  className="px-3 py-1 rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 transition"
+                >
+                  Yechish
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Payment inputs */}
+          <div className="space-y-3">
+            {/* Dollar ($) Cash Input */}
+            <div className="p-3 rounded-xl bg-cyan-50/70 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800/80">
+              <label className="flex items-center justify-between text-xs font-bold text-cyan-900 dark:text-cyan-200 mb-1">
+                <span className="flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-cyan-600" />
+                  Naqd Dollar ($ USD)
+                </span>
+                {cashUSD > 0 && (
+                  <span className="text-cyan-700 dark:text-cyan-300 font-mono text-[11px]">
+                    = {formatNumberWithSpaces(cashUSDInUZS)} so&apos;m
+                  </span>
+                )}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0 $"
+                  value={cashUSD || ''}
+                  onChange={(e) => {
+                    const val = Number(e.target.value) || 0;
+                    setCashUSD(val);
+                    // Automatically adjust cash in so'm if desired
+                    const inUZS = Math.round(val * exchangeRate);
+                    const remainingUZS = Math.max(0, totalAmount - inUZS - card - debt - useCashback);
+                    setCash(remainingUZS);
+                  }}
+                  className="flex-1 bg-white dark:bg-slate-900 border border-cyan-300 dark:border-cyan-700 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-cyan-500/40 text-slate-900 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const exactUSD = Math.ceil(totalAmount / exchangeRate);
+                    setCashUSD(exactUSD);
+                    setCash(0);
+                    setCard(0);
+                    setDebt(0);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs font-mono transition"
+                  title="To'liq summani dollarda to'lash"
+                >
+                  100% (${Math.ceil(totalAmount / exchangeRate)})
+                </button>
+              </div>
+            </div>
+
+            {/* Cash UZS Input */}
+            <div>
+              <label className="flex items-center justify-between text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <span className="flex items-center gap-1.5">
+                  <Banknote className="w-4 h-4 text-emerald-500" />
+                  Naqd Pul (So&apos;m)
+                </span>
+                <span className="text-slate-400 font-mono text-[11px]">so&apos;m</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={cash || ''}
+                onChange={(e) => setCash(Number(e.target.value) || 0)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-emerald-500/40 text-slate-900 dark:text-white"
+              />
+            </div>
+
+            {/* Card Input */}
+            <div>
+              <label className="flex items-center justify-between text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <span className="flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-blue-500" />
+                  Plastik Karta (Humo / Uzcard)
+                </span>
+                <span className="text-slate-400 font-mono text-[11px]">so&apos;m</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={card || ''}
+                onChange={(e) => setCard(Number(e.target.value) || 0)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-blue-500/40 text-slate-900 dark:text-white"
+              />
+            </div>
+
+            {/* Debt Input (only if customer chosen) */}
+            {customer && (
+              <div>
+                <label className="flex items-center justify-between text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <Coins className="w-4 h-4 text-amber-500" />
+                    Nasiya / Qarz
+                  </span>
+                  <span className="text-slate-400 font-mono text-[11px]">so&apos;m</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={debt || ''}
+                  onChange={(e) => setDebt(Number(e.target.value) || 0)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-amber-300 dark:border-amber-800 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-amber-500/40 text-slate-900 dark:text-white"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Quick Preset Buttons */}
+          <div className="grid grid-cols-4 gap-2 pt-1">
+            {baseCurrency === 'USD' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashUSD(totalAmountUSD);
+                    setCash(0);
+                    setCard(0);
+                    setDebt(0);
+                  }}
+                  className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition shadow-sm"
+                >
+                  100% Dollar ($)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCash(totalAmount - useCashback);
+                    setCashUSD(0);
+                    setCard(0);
+                    setDebt(0);
+                  }}
+                  className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
+                >
+                  100% So&apos;m
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCash(totalAmount - useCashback);
+                    setCashUSD(0);
+                    setCard(0);
+                    setDebt(0);
+                  }}
+                  className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition shadow-sm"
+                >
+                  100% So&apos;m
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashUSD(totalAmountUSD);
+                    setCash(0);
+                    setCard(0);
+                    setDebt(0);
+                  }}
+                  className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 hover:bg-cyan-100 transition"
+                >
+                  100% Dollar
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setCashUSD(50);
+                const rem = Math.max(0, totalAmount - (50 * exchangeRate) - useCashback);
+                setCash(rem);
+                setCard(0);
+              }}
+              className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
+            >
+              +$50
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCard(totalAmount - useCashback);
+                setCash(0);
+                setCashUSD(0);
+                setDebt(0);
+              }}
+              className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 hover:bg-blue-100 transition"
+            >
+              100% Karta
+            </button>
+          </div>
+
+          {/* Change or Remaining Calculation */}
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-slate-500 block">
+                  {remainingOrChange >= 0 ? 'Qaytim (Mijozga beriladi)' : 'Yetmayotgan summa'}
+                </span>
+                <div className="flex items-baseline gap-2">
+                  {baseCurrency === 'USD' ? (
+                    <>
+                      <span
+                        className={`text-lg font-black font-mono ${
+                          remainingOrChange >= 0 ? 'text-cyan-600 dark:text-cyan-400' : 'text-red-500'
+                        }`}
+                      >
+                        ${formatUSDNumber(Math.abs(changeUSD || Number((remainingOrChange / exchangeRate))))} USD
+                      </span>
+                      <span className="text-xs font-semibold text-slate-400 font-mono">
+                        ({formatNumberWithSpaces(Math.abs(remainingOrChange))} so&apos;m)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span
+                        className={`text-lg font-black font-mono ${
+                          remainingOrChange >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'
+                        }`}
+                      >
+                        {formatNumberWithSpaces(Math.abs(remainingOrChange))} so&apos;m
+                      </span>
+                      {changeUSD > 0 && (
+                        <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400 font-mono">
+                          (${formatUSDNumber(changeUSD)})
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {customer && cashbackEarned > 0 && (
+                <div className="text-right">
+                  <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold block">
+                    Kutilayotgan Cashback
+                  </span>
+                  <span className="text-sm font-bold text-purple-700 dark:text-purple-300 font-mono">
+                    +{formatNumberWithSpaces(cashbackEarned)} so&apos;m
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={!isPaidEnough}
+            className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white font-bold text-sm shadow-xl shadow-emerald-600/25 transition active:scale-[0.99] flex items-center justify-center gap-2"
+          >
+            <CheckCircle2 className="w-5 h-5" />
+            <span>To&apos;lovni Tasdiqlash va Chek Chiqarish</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
