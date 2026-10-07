@@ -648,7 +648,7 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     password: '123',
     pin: '2222',
     systemRole: 'technician',
-    allowedTabs: ['technician_portal', 'orders', 'warranty', 'pos'],
+    allowedTabs: ['technician_portal'],
     permissions: DEFAULT_ROLE_PERMISSIONS['technician']
   },
   {
@@ -667,7 +667,7 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     password: '123',
     pin: '3333',
     systemRole: 'technician',
-    allowedTabs: ['technician_portal', 'orders', 'warranty'],
+    allowedTabs: ['technician_portal'],
     permissions: DEFAULT_ROLE_PERMISSIONS['technician']
   },
   {
@@ -686,7 +686,7 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     password: '123',
     pin: '4444',
     systemRole: 'technician',
-    allowedTabs: ['technician_portal', 'orders', 'warranty'],
+    allowedTabs: ['technician_portal'],
     permissions: DEFAULT_ROLE_PERMISSIONS['technician']
   }
 ];

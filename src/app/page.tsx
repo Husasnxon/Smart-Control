@@ -155,12 +155,8 @@ export default function Home() {
           } else {
             // Guarantee technician_portal is included for all technicians
             parsedEmp = parsedEmp.map((emp) => {
-              if (emp.systemRole === 'technician' || emp.role.toLowerCase().includes('usta') || emp.role.toLowerCase().includes('muhandis')) {
-                const tabs: ActiveTab[] = emp.allowedTabs ? [...emp.allowedTabs] : (['technician_portal', 'orders', 'warranty'] as ActiveTab[]);
-                if (!tabs.includes('technician_portal')) {
-                  tabs.unshift('technician_portal');
-                }
-                return { ...emp, allowedTabs: tabs };
+              if (emp.systemRole === 'technician' || (emp.role.toLowerCase().includes('usta') && emp.systemRole !== 'admin' && emp.systemRole !== 'manager')) {
+                return { ...emp, allowedTabs: ['technician_portal'] as ActiveTab[] };
               }
               if (emp.systemRole === 'admin' || emp.systemRole === 'manager' || !emp.systemRole) {
                 const tabs: ActiveTab[] = emp.allowedTabs ? [...emp.allowedTabs] : ([...DEFAULT_ROLE_TABS[emp.systemRole || 'admin']] as ActiveTab[]);
@@ -187,12 +183,9 @@ export default function Home() {
       if (savedUser) {
         try {
           let user: Employee = JSON.parse(savedUser);
-          if (user.systemRole === 'technician' || user.role.toLowerCase().includes('usta') || user.role.toLowerCase().includes('muhandis')) {
-            const tabs: ActiveTab[] = user.allowedTabs ? [...user.allowedTabs] : (['technician_portal', 'orders', 'warranty'] as ActiveTab[]);
-            if (!tabs.includes('technician_portal')) {
-              tabs.unshift('technician_portal');
-            }
-            user = { ...user, allowedTabs: tabs };
+          if (user.systemRole === 'technician' || (user.role.toLowerCase().includes('usta') && user.systemRole !== 'admin' && user.systemRole !== 'manager')) {
+            user = { ...user, allowedTabs: ['technician_portal'] as ActiveTab[] };
+            setActiveTab('technician_portal');
           } else if (user.systemRole === 'admin' || user.systemRole === 'manager' || !user.systemRole) {
             const tabs: ActiveTab[] = user.allowedTabs ? [...user.allowedTabs] : ([...DEFAULT_ROLE_TABS[user.systemRole || 'admin']] as ActiveTab[]);
             if (!tabs.includes('financial_reports')) {
@@ -370,14 +363,19 @@ export default function Home() {
     setIsSwitchUserModalOpen(false);
 
     // Switch to first allowed tab if current activeTab is not permitted
-    const allowed: ActiveTab[] = emp.allowedTabs && emp.allowedTabs.length > 0 
-      ? emp.allowedTabs 
-      : emp.systemRole 
-      ? DEFAULT_ROLE_TABS[emp.systemRole] 
-      : (['pos'] as ActiveTab[]);
+    const isTech = emp.systemRole === 'technician' || (emp.role.toLowerCase().includes('usta') && emp.systemRole !== 'admin' && emp.systemRole !== 'manager');
+    if (isTech) {
+      setActiveTab('technician_portal');
+    } else {
+      const allowed: ActiveTab[] = emp.allowedTabs && emp.allowedTabs.length > 0 
+        ? emp.allowedTabs 
+        : emp.systemRole 
+        ? DEFAULT_ROLE_TABS[emp.systemRole] 
+        : (['pos'] as ActiveTab[]);
 
-    if (!allowed.includes(activeTab)) {
-      setActiveTab((allowed[0] || 'pos') as ActiveTab);
+      if (!allowed.includes(activeTab)) {
+        setActiveTab((allowed[0] || 'pos') as ActiveTab);
+      }
     }
 
     showToast(`Xush kelibsiz, ${emp.fullName}!`);

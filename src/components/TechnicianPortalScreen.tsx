@@ -42,8 +42,16 @@ import {
   ArrowRight,
   Plus,
   Calculator,
-  Send
+  Send,
+  FileSpreadsheet,
+  Package,
+  ChevronDown,
+  ChevronUp,
+  Tag,
+  AlertCircle
 } from 'lucide-react';
+
+type TechSubTab = 'active_jobs' | 'estimates' | 'completed_handovers' | 'service_tasks' | 'earnings';
 
 interface TechnicianPortalScreenProps {
   currentUser: Employee | null;
@@ -100,9 +108,11 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     return employees.find(e => e.id === selectedTechId) || currentUser || employees[0];
   }, [employees, selectedTechId, currentUser]);
 
-  // Sub-tabs: 'active_jobs' | 'completed_handovers' | 'service_tasks' | 'earnings'
-  const [activeSubTab, setActiveSubTab] = useState<'active_jobs' | 'completed_handovers' | 'service_tasks' | 'earnings'>('active_jobs');
+  // Sub-tabs: 'active_jobs' | 'estimates' | 'completed_handovers' | 'service_tasks' | 'earnings'
+  const [activeSubTab, setActiveSubTab] = useState<TechSubTab>('active_jobs');
   const [searchQuery, setSearchQuery] = useState('');
+  const [estimateStatusFilter, setEstimateStatusFilter] = useState<'all' | 'pending' | 'shipped' | 'completed'>('all');
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({});
 
   // Handover Modal state
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
@@ -112,6 +122,14 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   // On-Site Estimate Modal state
   const [isOnSiteEstimateOpen, setIsOnSiteEstimateOpen] = useState(false);
   const [estimateTargetOrder, setEstimateTargetOrder] = useState<CustomerOrder | null>(null);
+
+  // Toggle order expanded items
+  const toggleOrderExpanded = (orderId: string) => {
+    setExpandedOrderIds(prev => ({
+      ...prev,
+      [orderId]: !prev[orderId]
+    }));
+  };
 
   // 1. Filter active jobs assigned to this technician
   const assignedActiveJobs = useMemo(() => {
@@ -140,7 +158,41 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     });
   }, [orders, activeTechnician, searchQuery]);
 
-  // 2. Filter completed handovers/acts for this technician
+  // 2. Filter all estimates & shipments (Hisob-kitob va Otgruzkalar)
+  const myEstimatesAndShipments = useMemo(() => {
+    if (!activeTechnician) return [];
+
+    return orders.filter(order => {
+      const isAssigned = 
+        (order.technicians && order.technicians.some(t => t.id === activeTechnician.id || t.fullName.toLowerCase().includes(activeTechnician.fullName.toLowerCase()))) ||
+        order.technicianId === activeTechnician.id ||
+        (order.technicianName && order.technicianName.toLowerCase().includes(activeTechnician.fullName.toLowerCase())) ||
+        (order.requestedByTechnicianId === activeTechnician.id) ||
+        (currentUser?.systemRole === 'admin' || currentUser?.systemRole === 'manager');
+
+      if (!isAssigned) return false;
+
+      // Status filter
+      if (estimateStatusFilter === 'pending' && order.status !== 'pending_cashier_approval') return false;
+      if (estimateStatusFilter === 'shipped' && order.status !== 'shipped') return false;
+      if (estimateStatusFilter === 'completed' && order.status !== 'completed') return false;
+
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const match = 
+          order.orderNumber.toLowerCase().includes(q) ||
+          order.customerName.toLowerCase().includes(q) ||
+          (order.projectName && order.projectName.toLowerCase().includes(q)) ||
+          (order.deliveryAddress && order.deliveryAddress.toLowerCase().includes(q));
+        if (!match) return false;
+      }
+
+      return true;
+    });
+  }, [orders, activeTechnician, estimateStatusFilter, searchQuery, currentUser]);
+
+  // 3. Filter completed handovers/acts for this technician
   const myHandovers = useMemo(() => {
     if (!activeTechnician) return [];
 
@@ -165,7 +217,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     });
   }, [handovers, activeTechnician, searchQuery]);
 
-  // 3. Filter service tickets for this technician
+  // 4. Filter service tickets for this technician
   const myServiceTickets = useMemo(() => {
     if (!activeTechnician) return [];
 
@@ -190,7 +242,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     });
   }, [serviceTickets, activeTechnician, searchQuery, currentUser]);
 
-  // 4. Calculate Earnings and KPI Statistics
+  // 5. Calculate Earnings and KPI Statistics
   const stats = useMemo(() => {
     let totalWagesUSD = 0;
     let totalWagesUZS = 0;
@@ -225,9 +277,11 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     });
 
     const averageRating = ratingsCount > 0 ? (totalRatingSum / ratingsCount).toFixed(1) : '5.0';
+    const pendingApprovalCount = orders.filter(o => o.status === 'pending_cashier_approval' && (o.requestedByTechnicianId === activeTechnician?.id || o.technicianId === activeTechnician?.id)).length;
 
     return {
-      activeCount: assignedActiveJobs.filter(j => j.status !== 'shipped' && j.status !== 'cancelled').length,
+      activeCount: assignedActiveJobs.filter(j => j.status !== 'completed' && j.status !== 'cancelled').length,
+      pendingApprovalCount,
       completedHandoversCount: myHandovers.length,
       activeTicketsCount: myServiceTickets.filter(t => t.status !== 'returned_to_client' && t.status !== 'cancelled').length,
       totalWagesUSD,
@@ -235,7 +289,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
       totalCamerasInstalled,
       averageRating
     };
-  }, [assignedActiveJobs, myHandovers, myServiceTickets, activeTechnician, exchangeRate]);
+  }, [assignedActiveJobs, myHandovers, myServiceTickets, activeTechnician, exchangeRate, orders]);
 
   // Status Change handler
   const handleStatusChange = (newStatus: 'active' | 'on_site' | 'on_leave') => {
@@ -338,7 +392,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               <span className="font-mono text-white font-bold">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               <div className="w-24 h-4 bg-slate-900 rounded-full flex items-center justify-center">
                 <span className="w-2.5 h-2.5 rounded-full bg-purple-500/80 mr-1 animate-pulse" />
-                <span className="text-[9px] text-purple-300 font-bold uppercase tracking-wider">SMART APP</span>
+                <span className="text-[9px] text-purple-300 font-bold uppercase tracking-wider">SMART USTA</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-emerald-400 font-bold">5G</span>
@@ -466,7 +520,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Obyekt, mijoz yoki manzil qidirish..."
+                placeholder="Obyekt, smeta, mijoz yoki manzil qidirish..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-purple-500"
@@ -479,7 +533,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
           {/* ======================================================== */}
           <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-3 pb-24 bg-slate-950">
             
+            {/* ======================================================== */}
             {/* SUB-TAB 1: FAOL OBYEKTLAR (ACTIVE JOBS) */}
+            {/* ======================================================== */}
             {activeSubTab === 'active_jobs' && (
               <div className="space-y-3">
                 {assignedActiveJobs.length > 0 && (
@@ -536,7 +592,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                     const myWageAssignment = order.technicians?.find(t => t.id === activeTechnician?.id || t.fullName.toLowerCase().includes(activeTechnician?.fullName.toLowerCase() || ''));
                     const myWageUSD = myWageAssignment?.wageUSD || 0;
                     const myWageUZS = myWageAssignment?.wageUZS || (myWageUSD ? Math.round(myWageUSD * exchangeRate) : 0);
-                    const matchingHandover = handovers.find(h => h.orderNumber === order.orderNumber);
+                    const matchingHandover = handovers.find(h => h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id));
                     const isPendingApproval = order.status === 'pending_cashier_approval';
 
                     return (
@@ -546,7 +602,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                           isPendingApproval ? 'border-amber-500/80 bg-slate-900/90' : 'border-slate-800'
                         }`}
                       >
-                        {/* Card Header: Order Number & Project Name */}
+                        {/* Card Header */}
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <div className="flex items-center gap-2">
@@ -654,7 +710,6 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
 
                         {/* Actions: Add Extra Items & Handover / View Act */}
                         <div className="pt-2 space-y-2">
-                          {/* Add extra items for this order */}
                           {!matchingHandover && (
                             <button
                               type="button"
@@ -705,7 +760,260 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               </div>
             )}
 
-            {/* SUB-TAB 2: TOPSHIRILGAN AKTLAR (COMPLETED HANDOVERS) */}
+            {/* ======================================================== */}
+            {/* SUB-TAB 2: HISOB-KITOB & OTGRUZKALAR (SMETA) */}
+            {/* ======================================================== */}
+            {activeSubTab === 'estimates' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-sky-400" />
+                    Hisob-kitob &amp; Otgruzkalar ({myEstimatesAndShipments.length})
+                  </span>
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 select-none">
+                  <button
+                    type="button"
+                    onClick={() => setEstimateStatusFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                      estimateStatusFilter === 'all'
+                        ? 'bg-sky-600 text-white shadow-md'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    Barchasi ({orders.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEstimateStatusFilter('pending')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
+                      estimateStatusFilter === 'pending'
+                        ? 'bg-amber-600 text-white shadow-md'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    <span>Tasdiq kutilmoqda</span>
+                    {stats.pendingApprovalCount > 0 && (
+                      <span className="w-4 h-4 rounded-full bg-amber-400 text-slate-950 font-black text-[9px] flex items-center justify-center">
+                        {stats.pendingApprovalCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEstimateStatusFilter('shipped')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                      estimateStatusFilter === 'shipped'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    Otgruzka (Montajda)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEstimateStatusFilter('completed')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                      estimateStatusFilter === 'completed'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    Bajarilgan (Topshirilgan)
+                  </button>
+                </div>
+
+                {/* Estimates List Cards */}
+                {myEstimatesAndShipments.length === 0 ? (
+                  <div className="p-8 text-center bg-slate-900/60 rounded-3xl border border-slate-800 space-y-3">
+                    <FileSpreadsheet className="w-10 h-10 text-slate-600 mx-auto" />
+                    <h3 className="text-sm font-bold text-white">Hisob-kitob smetalari topilmadi</h3>
+                    <p className="text-xs text-slate-400">
+                      Mijoz uchun joyida smeta tuzish uchun yuqoridagi <strong>&quot;Joyida Yangi Smeta&quot;</strong> tugmasini bosing.
+                    </p>
+                  </div>
+                ) : (
+                  myEstimatesAndShipments.map((order) => {
+                    const isExpanded = !!expandedOrderIds[order.id];
+                    const isPending = order.status === 'pending_cashier_approval';
+                    const isCompleted = order.status === 'completed';
+                    const isShipped = order.status === 'shipped';
+                    const matchingAct = handovers.find(h => h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id));
+
+                    return (
+                      <div
+                        key={order.id}
+                        className={`bg-slate-900 rounded-2xl border p-4 shadow-md space-y-3 transition ${
+                          isPending ? 'border-amber-500/80 bg-slate-900/90' : isCompleted ? 'border-emerald-800/80' : 'border-slate-800'
+                        }`}
+                      >
+                        {/* Header: Order Number, Date, Status */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-black font-mono text-sky-400 bg-sky-950/80 px-2 py-0.5 rounded-lg border border-sky-800">
+                                #{order.orderNumber}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {order.createdAt}
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-black text-white mt-1">
+                              {order.projectName || 'Obyekt Smeta Hisob-kitobi'}
+                            </h4>
+                          </div>
+
+                          <div className="text-right">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
+                              isCompleted
+                                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                : isPending
+                                ? 'bg-amber-950 text-amber-300 border border-amber-800 animate-pulse'
+                                : isShipped
+                                ? 'bg-indigo-950 text-indigo-300 border border-indigo-800'
+                                : 'bg-slate-800 text-slate-300 border border-slate-700'
+                            }`}>
+                              {isCompleted
+                                ? '✓ Bajarildi'
+                                : isPending
+                                ? '🟡 Kassa Tasdig\'i'
+                                : isShipped
+                                ? '🚚 Otgruzka'
+                                : order.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Customer & Location */}
+                        <div className="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800/80 space-y-1 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-300 font-bold">👤 {order.customerName}</span>
+                            {order.customerPhone && (
+                              <a
+                                href={`tel:${order.customerPhone.replace(/[^0-9+]/g, '')}`}
+                                className="text-emerald-400 hover:underline font-bold text-[11px] flex items-center gap-1"
+                              >
+                                <Phone className="w-3 h-3" />
+                                <span>{order.customerPhone}</span>
+                              </a>
+                            )}
+                          </div>
+                          {order.deliveryAddress && (
+                            <div className="text-slate-400 text-[11px] flex items-center gap-1 truncate">
+                              <MapPin className="w-3 h-3 text-purple-400 shrink-0" />
+                              <span className="truncate">{order.deliveryAddress}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Financial Amount Strip */}
+                        <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
+                          <div>
+                            <span className="text-[10px] text-slate-400 block uppercase font-bold">Jami Smeta Summasi:</span>
+                            <span className="text-xs text-slate-300 font-mono">
+                              {formatNumberWithSpaces(order.totalAmount)} so&apos;m
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-base font-black text-emerald-400 font-mono">
+                              ${order.totalAmountUSD || Number((order.totalAmount / exchangeRate).toFixed(1))}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Expandable Items Preview */}
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => toggleOrderExpanded(order.id)}
+                            className="w-full py-1.5 text-[11px] font-bold text-slate-400 hover:text-white flex items-center justify-between border-t border-slate-800/80 pt-2 transition"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <Package className="w-3.5 h-3.5 text-sky-400" />
+                              <span>Jihozlar &amp; Xizmatlar ({order.items.length} ta)</span>
+                            </span>
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+
+                          {isExpanded && (
+                            <div className="space-y-1 pt-2 max-h-48 overflow-y-auto">
+                              {order.items.map((item, idx) => (
+                                <div
+                                  key={idx}
+                                  className="p-2 bg-slate-950 rounded-lg border border-slate-800 text-[11px] flex items-center justify-between"
+                                >
+                                  <div className="min-w-0 pr-2">
+                                    <div className="text-white font-bold truncate">{item.productName}</div>
+                                    <div className="text-[10px] text-slate-400">
+                                      {item.quantity} {item.unit} x ${item.unitPriceUSD || Number((item.unitPrice / exchangeRate).toFixed(1))}
+                                    </div>
+                                  </div>
+                                  <span className="font-mono font-bold text-emerald-400 shrink-0">
+                                    ${Number(((item.unitPriceUSD || (item.unitPrice / exchangeRate)) * item.quantity).toFixed(1))}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Quick Actions */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEstimateTargetOrder(order);
+                              setIsOnSiteEstimateOpen(true);
+                            }}
+                            className="py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-[11px] flex items-center justify-center gap-1 border border-slate-700 transition"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Tahrirlash / Jihoz</span>
+                          </button>
+
+                          {matchingAct ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedViewingHandover(matchingAct);
+                                setSelectedHandoverOrder(order);
+                                setIsHandoverModalOpen(true);
+                              }}
+                              className="py-2 px-2.5 rounded-xl bg-purple-950 hover:bg-purple-900 text-purple-300 font-bold text-[11px] flex items-center justify-center gap-1 border border-purple-800 transition"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Akt Ko&apos;rish</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedViewingHandover(null);
+                                setSelectedHandoverOrder(order);
+                                setIsHandoverModalOpen(true);
+                              }}
+                              className="py-2 px-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow transition"
+                            >
+                              <Camera className="w-3.5 h-3.5" />
+                              <span>Topshirish (Akt)</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* SUB-TAB 3: TOPSHIRILGAN AKTLAR (COMPLETED HANDOVERS) */}
+            {/* ======================================================== */}
             {activeSubTab === 'completed_handovers' && (
               <div className="space-y-3">
                 <span className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 px-1">
@@ -777,7 +1085,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               </div>
             )}
 
-            {/* SUB-TAB 3: SERVIS & KAFOLAT (SERVICE TASKS) */}
+            {/* ======================================================== */}
+            {/* SUB-TAB 4: SERVIS & KAFOLAT (SERVICE TASKS) */}
+            {/* ======================================================== */}
             {activeSubTab === 'service_tasks' && (
               <div className="space-y-3">
                 <span className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 px-1">
@@ -830,7 +1140,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               </div>
             )}
 
-            {/* SUB-TAB 4: ISH HAQI & DAROMAD (EARNINGS) */}
+            {/* ======================================================== */}
+            {/* SUB-TAB 5: ISH HAQI & DAROMAD (EARNINGS) */}
+            {/* ======================================================== */}
             {activeSubTab === 'earnings' && (
               <div className="space-y-3">
                 <span className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 px-1">
@@ -871,10 +1183,11 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
           </div>
 
           {/* ======================================================== */}
-          {/* MOBILE BOTTOM NAVIGATION BAR (FIXED AT BOTTOM) */}
+          {/* MOBILE BOTTOM NAVIGATION BAR (FIXED AT BOTTOM - 5 TABS) */}
           {/* ======================================================== */}
           <div className="sticky bottom-0 left-0 right-0 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/90 p-2 z-20">
-            <div className="grid grid-cols-4 gap-1">
+            <div className="grid grid-cols-5 gap-1">
+              {/* Tab 1: Obyektlar */}
               <button
                 type="button"
                 onClick={() => setActiveSubTab('active_jobs')}
@@ -884,15 +1197,35 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Activity className="w-5 h-5" />
-                <span className="text-[10px]">Obyektlar</span>
+                <Activity className="w-4 h-4" />
+                <span className="text-[9px]">Obyektlar</span>
                 {assignedActiveJobs.length > 0 && (
-                  <span className="absolute top-1 right-2 w-4 h-4 bg-purple-600 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
+                  <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-purple-600 text-white rounded-full text-[8px] font-bold flex items-center justify-center">
                     {assignedActiveJobs.length}
                   </span>
                 )}
               </button>
 
+              {/* Tab 2: Smetalar */}
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('estimates')}
+                className={`py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition relative ${
+                  activeSubTab === 'estimates'
+                    ? 'text-sky-400 bg-sky-950/60 font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span className="text-[9px]">Smetalar</span>
+                {stats.pendingApprovalCount > 0 && (
+                  <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-amber-500 text-slate-950 rounded-full text-[8px] font-black flex items-center justify-center">
+                    {stats.pendingApprovalCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Tab 3: Aktlar */}
               <button
                 type="button"
                 onClick={() => setActiveSubTab('completed_handovers')}
@@ -902,44 +1235,46 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <CheckCheck className="w-5 h-5" />
-                <span className="text-[10px]">Aktlar</span>
+                <CheckCheck className="w-4 h-4" />
+                <span className="text-[9px]">Aktlar</span>
                 {myHandovers.length > 0 && (
-                  <span className="absolute top-1 right-2 w-4 h-4 bg-emerald-600 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
+                  <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-emerald-600 text-white rounded-full text-[8px] font-bold flex items-center justify-center">
                     {myHandovers.length}
                   </span>
                 )}
               </button>
 
+              {/* Tab 4: Servis */}
               <button
                 type="button"
                 onClick={() => setActiveSubTab('service_tasks')}
                 className={`py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition relative ${
                   activeSubTab === 'service_tasks'
-                    ? 'text-purple-400 bg-purple-950/60 font-bold'
+                    ? 'text-teal-400 bg-teal-950/60 font-bold'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <ShieldCheck className="w-5 h-5" />
-                <span className="text-[10px]">Servis</span>
+                <ShieldCheck className="w-4 h-4" />
+                <span className="text-[9px]">Servis</span>
                 {myServiceTickets.length > 0 && (
-                  <span className="absolute top-1 right-2 w-4 h-4 bg-teal-600 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
+                  <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-teal-600 text-white rounded-full text-[8px] font-bold flex items-center justify-center">
                     {myServiceTickets.length}
                   </span>
                 )}
               </button>
 
+              {/* Tab 5: Daromad */}
               <button
                 type="button"
                 onClick={() => setActiveSubTab('earnings')}
                 className={`py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition relative ${
                   activeSubTab === 'earnings'
-                    ? 'text-purple-400 bg-purple-950/60 font-bold'
+                    ? 'text-emerald-400 bg-emerald-950/60 font-bold'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <DollarSign className="w-5 h-5" />
-                <span className="text-[10px]">Daromad</span>
+                <DollarSign className="w-4 h-4" />
+                <span className="text-[9px]">Daromad</span>
               </button>
             </div>
           </div>

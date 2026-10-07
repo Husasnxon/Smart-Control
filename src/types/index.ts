@@ -296,7 +296,7 @@ export const DEFAULT_ROLE_TABS: Record<SystemRole, ActiveTab[]> = {
   admin: ['dashboard', 'financial_reports', 'pos', 'orders', 'inventory', 'warranty', 'technician_portal', 'employees', 'customers', 'expenses', 'ai_advisor', 'sales_history', 'settings'],
   manager: ['dashboard', 'financial_reports', 'pos', 'orders', 'inventory', 'warranty', 'technician_portal', 'customers', 'sales_history'],
   cashier: ['pos', 'orders', 'customers', 'warranty', 'sales_history'],
-  technician: ['technician_portal', 'orders', 'warranty'],
+  technician: ['technician_portal'],
   warehouse: ['inventory', 'orders', 'warranty'],
 };
 

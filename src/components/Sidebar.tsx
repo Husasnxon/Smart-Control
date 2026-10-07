@@ -66,6 +66,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Determine allowed tabs for current user
   const allowedTabs = React.useMemo(() => {
     if (!currentUser) return allNavItems.map(n => n.id);
+
+    // Ustalar uchun faqat Usta Kabineti (barcha qismlar kabinetning ichida joylashgan)
+    if (currentUser.systemRole === 'technician' || (currentUser.role.toLowerCase().includes('usta') && currentUser.systemRole !== 'admin' && currentUser.systemRole !== 'manager')) {
+      return ['technician_portal'] as ActiveTab[];
+    }
+
     let tabs: ActiveTab[] = [];
     if (currentUser.allowedTabs && currentUser.allowedTabs.length > 0) {
       tabs = [...currentUser.allowedTabs];
@@ -74,12 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     } else {
       tabs = allNavItems.map(n => n.id);
     }
-    // Always guarantee technician_portal for technicians and admins/managers
-    if (currentUser.systemRole === 'technician' || currentUser.role.toLowerCase().includes('usta') || currentUser.role.toLowerCase().includes('muhandis')) {
-      if (!tabs.includes('technician_portal')) {
-        tabs.unshift('technician_portal');
-      }
-    }
+
     if (currentUser.systemRole === 'admin' || currentUser.systemRole === 'manager' || !currentUser.systemRole || currentUser.permissions?.canViewFinancialReports) {
       if (!tabs.includes('financial_reports')) {
         tabs.splice(1, 0, 'financial_reports');
