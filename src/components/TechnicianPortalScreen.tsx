@@ -419,10 +419,10 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   const currentStatusInfo = getStatusBadge(activeTechnician?.status);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-900 overflow-y-auto antialiased">
+    <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden antialiased select-none">
       
-      {/* Top View Mode Switcher (Desktop Preview Controller) */}
-      <div className="bg-slate-950/80 border-b border-slate-800/80 px-4 py-2 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md">
+      {/* Top View Mode Switcher (Visible on desktop/tablets, hidden on mobile for native app feel) */}
+      <div className="hidden sm:flex bg-slate-950/90 border-b border-slate-800/80 px-4 py-2 items-center justify-between shrink-0 z-30 backdrop-blur-md">
         <div className="flex items-center gap-2">
           <HardHat className="w-4 h-4 text-purple-400" />
           <span className="text-xs font-bold text-white tracking-wide">Usta Kabineti</span>
@@ -434,7 +434,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
         <div className="flex items-center gap-2">
           {/* If Admin/Manager, allow switching technician */}
           {(currentUser?.systemRole === 'admin' || currentUser?.systemRole === 'manager') && techniciansList.length > 1 && (
-            <div className="hidden sm:flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 px-2 py-1 rounded-xl">
+            <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 px-2 py-1 rounded-xl">
               <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
               <select
                 value={selectedTechId}
@@ -463,7 +463,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               title="Mobil telefon formati"
             >
               <Smartphone className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">Smartfon</span>
+              <span>Smartfon</span>
             </button>
             <button
               type="button"
@@ -476,36 +476,24 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               title="Keng ekran (Desktop) formati"
             >
               <Monitor className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">Keng</span>
+              <span>Keng</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Main Container: Mobile Frame or Full Width */}
-      <div className={`flex-1 flex justify-center p-0 sm:p-4 md:p-6 ${deviceMode === 'mobile' ? 'items-start' : 'items-stretch'}`}>
+      <div className={`flex-1 flex justify-center overflow-hidden ${deviceMode === 'mobile' ? 'p-0 sm:py-2' : 'p-0 sm:p-4 md:p-6'}`}>
         
         {/* Smartphone Shell Frame */}
-        <div className={`w-full transition-all duration-200 ${
+        <div className={`w-full h-full transition-all duration-200 flex flex-col ${
           deviceMode === 'mobile'
-            ? 'max-w-md bg-slate-950 sm:rounded-[36px] sm:border-[6px] sm:border-slate-800 shadow-2xl overflow-hidden flex flex-col min-h-[640px] sm:my-2 relative'
-            : 'w-full max-w-6xl space-y-5'
+            ? 'max-w-md bg-slate-950 sm:rounded-[36px] sm:border-[6px] sm:border-slate-800 shadow-2xl overflow-hidden relative'
+            : 'w-full max-w-6xl space-y-5 overflow-y-auto'
         }`}>
 
-          {/* Smartphone Top Notch & Live Status Bar */}
-          {deviceMode === 'mobile' && (
-            <div className="bg-slate-950 px-5 pt-3 pb-2 flex items-center justify-between text-[11px] text-slate-400 font-semibold select-none border-b border-slate-900">
-              <span className="font-mono text-white font-bold">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-              <div className="w-24 h-4 bg-slate-900 rounded-full flex items-center justify-center">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-500/80 mr-1 animate-pulse" />
-                <span className="text-[9px] text-purple-300 font-bold uppercase tracking-wider">SMART USTA</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-emerald-400 font-bold">5G</span>
-                <span>100%</span>
-              </div>
-            </div>
-          )}
+          {/* Scrollable Body Content */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col scroll-smooth">
 
           {/* ======================================================== */}
           {/* 1. TECHNICIAN PROFILE HEADER CARD & LIVE STATUS */}
@@ -1265,27 +1253,28 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               </form>
             </div>
           )}
+          </div>
 
           {/* ======================================================== */}
           {/* MOBILE BOTTOM NAVIGATION BAR: 3 TABS (BUYURTMALAR, DAROMAD, PROFIL) */}
           {/* ======================================================== */}
-          <div className="sticky bottom-0 left-0 right-0 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/90 p-2 z-20">
+          <div className="shrink-0 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 p-2.5 z-30 shadow-2xl">
             <div className="grid grid-cols-3 gap-1.5">
               
               {/* Tab 1: Buyurtmalar */}
               <button
                 type="button"
                 onClick={() => setMainTab('orders')}
-                className={`py-2 px-2 rounded-xl flex flex-col items-center gap-1 transition relative ${
+                className={`py-2.5 px-2 rounded-xl flex flex-col items-center gap-1 transition relative ${
                   mainTab === 'orders'
-                    ? 'text-purple-400 bg-purple-950/60 font-bold'
+                    ? 'text-purple-400 bg-purple-950/70 border border-purple-800/40 font-bold shadow-md shadow-purple-950/50'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Layers className="w-5 h-5" />
-                <span className="text-[10px]">Buyurtmalar</span>
+                <span className="text-[11px] font-semibold">Buyurtmalar</span>
                 {assignedActiveJobs.length > 0 && (
-                  <span className="absolute top-1 right-4 w-4 h-4 bg-purple-600 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
+                  <span className="absolute top-1 right-4 w-4 h-4 bg-purple-600 text-white rounded-full text-[9px] font-bold flex items-center justify-center shadow">
                     {assignedActiveJobs.length}
                   </span>
                 )}
@@ -1295,28 +1284,28 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setMainTab('earnings')}
-                className={`py-2 px-2 rounded-xl flex flex-col items-center gap-1 transition relative ${
+                className={`py-2.5 px-2 rounded-xl flex flex-col items-center gap-1 transition relative ${
                   mainTab === 'earnings'
-                    ? 'text-emerald-400 bg-emerald-950/60 font-bold'
+                    ? 'text-emerald-400 bg-emerald-950/70 border border-emerald-800/40 font-bold shadow-md shadow-emerald-950/50'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <DollarSign className="w-5 h-5" />
-                <span className="text-[10px]">Daromad</span>
+                <span className="text-[11px] font-semibold">Daromad</span>
               </button>
 
               {/* Tab 3: Profil */}
               <button
                 type="button"
                 onClick={() => setMainTab('profile')}
-                className={`py-2 px-2 rounded-xl flex flex-col items-center gap-1 transition relative ${
+                className={`py-2.5 px-2 rounded-xl flex flex-col items-center gap-1 transition relative ${
                   mainTab === 'profile'
-                    ? 'text-purple-400 bg-purple-950/60 font-bold'
+                    ? 'text-purple-400 bg-purple-950/70 border border-purple-800/40 font-bold shadow-md shadow-purple-950/50'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <User className="w-5 h-5" />
-                <span className="text-[10px]">Profil</span>
+                <span className="text-[11px] font-semibold">Profil</span>
               </button>
             </div>
           </div>

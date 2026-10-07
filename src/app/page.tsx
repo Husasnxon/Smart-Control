@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ActiveTab, Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, AssignedTechnician, PaymentDetails, CartItem, Currency, PurchaseInvoice, PurchasePaymentRecord, ServiceTicket, CustomerDebtPayment, ZReport, PayrollRecord, EmployeeAdvance, ObjectHandover, DEFAULT_ROLE_TABS } from '../types';
 import { 
   INITIAL_PRODUCTS, 
@@ -17,7 +17,7 @@ import {
   INITIAL_SERVICE_TICKETS, 
   INITIAL_CUSTOMER_DEBT_PAYMENTS, 
   INITIAL_PAYROLLS, 
-  INITIAL_ADVANCES,
+  INITIAL_ADVANCES, 
   INITIAL_HANDOVERS 
 } from '../data/mockData';
 import { Sidebar } from '../components/Sidebar';
@@ -39,6 +39,7 @@ import { ZReportModal } from '../components/ZReportModal';
 import { LoginScreen } from '../components/LoginScreen';
 import { getTelegramSettings, sendTelegramMessage, generateDailySalesReport } from '../utils/telegram';
 import { isTodayDate, getNowFormatted } from '../utils/formatters';
+import { playOrderNotificationSound } from '../utils/sound';
 import { CheckCircle2, CloudLightning, X } from 'lucide-react';
 
 export default function Home() {
@@ -233,7 +234,48 @@ export default function Home() {
     }
   }, []);
 
-  // 2. Har bir o'zgarishni (sotuv, xarajat, tovar, kirim, servis, qarz) darhol kompyuter xotirasiga yozib borish
+  const lastSyncedTimestampRef = useRef<number>(0);
+  const isSyncingRef = useRef<boolean>(false);
+
+  // Helper to push central snapshot to server
+  const pushDataToCloud = async (overrideData?: any) => {
+    try {
+      const payload = overrideData || {
+        products,
+        productCategories,
+        customers,
+        receipts,
+        expenses,
+        expenseCategories,
+        employees,
+        customerOrders,
+        shipments,
+        purchases,
+        serviceTickets,
+        customerDebtPayments,
+        payrolls,
+        advances,
+        handovers,
+        exchangeRate,
+        baseCurrency
+      };
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.timestamp) {
+          lastSyncedTimestampRef.current = json.timestamp;
+        }
+      }
+    } catch (e) {
+      console.warn('Cloud sync push error', e);
+    }
+  };
+
+  // 2. Har bir o'zgarishni darhol kompyuter xotirasiga va bulutga yozib borish
   useEffect(() => {
     if (!isLoaded) return;
     try {
@@ -253,10 +295,102 @@ export default function Home() {
       localStorage.setItem('sc_advances', JSON.stringify(advances));
       localStorage.setItem('sc_handovers', JSON.stringify(handovers));
       localStorage.setItem('sc_base_currency', baseCurrency);
+
+      // Push to central cloud sync
+      pushDataToCloud();
     } catch (e) {
       console.error("Local storage save error", e);
     }
   }, [products, productCategories, customers, receipts, expenses, expenseCategories, employees, customerOrders, shipments, purchases, serviceTickets, customerDebtPayments, payrolls, advances, handovers, baseCurrency, isLoaded]);
+
+  // 3. Real-time Cross-Device Cloud Sync Poller (Telefon va Kompyuter o'rtasida real-vaqtda sinxronizatsiya)
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    let isMounted = true;
+
+    const syncWithCloud = async () => {
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
+      try {
+        const res = await fetch('/api/sync', { cache: 'no-store' });
+        if (!res.ok) {
+          isSyncingRef.current = false;
+          return;
+        }
+        const json = await res.json();
+        
+        // If server is empty, push local state to initialize server
+        if (!json.data || !json.timestamp) {
+          pushDataToCloud();
+          isSyncingRef.current = false;
+          return;
+        }
+
+        // If server has newer data
+        if (json.timestamp > lastSyncedTimestampRef.current) {
+          lastSyncedTimestampRef.current = json.timestamp;
+          const remote = json.data;
+
+          if (remote.customerOrders) {
+            setCustomerOrders(prevOrders => {
+              // Check if a new order was assigned to the currently logged in technician
+              if (currentUser?.systemRole === 'technician' || currentUser?.role?.toLowerCase().includes('usta')) {
+                const prevIds = new Set(prevOrders.map(o => o.id));
+                const newAssignedJob = remote.customerOrders.find((o: any) => 
+                  !prevIds.has(o.id) && (
+                    o.technicianId === currentUser.id ||
+                    (o.technicians && o.technicians.some((t: any) => t.id === currentUser.id || t.fullName?.toLowerCase().includes(currentUser.fullName.toLowerCase())))
+                  )
+                );
+                if (newAssignedJob) {
+                  playOrderNotificationSound();
+                  showToast(`🔔 Yangi montaj topshirig'i keldi! (#${newAssignedJob.orderNumber})`);
+                }
+              }
+              return remote.customerOrders;
+            });
+          }
+
+          if (remote.products) setProducts(remote.products);
+          if (remote.customers) setCustomers(remote.customers);
+          if (remote.receipts) setReceipts(remote.receipts);
+          if (remote.expenses) setExpenses(remote.expenses);
+          if (remote.employees) setEmployees(remote.employees);
+          if (remote.shipments) setShipments(remote.shipments);
+          if (remote.purchases) setPurchases(remote.purchases);
+          if (remote.serviceTickets) setServiceTickets(remote.serviceTickets);
+          if (remote.handovers) setHandovers(remote.handovers);
+          if (remote.customerDebtPayments) setCustomerDebtPayments(remote.customerDebtPayments);
+          if (remote.payrolls) setPayrolls(remote.payrolls);
+          if (remote.advances) setAdvances(remote.advances);
+          if (remote.exchangeRate) setExchangeRate(remote.exchangeRate);
+          if (remote.baseCurrency) setBaseCurrency(remote.baseCurrency);
+        }
+      } catch (err) {
+        console.warn('Sync pull error:', err);
+      } finally {
+        if (isMounted) {
+          isSyncingRef.current = false;
+        }
+      }
+    };
+
+    // Initial sync
+    syncWithCloud();
+
+    // Poll every 3 seconds for fast cross-device sync
+    const intervalId = setInterval(syncWithCloud, 3000);
+
+    const onFocus = () => syncWithCloud();
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [isLoaded, currentUser]);
 
   // 3. Avtomatik 23:59 da Z-Hisobotni yopish va Telegramga yuborish
   useEffect(() => {
