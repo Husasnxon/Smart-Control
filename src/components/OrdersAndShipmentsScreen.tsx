@@ -47,7 +47,9 @@ import {
   ShieldCheck,
   ExternalLink,
   Navigation,
-  Check
+  Check,
+  Minus,
+  Hash
 } from 'lucide-react';
 import { OrderQuotationModal } from './OrderQuotationModal';
 import { HandoverModal } from './HandoverModal';
@@ -137,6 +139,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   const [manualSerialInput, setManualSerialInput] = useState<{ [itemIdx: number]: string }>({});
   const [shipmentPaymentMethod, setShipmentPaymentMethod] = useState<'cash' | 'card' | 'debt' | 'usd'>('cash');
   const [assignedTechnicians, setAssignedTechnicians] = useState<AssignedTechnician[]>([]);
+  const [shipmentProductSearch, setShipmentProductSearch] = useState('');
 
   // Open Order Modal for New or Edit
   const handleOpenNewOrder = () => {
@@ -347,6 +350,34 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
     handleOpenProcessShipment(newShipment);
   };
 
+  // Open New Shipment directly
+  const handleOpenNewShipment = () => {
+    const newShipmentNumber = `OTG-${2000 + shipments.length + 1}`;
+    const newShipment: ShipmentOrder = {
+      id: `shipment-${Date.now()}`,
+      shipmentNumber: newShipmentNumber,
+      createdAt: getNowFormatted(),
+      organization: 'WST Namangan',
+      customerName: 'Standart Xaridor',
+      warehouseName: 'Asosiy ombor',
+      currency: baseCurrency || 'UZS',
+      exchangeRate: exchangeRate > 0 ? exchangeRate : 12850,
+      items: [],
+      subtotal: 0,
+      discountTotal: 0,
+      totalAmount: 0,
+      totalAmountUSD: 0,
+      status: 'pending',
+      paymentMethod: 'cash'
+    };
+    setActiveShipment(newShipment);
+    setShipmentItemsWithSerials([]);
+    setShipmentPaymentMethod('cash');
+    setAssignedTechnicians([]);
+    setShipmentProductSearch('');
+    setIsShipmentModalOpen(true);
+  };
+
   // Open Shipment Processing Modal
   const handleOpenProcessShipment = (shipment: ShipmentOrder) => {
     setActiveShipment(shipment);
@@ -356,7 +387,89 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
     })));
     setShipmentPaymentMethod(shipment.paymentMethod || 'cash');
     setAssignedTechnicians(shipment.technicians ? [...shipment.technicians] : []);
+    setShipmentProductSearch('');
     setIsShipmentModalOpen(true);
+  };
+
+  // Add Product directly into Shipment
+  const handleAddProductToShipment = (product: Product) => {
+    if (!activeShipment) return;
+    const isUSD = activeShipment.currency === 'USD';
+    const rate = exchangeRate > 0 ? exchangeRate : 12850;
+    const unitPrice = isUSD 
+      ? (product.retailPriceUSD || Number((product.retailPrice / rate).toFixed(2)))
+      : product.retailPrice;
+    const unitPriceUSD = isUSD ? unitPrice : (product.retailPriceUSD || Number((product.retailPrice / rate).toFixed(2)));
+
+    setShipmentItemsWithSerials((prev) => {
+      const existingIdx = prev.findIndex((it) => it.productId === product.id);
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        const it = updated[existingIdx];
+        const newQty = it.quantity + 1;
+        const disc = (it.discountPercent || 0) / 100;
+        const discountedPrice = it.unitPrice * (1 - disc);
+        const rawTotal = newQty * discountedPrice;
+        updated[existingIdx] = {
+          ...it,
+          quantity: newQty,
+          totalPrice: isUSD ? Number(rawTotal.toFixed(2)) : Math.round(rawTotal)
+        };
+        return updated;
+      }
+
+      const newItem: OrderItem = {
+        productId: product.id,
+        productName: product.name,
+        quantity: 1,
+        unitPrice,
+        unitPriceUSD,
+        discountPercent: 0,
+        totalPrice: unitPrice,
+        unit: product.unit || 'dona',
+        hasSerialNumber: product.hasSerialNumber,
+        selectedSerialNumbers: []
+      };
+      return [...prev, newItem];
+    });
+  };
+
+  // Update Shipment Item Quantity / Price / Discount
+  const handleUpdateShipmentItem = (idx: number, field: 'quantity' | 'unitPrice' | 'discountPercent', val: number) => {
+    if (!activeShipment) return;
+    const isUSD = activeShipment.currency === 'USD';
+    const rate = exchangeRate > 0 ? exchangeRate : 12850;
+
+    setShipmentItemsWithSerials((prev) => {
+      const updated = [...prev];
+      const it = { ...updated[idx], [field]: val };
+      if (field === 'quantity' && val <= 0) {
+        return prev.filter((_, i) => i !== idx);
+      }
+      if (field === 'unitPrice') {
+        if (isUSD) {
+          it.unitPriceUSD = val;
+        } else {
+          it.unitPriceUSD = rate > 0 ? Number((val / rate).toFixed(2)) : undefined;
+        }
+      }
+      const disc = (it.discountPercent || 0) / 100;
+      const discountedPrice = it.unitPrice * (1 - disc);
+      const rawTotal = it.quantity * discountedPrice;
+      it.totalPrice = isUSD ? Number(rawTotal.toFixed(2)) : Math.round(rawTotal);
+
+      if (it.hasSerialNumber && it.selectedSerialNumbers && it.selectedSerialNumbers.length > it.quantity) {
+        it.selectedSerialNumbers = it.selectedSerialNumbers.slice(0, it.quantity);
+      }
+
+      updated[idx] = it;
+      return updated;
+    });
+  };
+
+  // Remove Item from Shipment
+  const handleRemoveShipmentItem = (idx: number) => {
+    setShipmentItemsWithSerials((prev) => prev.filter((_, i) => i !== idx));
   };
 
   // Toggle Serial Number in Shipment
@@ -444,9 +557,39 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
     setAssignedTechnicians((prev) => prev.filter((t) => t.id !== techId));
   };
 
+  // Save Shipment as Draft (pending)
+  const handleSaveShipmentDraft = () => {
+    if (!activeShipment) return;
+    const isUSD = activeShipment.currency === 'USD';
+    const rate = exchangeRate > 0 ? exchangeRate : 12850;
+    const currentSubtotal = shipmentItemsWithSerials.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0);
+    const currentTotal = shipmentItemsWithSerials.reduce((sum, it) => sum + it.totalPrice, 0);
+    const currentDiscount = currentSubtotal - currentTotal;
+    const totalAmountUSD = isUSD ? currentTotal : Number((currentTotal / rate).toFixed(2));
+
+    const updatedShipment: ShipmentOrder = {
+      ...activeShipment,
+      items: shipmentItemsWithSerials,
+      subtotal: isUSD ? Number(currentSubtotal.toFixed(2)) : Math.round(currentSubtotal),
+      discountTotal: isUSD ? Number(currentDiscount.toFixed(2)) : Math.round(currentDiscount),
+      totalAmount: isUSD ? Number(currentTotal.toFixed(2)) : Math.round(currentTotal),
+      totalAmountUSD,
+      technicians: assignedTechnicians,
+      paymentMethod: shipmentPaymentMethod
+    };
+
+    onSaveShipment(updatedShipment);
+    setIsShipmentModalOpen(false);
+  };
+
   // Complete Shipment & Sell
   const handleConfirmShipmentAndSell = () => {
     if (!activeShipment) return;
+
+    if (shipmentItemsWithSerials.length === 0) {
+      alert("Iltimos, otgruzka qilish uchun kamida bitta mahsulot qo'shing!");
+      return;
+    }
 
     // Validate that all serialized items have required serial numbers chosen!
     for (let i = 0; i < shipmentItemsWithSerials.length; i++) {
@@ -454,7 +597,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
       if (item.hasSerialNumber) {
         const chosen = item.selectedSerialNumbers?.length || 0;
         if (chosen < item.quantity) {
-          alert(`Diqqat! "${item.productName}" uchun ${item.quantity} ta seriya raqami kerak, lekin ${chosen} ta tanlangan. Iltimos, seriya raqamlarini to'liq kiriting!`);
+          alert(`Diqqat! "${item.productName}" uchun ${item.quantity} ta seriya raqami kerak, lekin ${chosen} ta kiritilgan. Iltimos, seriya raqamlarini to'liq tanlang yoki skaner qiling!`);
           return;
         }
       }
@@ -462,8 +605,12 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
 
     const isUSD = activeShipment.currency === 'USD';
     const rate = exchangeRate > 0 ? exchangeRate : 12850;
-    const totalAmountUZS = isUSD ? Math.round(activeShipment.totalAmount * rate) : activeShipment.totalAmount;
-    const totalAmountUSD = isUSD ? activeShipment.totalAmount : Number((activeShipment.totalAmount / rate).toFixed(2));
+    const currentSubtotal = shipmentItemsWithSerials.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0);
+    const currentTotal = shipmentItemsWithSerials.reduce((sum, it) => sum + it.totalPrice, 0);
+    const currentDiscount = currentSubtotal - currentTotal;
+
+    const totalAmountUZS = isUSD ? Math.round(currentTotal * rate) : currentTotal;
+    const totalAmountUSD = isUSD ? currentTotal : Number((currentTotal / rate).toFixed(2));
 
     const paymentDetails: PaymentDetails = {
       cash: shipmentPaymentMethod === 'cash' ? totalAmountUZS : 0,
@@ -478,19 +625,24 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
     const updatedShipment: ShipmentOrder = {
       ...activeShipment,
       items: shipmentItemsWithSerials,
+      subtotal: isUSD ? Number(currentSubtotal.toFixed(2)) : Math.round(currentSubtotal),
+      discountTotal: isUSD ? Number(currentDiscount.toFixed(2)) : Math.round(currentDiscount),
+      totalAmount: isUSD ? Number(currentTotal.toFixed(2)) : Math.round(currentTotal),
+      totalAmountUSD,
       technicians: assignedTechnicians,
       paymentMethod: shipmentPaymentMethod,
       status: 'shipped'
     };
 
     // Trigger complete sale & inventory deduction
+    onSaveShipment(updatedShipment);
     onCompleteShipmentSale(updatedShipment, paymentDetails, assignedTechnicians);
 
     // If linked to an order, mark the order as shipped
     if (activeShipment.orderId) {
       const linked = orders.find((o) => o.id === activeShipment.orderId);
       if (linked) {
-        onSaveOrder({ ...linked, status: 'shipped' });
+        onSaveOrder({ ...linked, status: 'shipped', shipmentId: updatedShipment.id });
       }
     }
 
@@ -610,24 +762,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
 
           {activeSubTab === 'shipments' && canCreateShipments && (
             <button
-              onClick={() => {
-                const dummyOrder: CustomerOrder = {
-                  id: `order-${Date.now()}`,
-                  orderNumber: `ZK-${1000 + orders.length + 1}`,
-                  createdAt: getNowFormatted(),
-                  organization: 'WST Namangan',
-                  customerName: 'Standart Xaridor',
-                  warehouseName: 'Asosiy ombor',
-                  currency: 'UZS',
-                  exchangeRate,
-                  items: [],
-                  subtotal: 0,
-                  discountTotal: 0,
-                  totalAmount: 0,
-                  status: 'new'
-                };
-                handleConvertOrderToShipment(dummyOrder);
-              }}
+              onClick={handleOpenNewShipment}
               className="px-4 py-2.5 rounded-xl font-extrabold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/30 transition flex items-center gap-2"
             >
               <Truck className="w-4 h-4" />
@@ -1794,370 +1929,710 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 2: SHIPMENT PROCESSING (OTGRUZKA & SERIYA RAQAMLARI) */}
+      {/* MODAL 2: SHIPMENT PROCESSING (OTGRUZKA & MAHSULOT QO'SHISH & SERIYA RAQAMLARI) */}
       {/* ======================================================== */}
-      {isShipmentModalOpen && activeShipment && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95 duration-150">
-            {/* Header matching Screenshot 2 */}
-            <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-emerald-50/60 dark:bg-emerald-950/20">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold">
-                  <Truck className="w-4 h-4" />
+      {isShipmentModalOpen && activeShipment && (() => {
+        const isUSD = activeShipment.currency === 'USD';
+        const rate = exchangeRate > 0 ? exchangeRate : 12850;
+        const currentSubtotal = shipmentItemsWithSerials.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
+        const currentTotal = shipmentItemsWithSerials.reduce((s, it) => s + it.totalPrice, 0);
+        const currentDiscount = currentSubtotal - currentTotal;
+        const totalItemsCount = shipmentItemsWithSerials.reduce((s, it) => s + it.quantity, 0);
+
+        const filteredShipmentProducts = products.filter((p) => {
+          if (!shipmentProductSearch.trim()) return false;
+          const q = shipmentProductSearch.toLowerCase().trim();
+          return (
+            p.name.toLowerCase().includes(q) ||
+            p.barcode.includes(q) ||
+            p.sku.toLowerCase().includes(q) ||
+            p.category.toLowerCase().includes(q) ||
+            (p.serialNumbers && p.serialNumbers.some((sn) => sn.toLowerCase().includes(q)))
+          );
+        });
+
+        const handleBarcodeOrProductSubmit = (e: React.FormEvent) => {
+          e.preventDefault();
+          const q = shipmentProductSearch.trim();
+          if (!q) return;
+
+          // 1. Check exact barcode or SKU match
+          const matched = products.find(
+            (p) => p.barcode === q || p.sku.toLowerCase() === q.toLowerCase() || p.name.toLowerCase() === q.toLowerCase()
+          );
+          if (matched) {
+            handleAddProductToShipment(matched);
+            setShipmentProductSearch('');
+            return;
+          }
+
+          // 2. If single item in filtered list
+          if (filteredShipmentProducts.length === 1) {
+            handleAddProductToShipment(filteredShipmentProducts[0]);
+            setShipmentProductSearch('');
+            return;
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95 duration-150">
+              {/* Header */}
+              <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-emerald-50/60 dark:bg-emerald-950/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold">
+                    <Truck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      Отгрузка № {activeShipment.shipmentNumber}
+                      {activeShipment.orderNumber && (
+                        <span className="text-[11px] font-normal text-slate-500">
+                          (Asos: {activeShipment.orderNumber})
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[10px] text-slate-500">
+                      Tashkilot: {activeShipment.organization} &bull; Mijoz: {activeShipment.customerName}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                    Отгрузка № {activeShipment.shipmentNumber}
-                    {activeShipment.orderNumber && (
-                      <span className="text-[11px] font-normal text-slate-500">
-                        (Asos: {activeShipment.orderNumber})
-                      </span>
-                    )}
-                  </h3>
-                  <p className="text-[10px] text-slate-500">
-                    Tashkilot: {activeShipment.organization} &bull; Mijoz: {activeShipment.customerName}
-                  </p>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveShipmentDraft}
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 font-bold text-xs flex items-center gap-1.5 transition"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Qoralama Saqlash</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsShipmentModalOpen(false)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsShipmentModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+              {/* Content Body */}
+              <div className="p-5 overflow-y-auto space-y-4">
+                {/* Top Info / Customer & Warehouse Selection */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/40 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                  {/* Mijoz / Kontragent */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                        * Kontragent (Mijoz):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddCustomerOpen(true)}
+                        className="text-[10px] text-emerald-600 hover:underline font-bold flex items-center gap-0.5"
+                      >
+                        <Plus className="w-3 h-3" /> Yangi
+                      </button>
+                    </div>
+                    <select
+                      value={activeShipment.customerId || ''}
+                      onChange={(e) => {
+                        const custId = e.target.value;
+                        const c = customers.find((cust) => cust.id === custId);
+                        setActiveShipment((prev) => prev ? ({
+                          ...prev,
+                          customerId: custId || undefined,
+                          customerName: c ? c.fullName : 'Standart Xaridor',
+                          customerPhone: c ? c.phone : undefined,
+                          deliveryAddress: c?.phone ? `Tel: ${c.phone}` : prev.deliveryAddress
+                        }) : null);
+                      }}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">-- Standart Xaridor --</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.fullName} ({c.phone}) - {c.tier}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-            {/* Content Body */}
-            <div className="p-5 overflow-y-auto space-y-4">
-              {/* Instructions banner */}
-              <div className="p-3 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900/50 rounded-xl flex items-start gap-2.5 text-xs text-sky-900 dark:text-sky-300">
-                <Barcode className="w-4 h-4 shrink-0 mt-0.5 text-sky-600" />
-                <div>
-                  <span className="font-bold">Seriya raqamlarini kiritish (Маркировка):</span> Har bir qurilma (kamera, domofon, blok) uchun ombordagi aynan topshirilayotgan seriya raqami (S/N) ni belgilang yoki skaner qiling.
+                  {/* Ombor */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      * Ombor (Склад):
+                    </label>
+                    <input
+                      type="text"
+                      value={activeShipment.warehouseName || 'Asosiy ombor'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setActiveShipment((prev) => prev ? { ...prev, warehouseName: val } : null);
+                      }}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  {/* Yetkazish manzili */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      Yetkazish manzili / Obyekt:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Manzil, bino yoki tel..."
+                      value={activeShipment.deliveryAddress || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setActiveShipment((prev) => prev ? { ...prev, deliveryAddress: val } : null);
+                      }}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  {/* Valyuta */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      Hujjat Valyutasi:
+                    </label>
+                    <div className="flex rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeShipment.currency === 'UZS') return;
+                          setActiveShipment((prev) => prev ? { ...prev, currency: 'UZS' } : null);
+                          setShipmentItemsWithSerials((prev) =>
+                            prev.map((it) => {
+                              const newPrice = Math.round(it.unitPrice * rate);
+                              const disc = (it.discountPercent || 0) / 100;
+                              return {
+                                ...it,
+                                unitPrice: newPrice,
+                                totalPrice: Math.round(it.quantity * newPrice * (1 - disc))
+                              };
+                            })
+                          );
+                        }}
+                        className={`flex-1 py-1 text-xs font-extrabold rounded-md transition ${
+                          activeShipment.currency === 'UZS'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        SO&apos;M (UZS)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeShipment.currency === 'USD') return;
+                          setActiveShipment((prev) => prev ? { ...prev, currency: 'USD' } : null);
+                          setShipmentItemsWithSerials((prev) =>
+                            prev.map((it) => {
+                              const newPrice = it.unitPriceUSD && it.unitPriceUSD > 0
+                                ? it.unitPriceUSD
+                                : Number((it.unitPrice / rate).toFixed(2));
+                              const disc = (it.discountPercent || 0) / 100;
+                              return {
+                                ...it,
+                                unitPrice: newPrice,
+                                totalPrice: Number((it.quantity * newPrice * (1 - disc)).toFixed(2))
+                              };
+                            })
+                          );
+                        }}
+                        className={`flex-1 py-1 text-xs font-extrabold rounded-md transition ${
+                          activeShipment.currency === 'USD'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        USD ($)
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Items with Serial Number Pickers matching Screenshot 2 */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                <div className="bg-slate-50 dark:bg-slate-800/80 px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                  <span>Наименование & Маркировка (Seriya raqamlari S/N)</span>
-                  <span>Miqdor / Summa</span>
-                </div>
+                {/* PRODUCT SEARCH & ADD SECTION (MAHSULOT QO'SHISH) */}
+                <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border-2 border-emerald-500/40 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold text-emerald-900 dark:text-emerald-300 flex items-center gap-2">
+                      <Package className="w-4 h-4 text-emerald-600" />
+                      Otgruzkaga tovar yoki xizmat qo&apos;shish:
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Shtrixkod skanerlang yoki tovar nomini yozing
+                    </span>
+                  </div>
 
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {shipmentItemsWithSerials.map((item, idx) => {
-                    const catalogProd = products.find((p) => p.id === item.productId);
-                    const availableWarehouseSerials = catalogProd?.serialNumbers || [];
-                    const selectedSerials = item.selectedSerialNumbers || [];
-                    const isFullySelected = selectedSerials.length === item.quantity;
+                  <form onSubmit={handleBarcodeOrProductSubmit} className="relative">
+                    <div className="relative flex items-center">
+                      <Barcode className="w-4 h-4 text-emerald-600 absolute left-3 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={shipmentProductSearch}
+                        onChange={(e) => setShipmentProductSearch(e.target.value)}
+                        placeholder="Mahsulot nomi, shtrixkod yoki modelini qidirish..."
+                        className="w-full pl-9 pr-24 py-2 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 focus:border-emerald-500 rounded-lg text-xs font-semibold text-slate-900 dark:text-white outline-none shadow-sm"
+                      />
+                      {shipmentProductSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setShipmentProductSearch('')}
+                          className="absolute right-20 text-slate-400 hover:text-slate-600 p-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={!shipmentProductSearch.trim()}
+                        className="absolute right-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-md text-xs font-bold transition shadow"
+                      >
+                        + Qo&apos;shish
+                      </button>
+                    </div>
 
-                    return (
-                      <div key={idx} className="p-4 space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900 dark:text-white text-xs">
-                                {item.productName}
-                              </span>
-                              {item.hasSerialNumber && (
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  isFullySelected 
-                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300' 
-                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
-                                }`}>
-                                  {isFullySelected ? `✓ ${item.quantity}/${item.quantity} S/N kiritildi` : `⚠ ${selectedSerials.length}/${item.quantity} S/N tanlandi`}
-                                </span>
-                              )}
+                    {/* Autocomplete dropdown */}
+                    {shipmentProductSearch.trim() && filteredShipmentProducts.length > 0 && (
+                      <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in zoom-in-95 duration-100">
+                        {filteredShipmentProducts.map((p) => {
+                          const itemPrice = isUSD
+                            ? (p.retailPriceUSD || Number((p.retailPrice / rate).toFixed(2)))
+                            : p.retailPrice;
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                handleAddProductToShipment(p);
+                                setShipmentProductSearch('');
+                              }}
+                              className="p-2.5 hover:bg-emerald-50/80 dark:hover:bg-slate-800/80 cursor-pointer flex items-center justify-between text-xs transition"
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                                  <Package className="w-3.5 h-3.5" />
+                                </div>
+                                <div>
+                                  <div className="font-bold text-slate-800 dark:text-slate-100">{p.name}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    {p.barcode} &bull; Qoldiq: <strong>{p.stockQuantity} {p.unit}</strong>
+                                    {p.hasSerialNumber && ' • S/N mavjud'}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                                  {isUSD ? `$${formatUSDNumber(itemPrice)}` : `${formatNumberWithSpaces(itemPrice)} so'm`}
+                                </div>
+                                <span className="text-[10px] text-sky-600 font-bold">+ Tanlash</span>
+                              </div>
                             </div>
-                            <span className="text-[10px] text-slate-400">
-                              Birlik: {item.unit} &bull; Ombordagi jami qoldiq: {catalogProd?.stockQuantity ?? 0}
-                            </span>
-                          </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </form>
+                </div>
 
-                          <div className="text-right">
-                            <span className="font-mono font-extrabold text-xs text-slate-900 dark:text-white block">
-                              {activeShipment?.currency === 'USD'
-                                ? `${item.quantity} ${item.unit} x $${formatUSDNumber(item.unitPrice)} = $${formatUSDNumber(item.totalPrice)}`
-                                : `${item.quantity} ${item.unit} x ${formatNumberWithSpaces(item.unitPrice)} = ${formatNumberWithSpaces(item.totalPrice)} so'm`}
-                            </span>
-                          </div>
-                        </div>
+                {/* Items with Serial Number Pickers */}
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                  <div className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                    <span>Otgruzkadagi Mahsulotlar & S/N ({shipmentItemsWithSerials.length} ta pozitsiya)</span>
+                    <span>Miqdor / Summa</span>
+                  </div>
 
-                        {/* Serial Numbers selector if serialized */}
-                        {item.hasSerialNumber && (
-                          <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700/80 space-y-2">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                                <Barcode className="w-3.5 h-3.5 text-sky-600" />
-                                Ombordagi mavjud S/N lardan tanlang yoki skaner qiling:
-                              </span>
+                  {shipmentItemsWithSerials.length === 0 ? (
+                    <div className="p-8 text-center space-y-2 bg-white dark:bg-slate-900">
+                      <Package className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                        Otgruzkada hali mahsulotlar yo&apos;q
+                      </p>
+                      <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                        Yuqoridagi qidiruv maydonidan mahsulot tanlang yoki shtrixkod skaneri orqali qo&apos;shing.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {shipmentItemsWithSerials.map((item, idx) => {
+                        const catalogProd = products.find((p) => p.id === item.productId);
+                        const availableWarehouseSerials = catalogProd?.serialNumbers || [];
+                        const selectedSerials = item.selectedSerialNumbers || [];
+                        const isFullySelected = selectedSerials.length === item.quantity;
 
-                              {/* Manual Input for scanning S/N */}
-                              <div className="flex items-center gap-1.5">
-                                <input
-                                  type="text"
-                                  placeholder="Skaner / Yangi S/N..."
-                                  value={manualSerialInput[idx] || ''}
-                                  onChange={(e) => setManualSerialInput((prev) => ({ ...prev, [idx]: e.target.value }))}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      handleAddManualSerial(idx);
-                                    }
-                                  }}
-                                  className="w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs font-mono outline-none"
-                                />
+                        return (
+                          <div key={idx} className="p-4 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              {/* Product Info */}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-900 dark:text-white text-xs">
+                                    {item.productName}
+                                  </span>
+                                  {item.hasSerialNumber && (
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      isFullySelected 
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300' 
+                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
+                                    }`}>
+                                      {isFullySelected ? `✓ ${item.quantity}/${item.quantity} S/N kiritildi` : `⚠ ${selectedSerials.length}/${item.quantity} S/N tanlandi`}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-slate-400">
+                                  Birlik: {item.unit} &bull; Ombordagi qoldiq: {catalogProd?.stockQuantity ?? 0} {item.unit}
+                                </span>
+                              </div>
+
+                              {/* Editable Quantity, Price, Total & Delete */}
+                              <div className="flex items-center gap-3">
+                                {/* Quantity editor */}
+                                <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateShipmentItem(idx, 'quantity', item.quantity - 1)}
+                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={item.quantity}
+                                    onChange={(e) => handleUpdateShipmentItem(idx, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
+                                    className="w-10 bg-transparent text-center font-mono font-bold text-xs text-slate-900 dark:text-white outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateShipmentItem(idx, 'quantity', item.quantity + 1)}
+                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </button>
+                                </div>
+
+                                {/* Unit Price editor */}
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] text-slate-400">{isUSD ? '$' : 'so\'m'}</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={item.unitPrice}
+                                    onChange={(e) => handleUpdateShipmentItem(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                    className="w-24 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1 text-xs font-mono font-bold text-slate-900 dark:text-white text-right outline-none"
+                                  />
+                                </div>
+
+                                {/* Total Price */}
+                                <div className="w-28 text-right font-mono font-extrabold text-xs text-emerald-700 dark:text-emerald-300">
+                                  {isUSD
+                                    ? `$${formatUSDNumber(item.totalPrice)}`
+                                    : `${formatNumberWithSpaces(item.totalPrice)} so'm`}
+                                </div>
+
+                                {/* Delete item */}
                                 <button
                                   type="button"
-                                  onClick={() => handleAddManualSerial(idx)}
-                                  className="px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded text-xs font-bold"
+                                  onClick={() => handleRemoveShipmentItem(idx)}
+                                  className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                                  title="O'chirish"
                                 >
-                                  +
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
                             </div>
 
-                            {/* Available Serials Chips */}
-                            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                              {availableWarehouseSerials.length === 0 && selectedSerials.length === 0 ? (
-                                <span className="text-xs text-rose-500 italic">
-                                  Omborda ushbu tovar uchun seriya raqami topilmadi! Yuqoridagi maydondan kiritishingiz mumkin.
-                                </span>
-                              ) : (
-                                <>
-                                  {availableWarehouseSerials.map((sn) => {
-                                    const isChecked = selectedSerials.includes(sn);
-                                    return (
-                                      <button
-                                        type="button"
-                                        key={sn}
-                                        onClick={() => handleToggleShipmentSerial(idx, sn)}
-                                        className={`px-2.5 py-1 rounded text-xs font-mono border transition ${
-                                          isChecked
-                                            ? 'bg-emerald-600 text-white border-emerald-700 font-bold shadow-sm'
-                                            : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-emerald-500'
-                                        }`}
-                                      >
-                                        {sn} {isChecked ? '✓' : ''}
-                                      </button>
-                                    );
-                                  })}
+                            {/* Serial Numbers selector if serialized */}
+                            {item.hasSerialNumber && (
+                              <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700/80 space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                    <Barcode className="w-3.5 h-3.5 text-sky-600" />
+                                    Ombordagi mavjud S/N lardan tanlang yoki skaner qiling:
+                                  </span>
 
-                                  {/* Custom serials that were added manually */}
-                                  {selectedSerials
-                                    .filter((s) => !availableWarehouseSerials.includes(s))
-                                    .map((sn) => (
-                                      <button
-                                        type="button"
-                                        key={sn}
-                                        onClick={() => handleToggleShipmentSerial(idx, sn)}
-                                        className="px-2.5 py-1 rounded text-xs font-mono border bg-emerald-600 text-white border-emerald-700 font-bold shadow-sm"
-                                      >
-                                        {sn} ✓
-                                      </button>
-                                    ))}
-                                </>
-                              )}
-                            </div>
+                                  {/* Manual Input for scanning S/N */}
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      type="text"
+                                      placeholder="Skaner / Yangi S/N..."
+                                      value={manualSerialInput[idx] || ''}
+                                      onChange={(e) => setManualSerialInput((prev) => ({ ...prev, [idx]: e.target.value }))}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          handleAddManualSerial(idx);
+                                        }
+                                      }}
+                                      className="w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono outline-none focus:ring-1 focus:ring-sky-500"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddManualSerial(idx)}
+                                      className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-sm"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Available Serials Chips */}
+                                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                                  {availableWarehouseSerials.length === 0 && selectedSerials.length === 0 ? (
+                                    <span className="text-xs text-rose-500 italic">
+                                      Omborda ushbu tovar uchun avvaldan kiritilgan seriya raqami yo&apos;q. Yuqoridagi maydondan skaner qilib kiritishingiz mumkin.
+                                    </span>
+                                  ) : (
+                                    <>
+                                      {availableWarehouseSerials.map((sn) => {
+                                        const isChecked = selectedSerials.includes(sn);
+                                        return (
+                                          <button
+                                            type="button"
+                                            key={sn}
+                                            onClick={() => handleToggleShipmentSerial(idx, sn)}
+                                            className={`px-2.5 py-1 rounded-lg text-xs font-mono border transition flex items-center gap-1 ${
+                                              isChecked
+                                                ? 'bg-emerald-600 text-white border-emerald-700 font-bold shadow-sm'
+                                                : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-emerald-500'
+                                            }`}
+                                          >
+                                            <Hash className="w-3 h-3 opacity-60" />
+                                            <span>{sn}</span>
+                                            {isChecked && <Check className="w-3.5 h-3.5 ml-0.5" />}
+                                          </button>
+                                        );
+                                      })}
+
+                                      {/* Custom serials that were added manually */}
+                                      {selectedSerials
+                                        .filter((s) => !availableWarehouseSerials.includes(s))
+                                        .map((sn) => (
+                                          <button
+                                            type="button"
+                                            key={sn}
+                                            onClick={() => handleToggleShipmentSerial(idx, sn)}
+                                            className="px-2.5 py-1 rounded-lg text-xs font-mono border bg-emerald-600 text-white border-emerald-700 font-bold shadow-sm flex items-center gap-1"
+                                          >
+                                            <Hash className="w-3 h-3 opacity-60" />
+                                            <span>{sn}</span>
+                                            <Check className="w-3.5 h-3.5 ml-0.5" />
+                                          </button>
+                                        ))}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Technicians (Ustalar) Allocation for installation */}
-              <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <HardHat className="w-4 h-4 text-amber-500" />
-                    Obyektga biriktirilgan montajchi ustalar ({assignedTechnicians.length} ta):
-                  </span>
-
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        handleAddTechToShipment(e.target.value);
-                        e.target.value = '';
-                      }
-                    }}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200"
-                  >
-                    <option value="">+ Usta biriktirish</option>
-                    {employees
-                      .filter((e) => !assignedTechnicians.some((t) => t.id === e.id))
-                      .map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.fullName} ({e.role})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                {assignedTechnicians.length > 0 && (
-                  <div className="space-y-2">
-                    {assignedTechnicians.map((t) => (
-                      <div
-                        key={t.id}
-                        className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
-                      >
-                        <div>
-                          <span className="font-bold text-slate-800 dark:text-slate-100 block">{t.fullName}</span>
-                          <span className="text-[10px] text-slate-500">{t.role} &bull; {t.phone}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-slate-400 font-bold">$</span>
-                            <input
-                              type="number"
-                              placeholder="0"
-                              value={t.wageUSD || ''}
-                              onChange={(e) => handleUpdateTechWage(t.id, 'wageUSD', parseFloat(e.target.value) || 0)}
-                              className="w-16 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-xs font-mono font-bold text-right"
-                            />
-                          </div>
-
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              placeholder="So'm"
-                              value={t.wageUZS || ''}
-                              onChange={(e) => handleUpdateTechWage(t.id, 'wageUZS', parseInt(e.target.value) || 0)}
-                              className="w-24 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-xs font-mono font-bold text-right"
-                            />
-                            <span className="text-[10px] text-slate-400">so&apos;m</span>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTechFromShipment(t.id)}
-                            className="p-1 text-rose-500 hover:bg-rose-50 rounded"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Payment Method Selector */}
-              <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                  To&apos;lov qanday qabul qilinadi?
-                </span>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShipmentPaymentMethod('cash')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                      shipmentPaymentMethod === 'cash'
-                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <Banknote className="w-4 h-4" /> Naqd pul
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShipmentPaymentMethod('card')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                      shipmentPaymentMethod === 'card'
-                        ? 'bg-blue-600 text-white border-blue-700 shadow-sm'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <CreditCard className="w-4 h-4" /> Karta / O&apos;tkazma
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShipmentPaymentMethod('debt')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                      shipmentPaymentMethod === 'debt'
-                        ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <Coins className="w-4 h-4" /> Nasiya (Qarz)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShipmentPaymentMethod('usd')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                      shipmentPaymentMethod === 'usd'
-                        ? 'bg-cyan-600 text-white border-cyan-700 shadow-sm'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <DollarSign className="w-4 h-4" /> Dollar ($ USD)
-                  </button>
-                </div>
-              </div>
-
-              {/* Total Box matching Screenshot 2 */}
-              <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/60 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <span className="text-xs text-emerald-800 dark:text-emerald-300 font-bold block">
-                    Otgruzka & Sotuvning umumiy summasi:
-                  </span>
-                  <span className="text-xs text-slate-500">
-                    Mijoz: {activeShipment.customerName} &bull; Manzil: {activeShipment.deliveryAddress || 'Standart'}
-                  </span>
-                </div>
-
-                <div className="text-right">
-                  <div className="text-xl font-black text-emerald-700 dark:text-emerald-300 font-mono">
-                    {activeShipment.currency === 'USD'
-                      ? `$${formatUSDNumber(activeShipment.totalAmount)}`
-                      : `${formatNumberWithSpaces(activeShipment.totalAmount)} so'm`}
-                  </div>
-                  {exchangeRate > 0 && (
-                    <div className="text-xs font-bold text-slate-500 font-mono">
-                      {activeShipment.currency === 'USD'
-                        ? `~ ${formatNumberWithSpaces(activeShipment.totalAmount * (activeShipment.exchangeRate || exchangeRate))} so'm`
-                        : `~ $${formatUSDNumber(activeShipment.totalAmount / (activeShipment.exchangeRate || exchangeRate))} USD`}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
+
+                {/* Technicians (Ustalar) Allocation for installation */}
+                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <HardHat className="w-4 h-4 text-amber-500" />
+                      Obyektga biriktirilgan montajchi ustalar ({assignedTechnicians.length} ta):
+                    </span>
+
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleAddTechToShipment(e.target.value);
+                          e.target.value = '';
+                        }
+                      }}
+                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200"
+                    >
+                      <option value="">+ Usta biriktirish</option>
+                      {employees
+                        .filter((e) => !assignedTechnicians.some((t) => t.id === e.id))
+                        .map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.fullName} ({e.role})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {assignedTechnicians.length > 0 && (
+                    <div className="space-y-2">
+                      {assignedTechnicians.map((t) => (
+                        <div
+                          key={t.id}
+                          className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                        >
+                          <div>
+                            <span className="font-bold text-slate-800 dark:text-slate-100 block">{t.fullName}</span>
+                            <span className="text-[10px] text-slate-500">{t.role} &bull; {t.phone}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-slate-400 font-bold">$</span>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                value={t.wageUSD || ''}
+                                onChange={(e) => handleUpdateTechWage(t.id, 'wageUSD', parseFloat(e.target.value) || 0)}
+                                className="w-16 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-xs font-mono font-bold text-right"
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                placeholder="So'm"
+                                value={t.wageUZS || ''}
+                                onChange={(e) => handleUpdateTechWage(t.id, 'wageUZS', parseInt(e.target.value) || 0)}
+                                className="w-24 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-xs font-mono font-bold text-right"
+                              />
+                              <span className="text-[10px] text-slate-400">so&apos;m</span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTechFromShipment(t.id)}
+                              className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Payment Method Selector */}
+                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    To&apos;lov qanday qabul qilinadi?
+                  </span>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShipmentPaymentMethod('cash')}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                        shipmentPaymentMethod === 'cash'
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <Banknote className="w-4 h-4" /> Naqd pul
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShipmentPaymentMethod('card')}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                        shipmentPaymentMethod === 'card'
+                          ? 'bg-blue-600 text-white border-blue-700 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <CreditCard className="w-4 h-4" /> Karta / O&apos;tkazma
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShipmentPaymentMethod('debt')}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                        shipmentPaymentMethod === 'debt'
+                          ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <Coins className="w-4 h-4" /> Nasiya (Qarz)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShipmentPaymentMethod('usd')}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                        shipmentPaymentMethod === 'usd'
+                          ? 'bg-cyan-600 text-white border-cyan-700 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <DollarSign className="w-4 h-4" /> Dollar ($ USD)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Total Box */}
+                <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/60 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs text-emerald-800 dark:text-emerald-300 font-bold block">
+                      Otgruzka & Sotuvning umumiy summasi:
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      Pozitsiyalar: <strong>{shipmentItemsWithSerials.length}</strong> &bull; Jami tovar: <strong>{totalItemsCount} dona</strong> &bull; Mijoz: <strong>{activeShipment.customerName}</strong>
+                    </span>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-xl font-black text-emerald-700 dark:text-emerald-300 font-mono">
+                      {isUSD
+                        ? `$${formatUSDNumber(currentTotal)}`
+                        : `${formatNumberWithSpaces(currentTotal)} so'm`}
+                    </div>
+                    {rate > 0 && (
+                      <div className="text-xs font-bold text-slate-500 font-mono">
+                        {isUSD
+                          ? `~ ${formatNumberWithSpaces(currentTotal * rate)} so'm`
+                          : `~ $${formatUSDNumber(currentTotal / rate)} USD`}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Actions */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsShipmentModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition"
+                >
+                  Bekor qilish
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveShipmentDraft}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-300 transition flex items-center gap-1.5"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Qoralama Saqlash</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleConfirmShipmentAndSell}
+                    disabled={activeShipment.status === 'shipped' || shipmentItemsWithSerials.length === 0}
+                    className="px-6 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-2"
+                  >
+                    <PackageCheck className="w-4 h-4" />
+                    <span>
+                      Otgruzka Qilish va Sotuvni Yakunlash ({isUSD
+                        ? `$${formatUSDNumber(currentTotal)}`
+                        : `${formatNumberWithSpaces(currentTotal)} so'm`})
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
-
-            {/* Bottom Actions */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => setIsShipmentModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition"
-              >
-                Bekor qilish
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmShipmentAndSell}
-                disabled={activeShipment.status === 'shipped'}
-                className="px-6 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-2"
-              >
-                <PackageCheck className="w-4 h-4" />
-                <span>
-                  Otgruzka Qilish va Sotuvni Yakunlash ({activeShipment.currency === 'USD'
-                    ? `$${formatUSDNumber(activeShipment.totalAmount)}`
-                    : `${formatNumberWithSpaces(activeShipment.totalAmount)} so'm`})
-                </span>
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL 3: Printable Smeta Quotation Modal */}
       <OrderQuotationModal
