@@ -64,6 +64,7 @@ export default function Home() {
   const [aiInsights, setAiInsights] = useState<AIInsight[]>(INITIAL_AI_INSIGHTS);
   const [exchangeRate, setExchangeRate] = useState<number>(12850);
   const [baseCurrency, setBaseCurrency] = useState<Currency>('UZS');
+  const [technicianSubTab, setTechnicianSubTab] = useState<string>('active_jobs');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isZReportOpen, setIsZReportOpen] = useState<boolean>(false);
@@ -530,6 +531,31 @@ export default function Home() {
       );
     }
 
+    // 6. Realtime Telegram dispatch to bot if a technician is assigned
+    if (hasAssignedTech) {
+      try {
+        const tg = getTelegramSettings();
+        if (tg.enabled && tg.botToken && tg.chatId) {
+          const techNames = newReceipt.technicians?.map(t => t.fullName).join(', ') || newReceipt.technicianName || 'Usta';
+          const techWageInfo = newReceipt.technicians && newReceipt.technicians.length > 0
+            ? `\n💵 *Usta xizmat haqi:* ${newReceipt.technicians.map(t => `${t.fullName}: $${t.wageUSD || Number(((t.wageUZS || 0) / exchangeRate).toFixed(1))}`).join(', ')}`
+            : '';
+          const itemsList = newReceipt.items.map(it => ` • ${it.product.name} (${it.quantity} ${it.product.unit || 'dona'})`).join('\n');
+          const msg = `🛠️ *YANGI MONTAJ / OBYEKT TOPSHIRIG'I!*\n\n` +
+            `🧾 *Chek / Buyurtma:* #${newReceipt.receiptNumber}\n` +
+            `👷‍♂️ *Biriktirilgan Usta:* ${techNames}\n` +
+            `👤 *Mijoz:* ${newReceipt.customer?.fullName || 'Noma\'lum Mijoz'} (${newReceipt.customer?.phone || '—'})\n` +
+            `📍 *Manzil:* ${newReceipt.installationAddress || 'Ko\'rsatilmagan'}\n` +
+            `📦 *Obyekt tovarlari:*\n${itemsList}` +
+            techWageInfo +
+            `\n\n📱 *Usta ilovasida obyekt ochildi va topshirishga tayyor.*`;
+          sendTelegramMessage(tg.botToken, tg.chatId, msg);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     if (newReceipt.isOffline) {
       showToast("⚡ Chek oflayn saqlandi! Tarmoq ulanganda bulutga sinxronlanadi.");
     } else {
@@ -992,6 +1018,31 @@ export default function Home() {
     setShipments((prev) =>
       prev.map((s) => (s.id === shipment.id ? { ...shipment, status: 'shipped', receiptId: newReceipt.id } : s))
     );
+
+    // Realtime Telegram notification to bot if technicians are assigned
+    if (assignedTechs.length > 0) {
+      try {
+        const tg = getTelegramSettings();
+        if (tg.enabled && tg.botToken && tg.chatId) {
+          const techNames = assignedTechs.map((t) => t.fullName).join(', ');
+          const techWageInfo = assignedTechs.length > 0
+            ? `\n💵 *Usta xizmat haqi:* ${assignedTechs.map((t) => `${t.fullName}: $${t.wageUSD || Number(((t.wageUZS || 0) / exchangeRate).toFixed(1))}`).join(', ')}`
+            : '';
+          const itemsList = shipment.items.map((it) => ` • ${it.productName} (${it.quantity} ${it.unit || 'dona'})`).join('\n');
+          const msg = `📦 *YANGI OTGRUZKA / MONTAJ TOPSHIRIG'I!*\n\n` +
+            `🧾 *Otgruzka raqami:* #${shipment.shipmentNumber}\n` +
+            `👷‍♂️ *Biriktirilgan Usta:* ${techNames}\n` +
+            `👤 *Mijoz:* ${shipment.customerName} (${shipment.customerPhone || '—'})\n` +
+            `📍 *Manzil:* ${shipment.deliveryAddress || 'Ko\'rsatilmagan'}\n` +
+            `📦 *Obyekt tovarlari:*\n${itemsList}` +
+            techWageInfo +
+            `\n\n📱 *Usta ilovasida yangi obyekt ochildi.*`;
+          sendTelegramMessage(tg.botToken, tg.chatId, msg);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
 
     showToast(`✓ Otgruzka muvaffaqiyatli yakunlandi! Sotuv cheki ${newReceiptNumber} yaratildi.${assignedTechs.length > 0 ? " Ustaga montaj vazifasi yuborildi." : ""}`);
   };
@@ -1488,6 +1539,8 @@ export default function Home() {
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        technicianSubTab={technicianSubTab}
+        onSelectTechnicianSubTab={setTechnicianSubTab}
         offlineCount={offlineCount}
         isOffline={isOffline}
         activeServiceCount={activeServiceCount}
@@ -1749,9 +1802,12 @@ export default function Home() {
               customers={customers}
               exchangeRate={exchangeRate}
               baseCurrency={baseCurrency}
+              initialSubTab={technicianSubTab}
               onSaveHandover={handleSaveHandover}
               onSaveOrder={handleSaveOrder}
+              onUpdateServiceTicket={handleUpdateServiceTicket}
               onUpdateEmployeeStatus={handleUpdateEmployeeStatus}
+              onUpdateEmployee={handleUpdateEmployee}
             />
           )}
         </main>

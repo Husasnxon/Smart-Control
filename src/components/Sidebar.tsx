@@ -25,6 +25,8 @@ import {
 interface SidebarProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
+  technicianSubTab?: string;
+  onSelectTechnicianSubTab?: (subTab: string) => void;
   offlineCount: number;
   isOffline: boolean;
   activeServiceCount?: number;
@@ -39,6 +41,8 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
+  technicianSubTab = 'active_jobs',
+  onSelectTechnicianSubTab,
   offlineCount,
   isOffline,
   activeServiceCount,
@@ -49,6 +53,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen = false,
   onCloseMobile
 }) => {
+  const isTechUser = currentUser?.systemRole === 'technician' || 
+    (currentUser?.role.toLowerCase().includes('usta') && currentUser?.systemRole !== 'admin' && currentUser?.systemRole !== 'manager');
+
+  const techNavItems = [
+    { id: 'technician_portal' as ActiveTab, subTab: 'active_jobs', label: 'Usta Kabineti (Obyektlar)', icon: HardHat, badge: 'Obyektlar', color: 'text-purple-400' },
+    { id: 'technician_portal' as ActiveTab, subTab: 'estimates', label: 'Smeta & Hisob-kitob', icon: FileSpreadsheet, badge: 'Smeta', color: 'text-sky-400' },
+    { id: 'technician_portal' as ActiveTab, subTab: 'completed_handovers', label: 'Topshirilgan Ish Aktlari', icon: ShieldCheck, badge: 'Aktlar', color: 'text-emerald-400' },
+    { id: 'technician_portal' as ActiveTab, subTab: 'service_tasks', label: 'Kafolat & Servis', icon: Cpu, badge: 'Servis', color: 'text-teal-400' },
+  ];
+
   const allNavItems = [
     { id: 'dashboard' as ActiveTab, label: 'Dashboard (Tahlil)', icon: LayoutDashboard, badge: 'Tahlil', color: 'text-emerald-400' },
     { id: 'financial_reports' as ActiveTab, label: 'Hisobotlar & P&L', icon: BarChart3, badge: 'P&L', color: 'text-emerald-400' },
@@ -67,8 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const allowedTabs = React.useMemo(() => {
     if (!currentUser) return allNavItems.map(n => n.id);
 
-    // Ustalar uchun faqat Usta Kabineti (barcha qismlar kabinetning ichida joylashgan)
-    if (currentUser.systemRole === 'technician' || (currentUser.role.toLowerCase().includes('usta') && currentUser.systemRole !== 'admin' && currentUser.systemRole !== 'manager')) {
+    if (isTechUser) {
       return ['technician_portal'] as ActiveTab[];
     }
 
@@ -90,13 +103,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }
     }
     return tabs;
-  }, [currentUser]);
+  }, [currentUser, isTechUser]);
 
   // Filter visible tabs
   const navItems = allNavItems.filter((item) => allowedTabs.includes(item.id));
 
-  const handleSelectTab = (tabId: ActiveTab) => {
+  const handleSelectTab = (tabId: ActiveTab, subTab?: string) => {
     setActiveTab(tabId);
+    if (subTab && onSelectTechnicianSubTab) {
+      onSelectTechnicianSubTab(subTab);
+    }
     if (onCloseMobile) {
       onCloseMobile();
     }
@@ -153,35 +169,67 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation Items */}
         <nav className="p-3 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleSelectTab(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
-                  isActive
-                    ? 'bg-gradient-to-r from-emerald-600/90 to-teal-600/90 text-white shadow-md shadow-emerald-600/20 font-bold'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : item.color}`} />
-                  <span>{item.label}</span>
-                </div>
-                {item.badge && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    isActive 
-                      ? 'bg-white/20 text-white' 
-                      : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {isTechUser ? (
+            techNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === 'technician_portal' && (technicianSubTab === item.subTab || (!technicianSubTab && item.subTab === 'active_jobs'));
+              return (
+                <button
+                  key={item.subTab}
+                  onClick={() => handleSelectTab(item.id, item.subTab)}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
+                    isActive
+                      ? 'bg-gradient-to-r from-emerald-600/90 to-teal-600/90 text-white shadow-md shadow-emerald-600/20 font-bold'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-white' : item.color}`} />
+                    <span>{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      isActive 
+                        ? 'bg-white/20 text-white' 
+                        : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          ) : (
+            navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleSelectTab(item.id)}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
+                    isActive
+                      ? 'bg-gradient-to-r from-emerald-600/90 to-teal-600/90 text-white shadow-md shadow-emerald-600/20 font-bold'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-white' : item.color}`} />
+                    <span>{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      isActive 
+                        ? 'bg-white/20 text-white' 
+                        : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
         </nav>
       </div>
 
