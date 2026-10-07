@@ -457,7 +457,50 @@ export default function Home() {
       );
     }
 
-    // 4. Update technician stats if assigned to this sale (multi-technician support)
+    // 4. Auto-create assigned active job/order for technician portal if technician or service is assigned
+    const hasAssignedTech = (newReceipt.technicians && newReceipt.technicians.length > 0) || newReceipt.technicianId || newReceipt.items.some(i => i.product.isService);
+    if (hasAssignedTech) {
+      const posOrder: CustomerOrder = {
+        id: `ord-pos-${newReceipt.id}`,
+        orderNumber: `ORD-${newReceipt.receiptNumber}`,
+        receiptId: newReceipt.id,
+        organization: newReceipt.branchName || 'WST Namangan',
+        warehouseName: 'Asosiy ombor',
+        exchangeRate: newReceipt.exchangeRate || exchangeRate,
+        customerId: newReceipt.customer?.id,
+        customerName: newReceipt.customer?.fullName || 'Noma\'lum Mijoz',
+        customerPhone: newReceipt.customer?.phone || '',
+        deliveryAddress: newReceipt.installationAddress || '',
+        projectName: newReceipt.customer ? `${newReceipt.customer.fullName} - Obyekt montaji` : 'Kassa Sotuv Montaji',
+        items: newReceipt.items.map((it) => ({
+          productId: it.product.id,
+          productName: it.product.name,
+          quantity: it.quantity,
+          unit: it.product.unit || 'dona',
+          unitPrice: it.appliedPrice,
+          unitPriceUSD: it.appliedPriceUSD,
+          discountPercent: it.discountPercent,
+          totalPrice: it.appliedPrice * it.quantity,
+          hasSerialNumber: it.product.hasSerialNumber,
+          selectedSerialNumbers: it.selectedSerialNumbers,
+          isService: it.product.isService
+        })),
+        subtotal: newReceipt.subtotal,
+        discountTotal: newReceipt.discountTotal,
+        totalAmount: newReceipt.totalAmount,
+        totalAmountUSD: newReceipt.totalAmountUSD,
+        currency: 'UZS',
+        technicians: newReceipt.technicians,
+        technicianId: newReceipt.technicianId,
+        technicianName: newReceipt.technicianName,
+        status: 'shipped',
+        createdAt: newReceipt.createdAt,
+        createdBy: finalReceipt.cashierName
+      };
+      setCustomerOrders((prev) => [posOrder, ...prev]);
+    }
+
+    // 5. Update technician stats if assigned to this sale (multi-technician support)
     if (newReceipt.technicians && newReceipt.technicians.length > 0) {
       setEmployees((prev) =>
         prev.map((emp) => {
@@ -492,7 +535,7 @@ export default function Home() {
     if (newReceipt.isOffline) {
       showToast("⚡ Chek oflayn saqlandi! Tarmoq ulanganda bulutga sinxronlanadi.");
     } else {
-      showToast(`✓ Sotuv yakunlandi! Chek ${newReceipt.receiptNumber} yaratildi.`);
+      showToast(`✓ Sotuv yakunlandi! Chek ${newReceipt.receiptNumber} yaratildi.${hasAssignedTech ? " Ustaga topshiriq yuborildi." : ""}`);
     }
   };
 
@@ -891,11 +934,68 @@ export default function Home() {
       );
     }
 
+    if (shipment.orderId) {
+      setCustomerOrders((prev) =>
+        prev.map((o) =>
+          o.id === shipment.orderId
+            ? {
+                ...o,
+                status: 'shipped',
+                technicians: assignedTechs.length > 0 ? assignedTechs : o.technicians,
+                technicianId: assignedTechs[0]?.id || o.technicianId,
+                technicianName: assignedTechs[0]?.fullName || o.technicianName,
+                receiptId: newReceipt.id
+              }
+            : o
+        )
+      );
+    } else if (assignedTechs.length > 0) {
+      const shipmentOrder: CustomerOrder = {
+        id: `ord-ship-${shipment.id}`,
+        orderNumber: `ORD-${shipment.shipmentNumber}`,
+        shipmentId: shipment.id,
+        receiptId: newReceipt.id,
+        organization: shipment.organization || 'WST Namangan',
+        warehouseName: shipment.warehouseName || 'Asosiy ombor',
+        exchangeRate: shipment.exchangeRate || exchangeRate,
+        customerId: shipment.customerId,
+        customerName: shipment.customerName,
+        customerPhone: shipment.customerPhone || '',
+        deliveryAddress: shipment.deliveryAddress || '',
+        projectName: shipment.projectName || `${shipment.customerName} - Obyekt montaji`,
+        items: shipment.items.map((it) => ({
+          productId: it.productId,
+          productName: it.productName,
+          quantity: it.quantity,
+          unit: it.unit || 'dona',
+          unitPrice: it.unitPrice,
+          unitPriceUSD: it.unitPriceUSD,
+          discountPercent: it.discountPercent,
+          totalPrice: it.totalPrice,
+          hasSerialNumber: it.hasSerialNumber,
+          selectedSerialNumbers: it.selectedSerialNumbers,
+          isService: it.isService
+        })),
+        subtotal: shipment.subtotal,
+        discountTotal: shipment.discountTotal,
+        totalAmount: shipment.totalAmount,
+        totalAmountUSD: shipment.totalAmountUSD,
+        currency: shipment.currency,
+        technicians: assignedTechs,
+        technicianId: assignedTechs[0]?.id,
+        technicianName: assignedTechs[0]?.fullName,
+        status: 'shipped',
+        createdAt: shipment.createdAt,
+        createdBy: 'Menejer'
+      };
+      setCustomerOrders((prev) => [shipmentOrder, ...prev]);
+    }
+
     setShipments((prev) =>
       prev.map((s) => (s.id === shipment.id ? { ...shipment, status: 'shipped', receiptId: newReceipt.id } : s))
     );
 
-    showToast(`✓ Otgruzka muvaffaqiyatli yakunlandi! Sotuv cheki ${newReceiptNumber} yaratildi.`);
+    showToast(`✓ Otgruzka muvaffaqiyatli yakunlandi! Sotuv cheki ${newReceiptNumber} yaratildi.${assignedTechs.length > 0 ? " Ustaga montaj vazifasi yuborildi." : ""}`);
   };
 
   // Add Product
@@ -1200,8 +1300,9 @@ export default function Home() {
     showToast(`Qurilma muvaffaqiyatli almashtirildi! Yangi S/N: ${newSerial}`);
   };
 
-  // Handover Report Handler (Obyekt Topshirish & Foto-Akt)
+  // Handover Report Handler (Obyekt Topshirish & Foto-Akt & Material Reconciliation)
   const handleSaveHandover = (handover: ObjectHandover) => {
+    // 1. Save handover in state & storage
     setHandovers((prev) => {
       const exists = prev.some((h) => h.id === handover.id);
       const updated = exists ? prev.map((h) => (h.id === handover.id ? handover : h)) : [handover, ...prev];
@@ -1213,27 +1314,96 @@ export default function Home() {
       return updated;
     });
 
-    // If linked to an order, update order
-    if (handover.orderId) {
-      setCustomerOrders((prev) =>
-        prev.map((o) => (o.id === handover.orderId ? { ...o, hasHandoverReport: true, handoverReportId: handover.id } : o))
+    // 2. Inventory Reconciliation:
+    // A) Returned items (Ortib qolgan tovarlarni ombor qoldig'iga qaytarish)
+    if (handover.returnedItems && handover.returnedItems.length > 0) {
+      setProducts((prev) =>
+        prev.map((prod) => {
+          const retMatch = handover.returnedItems?.find((r) => r.productId === prod.id);
+          if (retMatch) {
+            if (prod.isService) return prod;
+            const newStock = prod.stockQuantity + retMatch.quantity;
+            let updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
+            if (retMatch.serialNumbers && retMatch.serialNumbers.length > 0) {
+              retMatch.serialNumbers.forEach((sn) => {
+                if (!updatedSerials.includes(sn)) {
+                  updatedSerials.push(sn);
+                }
+              });
+            }
+            return {
+              ...prod,
+              stockQuantity: newStock,
+              serialNumbers: prod.hasSerialNumber ? updatedSerials : prod.serialNumbers
+            };
+          }
+          return prod;
+        })
       );
     }
 
-    // Try to notify Telegram bot if enabled
+    // B) Extra items (Joyida qo'shimcha sarflangan tovarlarni ombordan yechish)
+    if (handover.extraItems && handover.extraItems.length > 0) {
+      setProducts((prev) =>
+        prev.map((prod) => {
+          const extraMatch = handover.extraItems?.find((e) => e.productId === prod.id);
+          if (extraMatch) {
+            if (prod.isService) return prod;
+            const newStock = Math.max(0, prod.stockQuantity - extraMatch.quantity);
+            let updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
+            if (extraMatch.serialNumbers && extraMatch.serialNumbers.length > 0) {
+              updatedSerials = updatedSerials.filter((sn) => !extraMatch.serialNumbers?.includes(sn));
+            }
+            return {
+              ...prod,
+              stockQuantity: newStock,
+              serialNumbers: prod.hasSerialNumber ? updatedSerials : prod.serialNumbers
+            };
+          }
+          return prod;
+        })
+      );
+    }
+
+    // 3. If linked to an order, update order status to 'completed'
+    if (handover.orderId) {
+      setCustomerOrders((prev) =>
+        prev.map((o) =>
+          o.id === handover.orderId
+            ? {
+                ...o,
+                status: 'completed',
+                hasHandoverReport: true,
+                handoverReportId: handover.id
+              }
+            : o
+        )
+      );
+    }
+
+    // 4. Try to notify Telegram bot if enabled
     try {
       const tg = getTelegramSettings();
       if (tg.enabled && tg.botToken && tg.chatId) {
+        const returnedMsg = handover.returnedItems && handover.returnedItems.length > 0
+          ? `\n📦 *Omborga qaytgan:* ${handover.returnedItems.map((r) => `${r.productName} (${r.quantity} ${r.unit})`).join(', ')}`
+          : '';
+        const extraMsg = handover.extraItems && handover.extraItems.length > 0
+          ? `\n⚡ *Qo'shimcha sarflangan:* ${handover.extraItems.map((e) => `${e.productName} (${e.quantity} ${e.unit})`).join(', ')}`
+          : '';
+
         const msg = `📸 *YANGI OBYEKT TOPSHIRILDI!*\n\n` +
           `📋 *Dalolatnoma:* #${handover.handoverNumber}\n` +
           `👤 *Mijoz:* ${handover.customerName} (${handover.customerPhone || '—'})\n` +
           `📍 *Manzil:* ${handover.installationAddress}\n` +
           (handover.gpsLocation ? `🗺️ *GPS:* [Xaritada ko'rish](${handover.gpsLocation.mapUrl})\n` : '') +
-          `🛠️ *Ustalar:* ${handover.technicians.map(t => t.fullName).join(', ')}\n` +
+          `🛠️ *Ustalar:* ${handover.technicians.map((t) => t.fullName).join(', ')}\n` +
           `⭐ *Mijoz Bahosi:* ${'⭐'.repeat(handover.clientRating)} (${handover.clientRating}/5)\n` +
           (handover.clientFeedback ? `💬 *Fikr:* _"${handover.clientFeedback}"_\n` : '') +
           `🖼️ *Suratlar soni:* ${handover.photos.length} ta\n` +
-          `✍️ *Mijoz imzosi:* Tasdiqlangan ✅\n` +
+          returnedMsg +
+          extraMsg +
+          `\n✍️ *Mijoz imzosi:* Tasdiqlangan ✅\n` +
           `🕒 *Vaqt:* ${handover.createdAt}`;
         sendTelegramMessage(tg.botToken, tg.chatId, msg);
       }
@@ -1241,7 +1411,13 @@ export default function Home() {
       console.error(e);
     }
 
-    showToast(`✓ Obyekt topshirildi! Qabul dalolatnomasi #${handover.handoverNumber} saqlandi.`);
+    const retCount = handover.returnedItems?.length || 0;
+    const extraCount = handover.extraItems?.length || 0;
+    const reconciliationNote = retCount > 0 || extraCount > 0
+      ? ` (Ombor qoldiqlari avtomatik moslashtirildi: ${retCount > 0 ? `${retCount} ta qaytarildi` : ''}${retCount > 0 && extraCount > 0 ? ', ' : ''}${extraCount > 0 ? `${extraCount} ta qo'shimcha yechildi` : ''})`
+      : '';
+
+    showToast(`✓ Obyekt topshirildi! Qabul dalolatnomasi #${handover.handoverNumber} saqlandi.${reconciliationNote}`);
   };
 
   const handleAddCustomerDebtPayment = (payment: CustomerDebtPayment) => {

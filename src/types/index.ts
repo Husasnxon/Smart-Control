@@ -394,7 +394,7 @@ export interface CustomerOrder {
   discountTotal: number;
   totalAmount: number;
   totalAmountUSD?: number;
-  status: 'new' | 'calculated' | 'approved' | 'shipped' | 'cancelled' | 'pending_cashier_approval' | 'rejected';
+  status: 'new' | 'calculated' | 'approved' | 'shipped' | 'completed' | 'cancelled' | 'pending_cashier_approval' | 'rejected';
   shipmentId?: string;
   receiptId?: string;
   technicians?: AssignedTechnician[];
@@ -406,6 +406,7 @@ export interface CustomerOrder {
   requestedByTechnicianName?: string;
   requestedByTechnicianId?: string;
   rejectionReason?: string;
+  createdBy?: string;
 }
 
 export interface ShipmentOrder {
@@ -473,6 +474,20 @@ export interface ObjectHandover {
     wageUZS?: number;
   }[];
   installedItems: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    unit: string;
+    serialNumbers?: string[];
+  }[];
+  returnedItems?: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    unit: string;
+    serialNumbers?: string[];
+  }[];
+  extraItems?: {
     productId: string;
     productName: string;
     quantity: number;

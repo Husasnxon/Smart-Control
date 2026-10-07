@@ -482,6 +482,25 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
             {/* SUB-TAB 1: FAOL OBYEKTLAR (ACTIVE JOBS) */}
             {activeSubTab === 'active_jobs' && (
               <div className="space-y-3">
+                {assignedActiveJobs.length > 0 && (
+                  <div className="p-3.5 bg-gradient-to-r from-purple-950/80 via-indigo-950/60 to-purple-950/80 rounded-2xl border border-purple-800/60 flex items-start gap-3 shadow-lg animate-in fade-in">
+                    <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                      <Sparkles className="w-4 h-4 text-purple-200 animate-pulse" />
+                    </div>
+                    <div className="text-xs">
+                      <div className="font-extrabold text-white flex items-center gap-1.5">
+                        <span>🔔 Sizga yangi obyekt va montaj topshiriqlari biriktirilgan!</span>
+                        <span className="px-1.5 py-0.2 bg-purple-500/30 text-purple-300 rounded text-[10px] font-mono font-bold">
+                          {assignedActiveJobs.length} ta
+                        </span>
+                      </div>
+                      <p className="text-purple-300 text-[11px] mt-0.5 leading-relaxed">
+                        Mijoz manzili, telefon raqami va berilgan tovarlar ro&apos;yxati quyida keltirilgan. Ish yakunlangach <strong>&quot;📸 Obyektni Topshirish&quot;</strong> tugmasini bosib, qoldiq tovarlarni omborga qaytarish va mijozdan elektron imzo olishingiz mumkin.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between px-1">
                   <span className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <Activity className="w-3.5 h-3.5 text-purple-400" />
@@ -962,6 +981,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
         order={selectedHandoverOrder}
         existingHandover={selectedViewingHandover}
         employees={employees}
+        products={products}
         currentUser={currentUser}
         onSaveHandover={(handover) => {
           onSaveHandover(handover);

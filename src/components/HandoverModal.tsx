@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   ObjectHandover, 
   HandoverPhoto, 
   CustomerOrder, 
   Employee, 
-  Currency 
+  Currency,
+  Product 
 } from '../types';
 import { compressImage, formatBytes } from '../utils/imageCompressor';
 import { SignaturePad } from './SignaturePad';
@@ -34,8 +35,26 @@ import {
   AlertTriangle,
   Barcode,
   Cpu,
-  Layers
+  Layers,
+  Plus,
+  Minus,
+  RotateCcw,
+  PlusCircle,
+  Search,
+  ArrowDownCircle,
+  ArrowUpCircle
 } from 'lucide-react';
+
+interface HandoverItemDraft {
+  productId: string;
+  productName: string;
+  originalQuantity: number;
+  quantity: number;
+  unit: string;
+  isExtraAdded?: boolean;
+  serialNumbers?: string[];
+  reason?: string;
+}
 
 interface HandoverModalProps {
   isOpen: boolean;
@@ -43,6 +62,7 @@ interface HandoverModalProps {
   order?: CustomerOrder | null;
   existingHandover?: ObjectHandover | null;
   employees: Employee[];
+  products?: Product[];
   currentUser?: Employee | null;
   onSaveHandover: (handover: ObjectHandover) => void;
 }
@@ -53,6 +73,7 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
   order,
   existingHandover,
   employees,
+  products = [],
   currentUser,
   onSaveHandover
 }) => {
@@ -118,30 +139,85 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
     return [];
   });
 
-  // Installed Items with Serial Numbers
-  const [installedItems, setInstalledItems] = useState<{
-    productId: string;
-    productName: string;
-    quantity: number;
-    unit: string;
-    serialNumbers?: string[];
-  }[]>(() => {
-    if (existingHandover?.installedItems && existingHandover.installedItems.length > 0) {
-      return existingHandover.installedItems;
+  // Material & Equipment State with on-site reconciliation
+  const [workItems, setWorkItems] = useState<HandoverItemDraft[]>(() => {
+    if (existingHandover) {
+      const items: HandoverItemDraft[] = [];
+      (existingHandover.installedItems || []).forEach(it => {
+        items.push({
+          productId: it.productId,
+          productName: it.productName,
+          originalQuantity: it.quantity,
+          quantity: it.quantity,
+          unit: it.unit || 'dona',
+          serialNumbers: it.serialNumbers ? [...it.serialNumbers] : [],
+          isExtraAdded: false
+        });
+      });
+      return items;
     }
-    return (
-      order?.items?.map((it) => ({
+
+    if (order?.items && order.items.length > 0) {
+      return order.items.map(it => ({
         productId: it.productId,
         productName: it.productName,
+        originalQuantity: it.quantity,
         quantity: it.quantity,
         unit: it.unit || 'dona',
-        serialNumbers: it.selectedSerialNumbers ? [...it.selectedSerialNumbers] : []
-      })) || []
-    );
+        serialNumbers: it.selectedSerialNumbers ? [...it.selectedSerialNumbers] : [],
+        isExtraAdded: false
+      }));
+    }
+
+    return [];
   });
 
+  // Extra Material Catalog Picker State
+  const [isAddingExtraProduct, setIsAddingExtraProduct] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+
+  const filteredProducts = useMemo(() => {
+    if (!productSearch.trim()) return products.slice(0, 10);
+    const q = productSearch.toLowerCase();
+    return products.filter(
+      p => p.name.toLowerCase().includes(q) || 
+      (p.barcode && p.barcode.toLowerCase().includes(q)) || 
+      (p.sku && p.sku.toLowerCase().includes(q))
+    ).slice(0, 15);
+  }, [products, productSearch]);
+
+  const handleAddExtraProduct = (prod: Product) => {
+    setWorkItems(prev => [
+      ...prev,
+      {
+        productId: prod.id,
+        productName: prod.name,
+        originalQuantity: 0,
+        quantity: 1,
+        unit: prod.unit || 'dona',
+        isExtraAdded: true,
+        serialNumbers: []
+      }
+    ]);
+    setIsAddingExtraProduct(false);
+    setProductSearch('');
+  };
+
+  const handleUpdateQuantity = (idx: number, newQty: number) => {
+    const validQty = Math.max(0, newQty);
+    setWorkItems(prev => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], quantity: validQty };
+      return copy;
+    });
+  };
+
+  const handleRemoveItem = (idx: number) => {
+    setWorkItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const handleUpdateItemSerial = (itemIdx: number, snIdx: number, val: string) => {
-    setInstalledItems((prev) => {
+    setWorkItems((prev) => {
       const copy = [...prev];
       const target = { ...copy[itemIdx] };
       const sns = [...(target.serialNumbers || [])];
@@ -151,6 +227,28 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
       return copy;
     });
   };
+
+  // Reconciled summary calculations
+  const summaryCounters = useMemo(() => {
+    let returnedCount = 0;
+    let extraCount = 0;
+    let installedCount = 0;
+
+    workItems.forEach(it => {
+      if (it.quantity > 0) {
+        installedCount += it.quantity;
+      }
+      if (!it.isExtraAdded && it.quantity < it.originalQuantity) {
+        returnedCount += (it.originalQuantity - it.quantity);
+      } else if (it.isExtraAdded && it.quantity > 0) {
+        extraCount += it.quantity;
+      } else if (!it.isExtraAdded && it.quantity > it.originalQuantity) {
+        extraCount += (it.quantity - it.originalQuantity);
+      }
+    });
+
+    return { returnedCount, extraCount, installedCount };
+  }, [workItems]);
 
   if (!isOpen) return null;
 
@@ -258,6 +356,41 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
 
     const handoverNumber = existingHandover?.handoverNumber || `AKT-${Date.now().toString().slice(-4)}`;
 
+    // Reconcile items
+    const finalInstalledItems = workItems
+      .filter(it => it.quantity > 0)
+      .map(it => ({
+        productId: it.productId,
+        productName: it.productName,
+        quantity: it.quantity,
+        unit: it.unit,
+        serialNumbers: it.serialNumbers ? it.serialNumbers.slice(0, it.quantity) : undefined
+      }));
+
+    const returnedItems = workItems
+      .filter(it => !it.isExtraAdded && it.quantity < it.originalQuantity)
+      .map(it => ({
+        productId: it.productId,
+        productName: it.productName,
+        quantity: it.originalQuantity - it.quantity,
+        unit: it.unit,
+        serialNumbers: it.serialNumbers && it.serialNumbers.length > it.quantity 
+          ? it.serialNumbers.slice(it.quantity) 
+          : undefined
+      }));
+
+    const extraItems = workItems
+      .filter(it => (it.isExtraAdded && it.quantity > 0) || (!it.isExtraAdded && it.quantity > it.originalQuantity))
+      .map(it => ({
+        productId: it.productId,
+        productName: it.productName,
+        quantity: it.isExtraAdded ? it.quantity : it.quantity - it.originalQuantity,
+        unit: it.unit,
+        serialNumbers: it.isExtraAdded 
+          ? it.serialNumbers 
+          : (it.serialNumbers && it.serialNumbers.length > it.originalQuantity ? it.serialNumbers.slice(it.originalQuantity) : undefined)
+      }));
+
     const report: ObjectHandover = {
       id: existingHandover?.id || `handover-${Date.now()}`,
       handoverNumber,
@@ -272,7 +405,9 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
       projectName: order?.projectName || 'Xavfsizlik & Kamera Tizimlari Obyekti',
       gpsLocation,
       technicians: selectedTechs,
-      installedItems,
+      installedItems: finalInstalledItems,
+      returnedItems: returnedItems.length > 0 ? returnedItems : undefined,
+      extraItems: extraItems.length > 0 ? extraItems : undefined,
       photos,
       videoNoteUrl: videoUrl,
       clientRating: rating,
@@ -294,6 +429,11 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
     window.print();
   };
 
+  // Reconciled items for preview & print
+  const previewInstalledItems = workItems.filter(it => it.quantity > 0);
+  const previewReturnedItems = workItems.filter(it => !it.isExtraAdded && it.quantity < it.originalQuantity);
+  const previewExtraItems = workItems.filter(it => (it.isExtraAdded && it.quantity > 0) || (!it.isExtraAdded && it.quantity > it.originalQuantity));
+
   const handoverData = existingHandover || {
     id: 'temp',
     handoverNumber: `AKT-${Date.now().toString().slice(-4)}`,
@@ -303,7 +443,27 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
     projectName: order?.projectName || 'Xavfsizlik & Kamera Montaji',
     gpsLocation,
     technicians: selectedTechs,
-    installedItems,
+    installedItems: previewInstalledItems.map(it => ({
+      productId: it.productId,
+      productName: it.productName,
+      quantity: it.quantity,
+      unit: it.unit,
+      serialNumbers: it.serialNumbers?.slice(0, it.quantity)
+    })),
+    returnedItems: previewReturnedItems.map(it => ({
+      productId: it.productId,
+      productName: it.productName,
+      quantity: it.originalQuantity - it.quantity,
+      unit: it.unit,
+      serialNumbers: it.serialNumbers?.slice(it.quantity)
+    })),
+    extraItems: previewExtraItems.map(it => ({
+      productId: it.productId,
+      productName: it.productName,
+      quantity: it.isExtraAdded ? it.quantity : it.quantity - it.originalQuantity,
+      unit: it.unit,
+      serialNumbers: it.isExtraAdded ? it.serialNumbers : it.serialNumbers?.slice(it.originalQuantity)
+    })),
     photos,
     clientRating: rating,
     clientFeedback: feedback,
@@ -382,21 +542,50 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
         </div>
 
         {/* MODAL BODY */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 print:p-0 print:overflow-visible">
-          
-          {/* ============================================================= */}
-          {/* MODE 1: CREATE / EDIT HANDOVER FORM */}
-          {/* ============================================================= */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6">
           {viewMode === 'create' && (
             <form onSubmit={handleSubmit} className="space-y-6">
-              
-              {/* SECTION 1: OBYEKT & MANZIL & GPS */}
+
+              {/* SUMMARY COUNTER BADGES */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-purple-50/60 dark:bg-purple-950/30 rounded-2xl border border-purple-100 dark:border-purple-900/50">
+                <div className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 rounded-xl border border-purple-100 dark:border-purple-900 shadow-sm">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-300 flex items-center justify-center font-black text-sm">
+                    {summaryCounters.installedCount}
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">O&apos;rnatilgan</span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Asbob-uskunalar</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 rounded-xl border border-purple-100 dark:border-purple-900 shadow-sm">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-300 flex items-center justify-center font-black text-sm">
+                    {summaryCounters.returnedCount}
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-emerald-600 block uppercase">Ortib qoldi</span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Omborga qaytadi</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 rounded-xl border border-purple-100 dark:border-purple-900 shadow-sm">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-300 flex items-center justify-center font-black text-sm">
+                    {summaryCounters.extraCount}
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-amber-600 block uppercase">Qo&apos;shimcha sarf</span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Ombordan yechiladi</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 1: OBYEKT & MANZIL MA'LUMOTLARI */}
               <div className="bg-slate-50 dark:bg-slate-850 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-purple-600" />
                     <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                      1. Obyekt Manzili & GPS Lokatsiya
+                      1. Obyekt Manzili va GPS Fiksatsiya
                     </h3>
                   </div>
 
@@ -404,23 +593,23 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
                     type="button"
                     onClick={handleGetLocation}
                     disabled={isLocating}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-sm transition disabled:opacity-50 cursor-pointer active:scale-95"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs shadow transition active:scale-95"
                   >
                     <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
-                    <span>{isLocating ? 'Aniqlanmoqda...' : '📍 GPS orqali joylashuvni olish'}</span>
+                    <span>{isLocating ? 'Aniqlanmoqda...' : 'Hozirgi GPS ni olish'}</span>
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                      Obyekt Manzili:
+                      Obyekt / Montaj Manzili:
                     </label>
                     <input
                       type="text"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Masalan: Toshkent sh., Chilonzor 9, 12-uy"
+                      placeholder="Masalan: Namangan sh., Chorsu bozori 12-do'kon"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                   </div>
@@ -468,74 +657,237 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
                 )}
               </div>
 
-              {/* SECTION 2: O'RNATILGAN QURILMALAR VA S/N RAQAMLARI */}
-              {installedItems && installedItems.length > 0 && (
-                <div className="bg-slate-50 dark:bg-slate-850 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Barcode className="w-4 h-4 text-purple-600" />
+              {/* SECTION 2: O'RNATILGAN QURILMALAR & MATERIAL RECONCILIATION */}
+              <div className="bg-slate-50 dark:bg-slate-850 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Barcode className="w-4 h-4 text-purple-600" />
+                    <div>
                       <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                        2. O&apos;rnatilgan Qurilmalar & Seriya Raqamlari (S/N)
+                        2. O&apos;rnatilgan Asbob-Uskunalar & Haqiqiy Sarf-Xarajat
                       </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Agar yuborilgan tovar to&apos;liq ketmasa miqdorni kamaytiring (qoldiq omborga qaytadi) yoki qo&apos;shimcha tovar qo&apos;shing
+                      </p>
                     </div>
-                    <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
-                      {installedItems.length} ta pozitsiya
-                    </span>
                   </div>
 
-                  <div className="space-y-3">
-                    {installedItems.map((item, itIdx) => (
-                      <div
-                        key={itIdx}
-                        className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-2.5 shadow-sm"
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingExtraProduct(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition active:scale-95 shrink-0"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>+ Qo&apos;shimcha material qo&apos;shish</span>
+                  </button>
+                </div>
+
+                {/* Extra Material Catalog Selector Dropdown Modal */}
+                {isAddingExtraProduct && (
+                  <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border-2 border-emerald-500/50 shadow-xl space-y-3 animate-in fade-in zoom-in-95">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4 text-emerald-600" />
+                        <span className="text-xs font-black text-slate-900 dark:text-white">Ombordan qo&apos;shimcha material tanlang:</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingExtraProduct(false)}
+                        className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 flex items-center justify-center"
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center text-xs font-black shrink-0">
-                              {itIdx + 1}
-                            </span>
-                            <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                              {item.productName}
-                            </span>
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Nomi, barkod yoki modeli bo'yicha qidiring..."
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                      {filteredProducts.map(prod => (
+                        <div
+                          key={prod.id}
+                          onClick={() => handleAddExtraProduct(prod)}
+                          className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg cursor-pointer flex items-center justify-between text-xs transition"
+                        >
+                          <div>
+                            <div className="font-bold text-slate-900 dark:text-white">{prod.name}</div>
+                            <div className="text-[10px] text-slate-400">
+                              Qoldiq: <strong className="text-emerald-600">{prod.stockQuantity} {prod.unit || 'dona'}</strong> • {prod.category}
+                            </div>
                           </div>
-                          <span className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400 shrink-0 ml-2">
-                            {item.quantity} {item.unit || 'dona'}
+                          <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold rounded-lg text-[10px]">
+                            + Tanlash
                           </span>
                         </div>
-
-                        {/* S/N Inputs */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-                          {Array.from({ length: item.quantity }).map((_, snIdx) => {
-                            const val = (item.serialNumbers && item.serialNumbers[snIdx]) || '';
-                            const isFilled = val.trim().length > 0;
-
-                            return (
-                              <div key={snIdx} className="space-y-0.5">
-                                <div className="relative">
-                                  <input
-                                    type="text"
-                                    placeholder={`S/N #${snIdx + 1} (masalan: HK-100${snIdx + 1})`}
-                                    value={val}
-                                    onChange={(e) => handleUpdateItemSerial(itIdx, snIdx, e.target.value)}
-                                    className={`w-full px-3 py-1.5 rounded-xl border text-xs font-mono outline-none transition ${
-                                      isFilled
-                                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-slate-900 dark:text-emerald-300'
-                                        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-purple-500'
-                                    }`}
-                                  />
-                                  {isFilled && (
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 absolute right-2.5 top-1/2 -translate-y-1/2" />
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
+                      ))}
+                      {filteredProducts.length === 0 && (
+                        <div className="p-4 text-center text-xs text-slate-400">
+                          Mahsulot topilmadi
                         </div>
-                      </div>
-                    ))}
+                      )}
+                    </div>
                   </div>
+                )}
+
+                {/* Items List */}
+                <div className="space-y-3">
+                  {workItems.map((item, itIdx) => {
+                    const isReturned = !item.isExtraAdded && item.quantity < item.originalQuantity;
+                    const isExtra = (item.isExtraAdded && item.quantity > 0) || (!item.isExtraAdded && item.quantity > item.originalQuantity);
+                    const returnedAmount = isReturned ? item.originalQuantity - item.quantity : 0;
+                    const extraAmount = item.isExtraAdded ? item.quantity : item.quantity - item.originalQuantity;
+
+                    return (
+                      <div
+                        key={itIdx}
+                        className={`p-4 bg-white dark:bg-slate-900 rounded-2xl border space-y-3 shadow-sm transition ${
+                          isReturned 
+                            ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/10'
+                            : isExtra
+                            ? 'border-amber-300 dark:border-amber-800 bg-amber-50/10'
+                            : 'border-slate-200 dark:border-slate-700/80'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-7 h-7 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center text-xs font-black shrink-0">
+                              {itIdx + 1}
+                            </span>
+                            <div>
+                              <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                                {item.productName}
+                              </span>
+                              {!item.isExtraAdded && (
+                                <span className="text-[10px] text-slate-400">
+                                  Yuborilgan (Prixod): <strong>{item.originalQuantity} {item.unit}</strong>
+                                </span>
+                              )}
+                              {item.isExtraAdded && (
+                                <span className="text-[10px] text-amber-500 font-bold">
+                                  ⚡ Joyida qo&apos;shimcha kiritilgan tovar
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quantity Controls */}
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuantity(itIdx, item.quantity - 1)}
+                                className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center text-xs font-bold shadow-sm transition active:scale-95"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              
+                              <input
+                                type="number"
+                                min={0}
+                                value={item.quantity}
+                                onChange={(e) => handleUpdateQuantity(itIdx, Number(e.target.value))}
+                                className="w-14 text-center bg-transparent text-xs font-mono font-black text-slate-900 dark:text-white outline-none"
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuantity(itIdx, item.quantity + 1)}
+                                className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center text-xs font-bold shadow-sm transition active:scale-95"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <span className="text-xs font-bold text-slate-500">
+                              {item.unit}
+                            </span>
+
+                            {item.isExtraAdded && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(itIdx)}
+                                className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950 text-rose-600 hover:bg-rose-100 flex items-center justify-center transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Status Badges */}
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
+                          {isReturned && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              <ArrowDownCircle className="w-3 h-3 text-emerald-600" />
+                              <span>Ortib qoldi: {returnedAmount} {item.unit} omborga qaytariladi</span>
+                            </span>
+                          )}
+
+                          {isExtra && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              <ArrowUpCircle className="w-3 h-3 text-amber-600" />
+                              <span>Qo&apos;shimcha sarflandi: +{extraAmount} {item.unit} ombordan yechiladi</span>
+                            </span>
+                          )}
+
+                          {!isReturned && !isExtra && item.quantity > 0 && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                              <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                              <span>To&apos;liq o&apos;rnatildi ({item.quantity} {item.unit})</span>
+                            </span>
+                          )}
+
+                          {item.quantity === 0 && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200">
+                              ⚠️ Umuman ishlatilmadi (Barchasi omborga qaytadi)
+                            </span>
+                          )}
+                        </div>
+
+                        {/* S/N Inputs for actual installed count */}
+                        {item.quantity > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            {Array.from({ length: item.quantity }).map((_, snIdx) => {
+                              const val = (item.serialNumbers && item.serialNumbers[snIdx]) || '';
+                              const isFilled = val.trim().length > 0;
+
+                              return (
+                                <div key={snIdx} className="space-y-0.5">
+                                  <div className="relative">
+                                    <input
+                                      type="text"
+                                      placeholder={`S/N #${snIdx + 1} (masalan: HK-100${snIdx + 1})`}
+                                      value={val}
+                                      onChange={(e) => handleUpdateItemSerial(itIdx, snIdx, e.target.value)}
+                                      className={`w-full px-3 py-1.5 rounded-xl border text-xs font-mono outline-none transition ${
+                                        isFilled
+                                          ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-slate-900 dark:text-emerald-300'
+                                          : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-purple-500'
+                                      }`}
+                                    />
+                                    {isFilled && (
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
 
               {/* SECTION 3: FOTO-HISOBOT (CLIENT COMPRESSION) */}
               <div className="bg-slate-50 dark:bg-slate-850 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
@@ -622,12 +974,12 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
                 )}
               </div>
 
-              {/* SECTION 3: MIJOZ BAHOSI & SHARHI */}
+              {/* SECTION 4: MIJOZ BAHOSI & SHARHI */}
               <div className="bg-slate-50 dark:bg-slate-850 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
                 <div className="flex items-center gap-2">
                   <Star className="w-4 h-4 text-amber-500" />
                   <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                    3. Mijoz Bahosi va Fikri (Sifat Nazorati)
+                    4. Mijoz Bahosi va Fikri (Sifat Nazorati)
                   </h3>
                 </div>
 
@@ -827,7 +1179,7 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
               {handoverData.installedItems && handoverData.installedItems.length > 0 && (
                 <div className="space-y-2">
                   <h3 className="text-xs font-bold uppercase text-slate-800 tracking-wider">
-                    O&apos;rnatilgan Qurilmalar va Materiallar Ro&apos;yxati:
+                    1. O&apos;rnatilgan Qurilmalar va Xizmatlar Ro&apos;yxati:
                   </h3>
                   <table className="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
                     <thead className="bg-slate-100 text-slate-700 font-bold">
@@ -843,7 +1195,73 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
                         <tr key={idx}>
                           <td className="py-1.5 px-3 text-slate-400">{idx + 1}</td>
                           <td className="py-1.5 px-3 font-semibold text-slate-900">{item.productName}</td>
-                          <td className="py-1.5 px-3 text-center">{item.quantity} {item.unit}</td>
+                          <td className="py-1.5 px-3 text-center font-bold">{item.quantity} {item.unit}</td>
+                          <td className="py-1.5 px-3 font-mono text-[11px] text-slate-600">
+                            {item.serialNumbers && item.serialNumbers.length > 0
+                              ? item.serialNumbers.join(', ')
+                              : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Returned Devices Table (if any) */}
+              {handoverData.returnedItems && handoverData.returnedItems.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold uppercase text-emerald-700 tracking-wider flex items-center gap-1.5">
+                    <span>2. Omborga Qaytarilgan (Ortib qolgan) Tovarlar:</span>
+                  </h3>
+                  <table className="w-full text-xs border border-emerald-200 rounded-lg overflow-hidden bg-emerald-50/30">
+                    <thead className="bg-emerald-100/70 text-emerald-900 font-bold">
+                      <tr>
+                        <th className="py-2 px-3 text-left w-10">№</th>
+                        <th className="py-2 px-3 text-left">Tovar Nomi</th>
+                        <th className="py-2 px-3 text-center w-24">Qaytgan Miqdor</th>
+                        <th className="py-2 px-3 text-left">Qaytarilgan S/N</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-emerald-200 font-medium">
+                      {handoverData.returnedItems.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="py-1.5 px-3 text-emerald-600">{idx + 1}</td>
+                          <td className="py-1.5 px-3 font-semibold text-slate-900">{item.productName}</td>
+                          <td className="py-1.5 px-3 text-center font-bold text-emerald-700">+{item.quantity} {item.unit}</td>
+                          <td className="py-1.5 px-3 font-mono text-[11px] text-slate-600">
+                            {item.serialNumbers && item.serialNumbers.length > 0
+                              ? item.serialNumbers.join(', ')
+                              : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Extra Devices Table (if any) */}
+              {handoverData.extraItems && handoverData.extraItems.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold uppercase text-amber-700 tracking-wider flex items-center gap-1.5">
+                    <span>3. Qo&apos;shimcha Sarflangan Materiallar:</span>
+                  </h3>
+                  <table className="w-full text-xs border border-amber-200 rounded-lg overflow-hidden bg-amber-50/30">
+                    <thead className="bg-amber-100/70 text-amber-900 font-bold">
+                      <tr>
+                        <th className="py-2 px-3 text-left w-10">№</th>
+                        <th className="py-2 px-3 text-left">Tovar Nomi</th>
+                        <th className="py-2 px-3 text-center w-24">Qo&apos;shimcha Miqdor</th>
+                        <th className="py-2 px-3 text-left">S/N</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-200 font-medium">
+                      {handoverData.extraItems.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="py-1.5 px-3 text-amber-600">{idx + 1}</td>
+                          <td className="py-1.5 px-3 font-semibold text-slate-900">{item.productName}</td>
+                          <td className="py-1.5 px-3 text-center font-bold text-amber-700">{item.quantity} {item.unit}</td>
                           <td className="py-1.5 px-3 font-mono text-[11px] text-slate-600">
                             {item.serialNumbers && item.serialNumbers.length > 0
                               ? item.serialNumbers.join(', ')
