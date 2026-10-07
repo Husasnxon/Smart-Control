@@ -499,21 +499,34 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
     const inputVal = (manualSerialInput[itemIdx] || '').trim();
     if (!inputVal) return;
 
+    const currentItem = shipmentItemsWithSerials[itemIdx];
+    if (!currentItem) return;
+
+    const catalogProd = products.find((p) => p.id === currentItem.productId);
+    const availableWarehouseSerials = catalogProd?.serialNumbers || [];
+
+    // STRICT VALIDATION: Check if inputVal exists in warehouse stock!
+    const matchedSN = availableWarehouseSerials.find((s) => s.toLowerCase() === inputVal.toLowerCase());
+    if (!matchedSN) {
+      alert(`❌ Xatolik: "${inputVal}" seriya raqami ushbu tovar bo'yicha omborda mavjud emas!\n\nPrixod qilinmagan tovar otgruzka bo'lishining oldini olish uchun faqat ombordagi haqiqiy S/N larni kiritish mumkin.`);
+      return;
+    }
+
     setShipmentItemsWithSerials((prev) => {
       const updated = [...prev];
       const item = { ...updated[itemIdx] };
       const currentSerials = item.selectedSerialNumbers || [];
 
-      if (currentSerials.includes(inputVal)) {
+      if (currentSerials.includes(matchedSN)) {
         alert("Ushbu seriya raqami allaqachon tanlangan!");
         return prev;
       }
       if (currentSerials.length >= item.quantity) {
-        alert(`Ushbu tovardan faqat ${item.quantity} ta kerak!`);
+        alert(`Ushbu tovardan faqat ${item.quantity} ta kerak! Ortig'ini tanlab bo'lmaydi.`);
         return prev;
       }
 
-      item.selectedSerialNumbers = [...currentSerials, inputVal];
+      item.selectedSerialNumbers = [...currentSerials, matchedSN];
       updated[itemIdx] = item;
       return updated;
     });
@@ -2379,48 +2392,30 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
 
                                 {/* Available Serials Chips */}
                                 <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                                  {availableWarehouseSerials.length === 0 && selectedSerials.length === 0 ? (
+                                  {availableWarehouseSerials.length === 0 ? (
                                     <span className="text-xs text-rose-500 italic">
-                                      Omborda ushbu tovar uchun avvaldan kiritilgan seriya raqami yo&apos;q. Yuqoridagi maydondan skaner qilib kiritishingiz mumkin.
+                                      Omborda ushbu tovar uchun seriya raqami mavjud emas! Iltimos, avval tovar kirimini (prixod) amalga oshiring.
                                     </span>
                                   ) : (
-                                    <>
-                                      {availableWarehouseSerials.map((sn) => {
-                                        const isChecked = selectedSerials.includes(sn);
-                                        return (
-                                          <button
-                                            type="button"
-                                            key={sn}
-                                            onClick={() => handleToggleShipmentSerial(idx, sn)}
-                                            className={`px-2.5 py-1 rounded-lg text-xs font-mono border transition flex items-center gap-1 ${
-                                              isChecked
-                                                ? 'bg-emerald-600 text-white border-emerald-700 font-bold shadow-sm'
-                                                : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-emerald-500'
-                                            }`}
-                                          >
-                                            <Hash className="w-3 h-3 opacity-60" />
-                                            <span>{sn}</span>
-                                            {isChecked && <Check className="w-3.5 h-3.5 ml-0.5" />}
-                                          </button>
-                                        );
-                                      })}
-
-                                      {/* Custom serials that were added manually */}
-                                      {selectedSerials
-                                        .filter((s) => !availableWarehouseSerials.includes(s))
-                                        .map((sn) => (
-                                          <button
-                                            type="button"
-                                            key={sn}
-                                            onClick={() => handleToggleShipmentSerial(idx, sn)}
-                                            className="px-2.5 py-1 rounded-lg text-xs font-mono border bg-emerald-600 text-white border-emerald-700 font-bold shadow-sm flex items-center gap-1"
-                                          >
-                                            <Hash className="w-3 h-3 opacity-60" />
-                                            <span>{sn}</span>
-                                            <Check className="w-3.5 h-3.5 ml-0.5" />
-                                          </button>
-                                        ))}
-                                    </>
+                                    availableWarehouseSerials.map((sn) => {
+                                      const isChecked = selectedSerials.includes(sn);
+                                      return (
+                                        <button
+                                          type="button"
+                                          key={sn}
+                                          onClick={() => handleToggleShipmentSerial(idx, sn)}
+                                          className={`px-2.5 py-1 rounded-lg text-xs font-mono border transition flex items-center gap-1 ${
+                                            isChecked
+                                              ? 'bg-emerald-600 text-white border-emerald-700 font-bold shadow-sm'
+                                              : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-emerald-500'
+                                          }`}
+                                        >
+                                          <Hash className="w-3 h-3 opacity-60" />
+                                          <span>{sn}</span>
+                                          {isChecked && <Check className="w-3.5 h-3.5 ml-0.5" />}
+                                        </button>
+                                      );
+                                    })
                                   )}
                                 </div>
                               </div>

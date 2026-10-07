@@ -1400,7 +1400,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
               const handleFormSubmit = (e: React.FormEvent) => {
                 e.preventDefault();
                 if (!query) {
-                  if (snPickerSelected) {
+                  if (snPickerSelected && available.includes(snPickerSelected)) {
                     handleConfirmSerial(snPickerSelected);
                   }
                   return;
@@ -1419,8 +1419,8 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                   return;
                 }
 
-                // 3. Otherwise add scanned/typed serial directly
-                handleConfirmSerial(query);
+                // 3. STRICT CHECK: Block non-existent serial numbers!
+                alert(`❌ Xatolik: "${query}" seriya raqami ushbu tovar bo'yicha omborda mavjud emas!\n\nOmborda ro'yxatdan o'tmagan tovar sotilishining oldini olish uchun faqat avval kirim (prixod) qilingan seriya raqamlarini skanerlash mumkin.`);
               };
 
               return (
@@ -1429,7 +1429,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                   <form onSubmit={handleFormSubmit} className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center justify-between">
                       <span>Skaner yoki klaviatura orqali S/N:</span>
-                      <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-normal">Avtomatik skanerlash</span>
+                      <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-normal">Faqat ombordagi S/N</span>
                     </label>
                     <div className="relative flex items-center">
                       <Barcode className="w-5 h-5 text-cyan-500 absolute left-3 pointer-events-none" />
@@ -1442,7 +1442,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                           setSnSearchQuery(e.target.value);
                           setSnPickerSelected(e.target.value);
                         }}
-                        placeholder="Skaner qiling yoki S/N yozing (Enter)..."
+                        placeholder="Ombordagi S/N ni skaner qiling (Enter)..."
                         className="w-full pl-10 pr-24 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-2 border-cyan-500/60 focus:border-cyan-500 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white outline-none shadow-sm transition"
                       />
                       <button
@@ -1451,7 +1451,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                         className="absolute right-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-30 text-white font-bold text-xs shadow transition flex items-center gap-1"
                       >
                         <Check className="w-3.5 h-3.5" />
-                        <span>Qo&apos;shish</span>
+                        <span>Tanlash</span>
                       </button>
                     </div>
                   </form>
@@ -1464,10 +1464,15 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                     </div>
 
                     <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                      {available.length === 0 && !query && (
-                        <p className="text-center py-6 text-xs text-slate-400">
-                          Omborda ro&apos;yxatdan o&apos;tgan seriya raqami qolmagan. Yangisini yuqoridagi skaner orqali kiritishingiz mumkin.
-                        </p>
+                      {available.length === 0 && (
+                        <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-center space-y-1">
+                          <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                            Omborda bo&apos;sh seriya raqami qolmagan!
+                          </p>
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                            Iltimos, avval tovar kirimi (prixod) qiling yoki qoldiqlarni tekshiring.
+                          </p>
+                        </div>
                       )}
 
                       {filtered.map((sn) => (
@@ -1494,22 +1499,16 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                         </button>
                       ))}
 
-                      {query && filtered.length === 0 && (
-                        <button
-                          type="button"
-                          onClick={() => handleConfirmSerial(query)}
-                          className="w-full p-3 rounded-xl border-2 border-dashed border-cyan-500/60 bg-cyan-50/50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-200 hover:bg-cyan-100/50 text-left transition"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-xs font-bold flex items-center gap-1.5">
-                              <Plus className="w-4 h-4 text-cyan-600" />
-                              Yangi S/N: {query}
-                            </span>
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-600 text-white font-bold">
-                              Qo&apos;shish ↵
-                            </span>
+                      {query && filtered.length === 0 && available.length > 0 && (
+                        <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl text-xs text-rose-700 dark:text-rose-300">
+                          <div className="font-bold flex items-center gap-1.5 mb-0.5">
+                            <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                            Seriya raqami topilmadi!
                           </div>
-                        </button>
+                          <div className="text-[11px] text-rose-600 dark:text-rose-400">
+                            &quot;{query}&quot; seriya raqami omborda yo&apos;q. Faqat ombordagi mavjud seriyalarni tanlashingiz mumkin.
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1528,8 +1527,12 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                     </button>
                     <button
                       type="button"
-                      disabled={!snPickerSelected && !query}
-                      onClick={() => handleConfirmSerial(snPickerSelected || query)}
+                      disabled={!snPickerSelected || !available.includes(snPickerSelected)}
+                      onClick={() => {
+                        if (snPickerSelected && available.includes(snPickerSelected)) {
+                          handleConfirmSerial(snPickerSelected);
+                        }
+                      }}
                       className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white font-bold text-xs shadow-lg shadow-cyan-600/20 transition active:scale-[0.98]"
                     >
                       Savatga Qo&apos;shish
