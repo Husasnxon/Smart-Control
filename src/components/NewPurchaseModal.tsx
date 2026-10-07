@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Product, ProductCategory, PurchaseInvoice, PurchaseItem, Currency } from '../types';
+import { Product, ProductCategory, PurchaseInvoice, PurchaseItem, Currency, Employee } from '../types';
 import { DEFAULT_SUPPLIERS } from '../data/mockData';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { 
@@ -24,8 +24,18 @@ import {
   Hash, 
   ChevronDown, 
   Cpu, 
-  Package 
+  Package,
+  Lock,
+  ShieldCheck,
+  Phone,
+  MapPin
 } from 'lucide-react';
+
+interface SupplierRecord {
+  name: string;
+  phone?: string;
+  address?: string;
+}
 
 interface NewPurchaseModalProps {
   isOpen: boolean;
@@ -34,6 +44,7 @@ interface NewPurchaseModalProps {
   categories: ProductCategory[];
   exchangeRate: number;
   baseCurrency?: Currency;
+  currentUser?: Employee | null;
   onConfirmPurchase: (purchase: PurchaseInvoice, updatedProducts: Product[]) => void;
   editingPurchase?: PurchaseInvoice | null;
 }
@@ -64,9 +75,40 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
   categories,
   exchangeRate,
   baseCurrency = 'UZS',
+  currentUser = null,
   onConfirmPurchase,
   editingPurchase = null
 }) => {
+  // Saved suppliers persistent state
+  const [savedSuppliers, setSavedSuppliers] = useState<SupplierRecord[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('sc_suppliers_v2');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {
+        console.error("Error loading suppliers", e);
+      }
+    }
+    return DEFAULT_SUPPLIERS.map(s => ({ name: s, phone: '+998 ' }));
+  });
+
+  // Add new supplier modal state
+  const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [newSupplierPhone, setNewSupplierPhone] = useState('+998 ');
+  const [newSupplierAddress, setNewSupplierAddress] = useState('');
+
+  // Formatted logged in user name and role for permanent audit liability
+  const loggedInUserFormatted = useMemo(() => {
+    if (!currentUser) return 'Omborchi (Mas\'ul xodim)';
+    const name = currentUser.fullName || currentUser.username || 'Xodim';
+    const role = currentUser.role || (currentUser.systemRole === 'admin' ? 'Bosh Administrator' : currentUser.systemRole === 'manager' ? 'Menejer' : currentUser.systemRole || 'Omborchi');
+    return `${name} (${role})`;
+  }, [currentUser]);
+
   // Invoice header state
   const [supplierName, setSupplierName] = useState(DEFAULT_SUPPLIERS[0]);
   const [supplierSearchText, setSupplierSearchText] = useState(DEFAULT_SUPPLIERS[0] || '');
@@ -82,7 +124,7 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'debt' | 'partial'>('paid');
   const [paymentMethod, setPaymentMethod] = useState<'usd' | 'bank_transfer' | 'cash' | 'card'>(baseCurrency === 'USD' ? 'usd' : 'cash');
   const [notes, setNotes] = useState('');
-  const [receivedBy, setReceivedBy] = useState('Omborchi (Alisher)');
+  const [receivedBy, setReceivedBy] = useState('Omborchi (Mas\'ul xodim)');
   const [customPaidAmount, setCustomPaidAmount] = useState<string>('');
 
   // Close supplier dropdown on click outside
@@ -101,12 +143,15 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
   }, [isSupplierDropdownOpen]);
 
   const availableSuppliers = useMemo(() => {
-    const list = [...DEFAULT_SUPPLIERS];
+    const list: string[] = savedSuppliers.map(s => s.name);
+    DEFAULT_SUPPLIERS.forEach(s => {
+      if (!list.includes(s)) list.push(s);
+    });
     if (editingPurchase && !list.includes(editingPurchase.supplierName)) {
       list.unshift(editingPurchase.supplierName);
     }
     return Array.from(new Set(list));
-  }, [editingPurchase]);
+  }, [savedSuppliers, editingPurchase]);
 
   const filteredSuppliers = useMemo(() => {
     const q = supplierSearchText.trim().toLowerCase();
@@ -152,7 +197,7 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
         }
         setPaymentMethod(editingPurchase.paymentMethod || (editingPurchase.currency === 'USD' ? 'usd' : 'cash'));
         setNotes(editingPurchase.notes || '');
-        setReceivedBy(editingPurchase.receivedBy || 'Omborchi (Alisher)');
+        setReceivedBy(editingPurchase.receivedBy || loggedInUserFormatted);
 
         // Populate items
         const mappedItems: DraftPurchaseItem[] = editingPurchase.items.map((it, idx) => ({
@@ -187,13 +232,48 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
         setCustomPaidAmount('');
         setPaymentMethod(baseCurrency === 'USD' ? 'usd' : 'cash');
         setNotes('');
-        setReceivedBy('Omborchi (Alisher)');
+        setReceivedBy(loggedInUserFormatted);
         setItems([]);
       }
       setProductSearchText('');
       setIsSearchDropdownOpen(false);
     }
-  }, [isOpen, editingPurchase, baseCurrency, exchangeRate, categories]);
+  }, [isOpen, editingPurchase, baseCurrency, exchangeRate, categories, loggedInUserFormatted]);
+
+  // Add new custom supplier to list and select it
+  const handleCreateSupplier = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmedName = newSupplierName.trim();
+    if (!trimmedName) return;
+
+    const phoneVal = newSupplierPhone.trim() && newSupplierPhone.trim() !== '+998' ? newSupplierPhone.trim() : '+998 ';
+    const newEntry: SupplierRecord = {
+      name: trimmedName,
+      phone: phoneVal,
+      address: newSupplierAddress.trim() || undefined
+    };
+
+    const updatedSuppliers = [newEntry, ...savedSuppliers.filter(s => s.name.toLowerCase() !== trimmedName.toLowerCase())];
+    setSavedSuppliers(updatedSuppliers);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('sc_suppliers_v2', JSON.stringify(updatedSuppliers));
+      } catch (err) {
+        console.error("Failed to save supplier to localStorage", err);
+      }
+    }
+
+    setSupplierName(trimmedName);
+    setSupplierSearchText(trimmedName);
+    if (phoneVal && phoneVal !== '+998 ') {
+      setSupplierPhone(phoneVal);
+    }
+    setIsAddSupplierModalOpen(false);
+    setNewSupplierName('');
+    setNewSupplierPhone('+998 ');
+    setNewSupplierAddress('');
+    setIsSupplierDropdownOpen(false);
+  };
 
   const handleCurrencyChange = (newCurr: 'USD' | 'UZS') => {
     if (newCurr !== invoiceCurrency && customPaidAmount) {
@@ -508,7 +588,8 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
       payments: editingPurchase?.payments || [],
       status: editingPurchase ? editingPurchase.status : 'received',
       notes: notes.trim() || undefined,
-      receivedBy
+      receivedBy: editingPurchase ? (editingPurchase.receivedBy || loggedInUserFormatted) : loggedInUserFormatted,
+      receivedById: currentUser?.id
     };
 
     // Calculate updated products state
@@ -620,12 +701,24 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
             {/* Supplier Searchable Combobox */}
             <div className="md:col-span-2 relative" ref={supplierDropdownRef}>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-cyan-600" />
                   * Yetkazib beruvchi (Ta&apos;minotchi):
                 </label>
-                <span className="text-[10px] text-slate-400">
-                  Qidirish yoki yangi nom yozish mumkin
-                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewSupplierName(supplierSearchText !== DEFAULT_SUPPLIERS[0] ? supplierSearchText : '');
+                    setNewSupplierPhone('+998 ');
+                    setNewSupplierAddress('');
+                    setIsAddSupplierModalOpen(true);
+                  }}
+                  className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 flex items-center gap-1 bg-cyan-50 dark:bg-cyan-950/50 px-2 py-0.5 rounded-md border border-cyan-200 dark:border-cyan-800 transition"
+                  title="Yangi ta'minotchi kiritish"
+                >
+                  <Plus className="w-3 h-3" />
+                  + Yangi Ta&apos;minotchi
+                </button>
               </div>
 
               <div className="relative">
@@ -661,20 +754,43 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
 
               {/* Autocomplete / Search Dropdown */}
               {isSupplierDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto p-1 space-y-0.5 animate-in fade-in-50 zoom-in-95 duration-100">
+                <div className="absolute top-full left-0 right-0 mt-1 z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto p-1 space-y-0.5 animate-in fade-in-50 zoom-in-95 duration-100">
+                  <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <span>Mavjud Ta&apos;minotchilar ({filteredSuppliers.length})</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewSupplierName(supplierSearchText !== DEFAULT_SUPPLIERS[0] ? supplierSearchText : '');
+                        setIsAddSupplierModalOpen(true);
+                      }}
+                      className="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-0.5 font-semibold"
+                    >
+                      <Plus className="w-2.5 h-2.5" /> Yangi
+                    </button>
+                  </div>
+
                   {filteredSuppliers.length === 0 ? (
-                    <div className="p-2 text-center text-xs text-slate-400">
+                    <div className="p-3 text-center text-xs text-slate-400 space-y-1.5">
                       <span className="font-bold text-slate-700 dark:text-slate-300 block truncate">
-                        &quot;{supplierSearchText}&quot;
+                        &quot;{supplierSearchText}&quot; topilmadi
                       </span>
-                      <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-semibold">
-                        Yangi ta&apos;minotchi sifatida saqlanadi
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewSupplierName(supplierSearchText.trim());
+                          setIsAddSupplierModalOpen(true);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-cyan-600 text-white font-bold text-xs inline-flex items-center gap-1 shadow-sm"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Ta&apos;minotchi sifatida saqlash
+                      </button>
                     </div>
                   ) : (
                     <>
                       {filteredSuppliers.map((s) => {
                         const isSelected = s.toLowerCase() === supplierSearchText.toLowerCase();
+                        const record = savedSuppliers.find(r => r.name.toLowerCase() === s.toLowerCase());
                         return (
                           <button
                             key={s}
@@ -682,6 +798,9 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
                             onClick={() => {
                               setSupplierName(s);
                               setSupplierSearchText(s);
+                              if (record?.phone && record.phone.trim() !== '+998') {
+                                setSupplierPhone(record.phone.trim());
+                              }
                               setIsSupplierDropdownOpen(false);
                             }}
                             className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition ${
@@ -690,24 +809,27 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
                                 : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                           >
-                            <span className="truncate">{s}</span>
+                            <div className="flex flex-col truncate">
+                              <span className="truncate">{s}</span>
+                              {record?.phone && record.phone !== '+998 ' && (
+                                <span className="text-[10px] text-slate-400 font-mono">{record.phone}</span>
+                              )}
+                            </div>
                             {isSelected && <Check className="w-3.5 h-3.5 text-cyan-600 shrink-0" />}
                           </button>
                         );
                       })}
-                      {supplierSearchText.trim() && !availableSuppliers.some(s => s.toLowerCase() === supplierSearchText.trim().toLowerCase()) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSupplierName(supplierSearchText.trim());
-                            setIsSupplierDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-3 py-2 rounded-lg text-xs text-cyan-600 dark:text-cyan-400 bg-cyan-50/50 dark:bg-cyan-950/30 hover:bg-cyan-100/50 border border-dashed border-cyan-300 dark:border-cyan-800 font-bold flex items-center gap-1.5"
-                        >
-                          <Plus className="w-3 h-3" />
-                          <span className="truncate">Yangi qo&apos;shish: &quot;{supplierSearchText.trim()}&quot;</span>
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewSupplierName(supplierSearchText.trim() !== DEFAULT_SUPPLIERS[0] ? supplierSearchText.trim() : '');
+                          setIsAddSupplierModalOpen(true);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg text-xs text-cyan-600 dark:text-cyan-400 bg-cyan-50/50 dark:bg-cyan-950/30 hover:bg-cyan-100/50 border border-dashed border-cyan-300 dark:border-cyan-800 font-bold flex items-center gap-1.5 mt-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Yangi ta&apos;minotchi kiritish</span>
+                      </button>
                     </>
                   )}
                 </div>
@@ -761,17 +883,32 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
               />
             </div>
 
-            {/* Received by */}
+            {/* Received by (Locked for audit & personal accountability) */}
             <div>
-              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                Qabul qiluvchi mas&apos;ul:
-              </label>
-              <input
-                type="text"
-                value={receivedBy}
-                onChange={(e) => setReceivedBy(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-white outline-none"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-amber-500" />
+                  * Qabul qiluvchi mas&apos;ul:
+                </label>
+                <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight flex items-center gap-0.5">
+                  Moddiy javobgar
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  readOnly
+                  disabled
+                  value={receivedBy}
+                  className="w-full bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg pl-7 pr-2 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-not-allowed select-none opacity-95"
+                  title="Tizimga kirgan xodim hisobidan avtomatik olinadi va o'zgartirib bo'lmaydi"
+                />
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              </div>
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1 font-medium">
+                <Lock className="w-2.5 h-2.5 shrink-0" />
+                Tizim hisobi avtomatik biriktirilgan (o&apos;zgartirib bo&apos;lmaydi)
+              </p>
             </div>
 
             {/* Payment status */}
@@ -1454,6 +1591,106 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* POPUP MODAL: ADD NEW SUPPLIER */}
+      {isAddSupplierModalOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-cyan-600/10 text-cyan-600 flex items-center justify-center font-bold">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Yangi Ta&apos;minotchi Qo&apos;shish
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Kompaniya, diler yoki yetkazib beruvchi shaxs
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddSupplierModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSupplier} className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  * Ta&apos;minotchi / Korxona nomi:
+                </label>
+                <div className="relative">
+                  <Building2 className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={newSupplierName}
+                    onChange={(e) => setNewSupplierName(e.target.value)}
+                    placeholder="Masalan: Hikvision Official Diler (Toshkent)"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Telefon raqami (Aloqa uchun):
+                </label>
+                <div className="relative">
+                  <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={newSupplierPhone}
+                    onChange={(e) => setNewSupplierPhone(e.target.value)}
+                    placeholder="+998 90 123 45 67"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-mono font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Manzil yoki Izoh (Ixtiyoriy):
+                </label>
+                <div className="relative">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={newSupplierAddress}
+                    onChange={(e) => setNewSupplierAddress(e.target.value)}
+                    placeholder="Masalan: Toshkent sh., Chilonzor 2-mavze"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddSupplierModalOpen(false)}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newSupplierName.trim()}
+                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md shadow-cyan-600/20 transition disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Ta&apos;minotchini Saqlash</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

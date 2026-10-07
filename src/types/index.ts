@@ -546,6 +546,7 @@ export interface PurchaseInvoice {
   status: 'received' | 'draft' | 'cancelled';
   notes?: string;
   receivedBy: string;            // Qabul qilgan xodim
+  receivedById?: string;         // Qabul qilgan xodim ID si
 }
 
 export type ServiceTicketStatus = 

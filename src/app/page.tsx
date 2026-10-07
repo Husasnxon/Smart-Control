@@ -1432,6 +1432,7 @@ export default function Home() {
               onDeleteProductCategory={handleDeleteProductCategory}
               exchangeRate={exchangeRate}
               baseCurrency={baseCurrency}
+              currentUser={currentUser}
             />
           )}
 

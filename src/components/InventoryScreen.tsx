@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Product, ProductCategory, Currency, PurchaseInvoice, PurchasePaymentRecord } from '../types';
+import { Product, ProductCategory, Currency, PurchaseInvoice, PurchasePaymentRecord, Employee } from '../types';
 import { formatMoney, formatDualMoney, formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { NewPurchaseModal } from './NewPurchaseModal';
 import { PurchaseInvoiceModal } from './PurchaseInvoiceModal';
@@ -64,6 +64,7 @@ interface InventoryScreenProps {
   onDeleteProductCategory: (categoryId: string) => void;
   exchangeRate?: number;
   baseCurrency?: Currency;
+  currentUser?: Employee | null;
 }
 
 export const InventoryScreen: React.FC<InventoryScreenProps> = ({
@@ -81,7 +82,8 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   onUpdateProductCategory,
   onDeleteProductCategory,
   exchangeRate = 12850,
-  baseCurrency = 'UZS'
+  baseCurrency = 'UZS',
+  currentUser = null
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'products' | 'purchases' | 'supplier_payments'>('products');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1220,6 +1222,12 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                           <Calendar className="w-2.5 h-2.5" />
                           <span>{purchase.createdAt}</span>
                         </div>
+                        {purchase.receivedBy && (
+                          <div className="text-[10px] text-slate-600 dark:text-slate-300 font-medium mt-0.5 flex items-center gap-1" title="Kirim qilgan mas'ul xodim">
+                            <ShieldCheck className="w-3 h-3 text-emerald-500 shrink-0" />
+                            <span className="truncate max-w-[150px]">{purchase.receivedBy}</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Supplier */}
@@ -2831,6 +2839,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
         categories={categories}
         exchangeRate={exchangeRate}
         baseCurrency={baseCurrency}
+        currentUser={currentUser}
         onConfirmPurchase={(invoice, updatedProducts) => {
           if (onSavePurchase) {
             onSavePurchase(invoice, updatedProducts);
