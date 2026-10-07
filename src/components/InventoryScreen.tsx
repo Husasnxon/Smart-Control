@@ -139,6 +139,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   };
 
   // New product form state
+  const [newProductCurrency, setNewProductCurrency] = useState<'UZS' | 'USD'>(baseCurrency || 'UZS');
   const [newName, setNewName] = useState('');
   const [newBarcode, setNewBarcode] = useState('');
   const [newCategory, setNewCategory] = useState(categories[0]?.name || 'Kuzatuv kameralari (CCTV)');
@@ -155,6 +156,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   const [newImageUrl, setNewImageUrl] = useState<string>('');
 
   // Edit product form state
+  const [editProductCurrency, setEditProductCurrency] = useState<'UZS' | 'USD'>(baseCurrency || 'UZS');
   const [editName, setEditName] = useState('');
   const [editBarcode, setEditBarcode] = useState('');
   const [editSku, setEditSku] = useState('');
@@ -199,6 +201,34 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       .filter((s) => s.length > 0);
   };
 
+  const handleSwitchNewCurrency = (newCurr: 'UZS' | 'USD') => {
+    if (newCurr === newProductCurrency) return;
+    const rate = exchangeRate > 0 ? exchangeRate : 12850;
+    if (newCurr === 'USD') {
+      setNewCostPrice(newCostPrice > 0 ? Number((newCostPrice / rate).toFixed(2)) : 0);
+      setNewRetailPrice(newRetailPrice > 0 ? Number((newRetailPrice / rate).toFixed(2)) : 0);
+    } else {
+      setNewCostPrice(newCostPrice > 0 ? Math.round(newCostPrice * rate) : 0);
+      setNewRetailPrice(newRetailPrice > 0 ? Math.round(newRetailPrice * rate) : 0);
+    }
+    setNewProductCurrency(newCurr);
+  };
+
+  const handleSwitchEditCurrency = (newCurr: 'UZS' | 'USD') => {
+    if (newCurr === editProductCurrency) return;
+    const rate = exchangeRate > 0 ? exchangeRate : 12850;
+    if (newCurr === 'USD') {
+      setEditCostPrice(editCostPrice > 0 ? Number((editCostPrice / rate).toFixed(2)) : 0);
+      setEditRetailPrice(editRetailPrice > 0 ? Number((editRetailPrice / rate).toFixed(2)) : 0);
+      setEditWholesalePrice(editWholesalePrice > 0 ? Number((editWholesalePrice / rate).toFixed(2)) : 0);
+    } else {
+      setEditCostPrice(editCostPrice > 0 ? Math.round(editCostPrice * rate) : 0);
+      setEditRetailPrice(editRetailPrice > 0 ? Math.round(editRetailPrice * rate) : 0);
+      setEditWholesalePrice(editWholesalePrice > 0 ? Math.round(editWholesalePrice * rate) : 0);
+    }
+    setEditProductCurrency(newCurr);
+  };
+
   const handleCreateProduct = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName || !newRetailPrice) return;
@@ -214,15 +244,26 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       finalStock = parsedSerials.length;
     }
 
+    const rate = exchangeRate > 0 ? exchangeRate : 12850;
+    const isUSD = newProductCurrency === 'USD';
+
+    const costPriceUZS = isUSD ? Math.round(newCostPrice * rate) : newCostPrice;
+    const costPriceUSD = isUSD ? newCostPrice : (costPriceUZS > 0 ? Number((costPriceUZS / rate).toFixed(2)) : undefined);
+
+    const retailPriceUZS = isUSD ? Math.round(newRetailPrice * rate) : newRetailPrice;
+    const retailPriceUSD = isUSD ? newRetailPrice : (retailPriceUZS > 0 ? Number((retailPriceUZS / rate).toFixed(2)) : undefined);
+
     const newProd: Product = {
       id: `prod-${Date.now()}`,
       barcode: newBarcode || `${Math.floor(1000000000000 + Math.random() * 9000000000000)}`,
       sku: `SKU-${Math.floor(100 + Math.random() * 900)}`,
       name: newName,
       category: newCategory,
-      costPrice: newCostPrice,
-      retailPrice: newRetailPrice,
-      wholesalePrice: Math.round(newRetailPrice * 0.9),
+      costPrice: costPriceUZS,
+      costPriceUSD: costPriceUSD,
+      retailPrice: retailPriceUZS,
+      retailPriceUSD: retailPriceUSD,
+      wholesalePrice: Math.round(retailPriceUZS * 0.9),
       stockQuantity: finalStock,
       minStockAlert: newIsService ? 0 : 2,
       unit: newIsService ? (newUnit === 'dona' ? 'nuqta' : newUnit) : newUnit,
@@ -252,14 +293,27 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   };
 
   const handleOpenEditProduct = (prod: Product) => {
+    const isUSD = baseCurrency === 'USD';
+    const rate = exchangeRate > 0 ? exchangeRate : 12850;
+    setEditProductCurrency(baseCurrency || 'UZS');
     setEditingProduct(prod);
     setEditName(prod.name);
     setEditBarcode(prod.barcode);
     setEditSku(prod.sku);
     setEditCategory(prod.category);
-    setEditCostPrice(prod.costPrice);
-    setEditRetailPrice(prod.retailPrice);
-    setEditWholesalePrice(prod.wholesalePrice || Math.round(prod.retailPrice * 0.9));
+
+    if (isUSD) {
+      const costUSD = prod.costPriceUSD ?? (prod.costPrice > 0 ? Number((prod.costPrice / rate).toFixed(2)) : 0);
+      const retailUSD = prod.retailPriceUSD ?? (prod.retailPrice > 0 ? Number((prod.retailPrice / rate).toFixed(2)) : 0);
+      setEditCostPrice(costUSD);
+      setEditRetailPrice(retailUSD);
+      setEditWholesalePrice(Number((retailUSD * 0.9).toFixed(2)));
+    } else {
+      setEditCostPrice(prod.costPrice);
+      setEditRetailPrice(prod.retailPrice);
+      setEditWholesalePrice(prod.wholesalePrice || Math.round(prod.retailPrice * 0.9));
+    }
+
     setEditStock(prod.stockQuantity);
     setEditMinStock(prod.minStockAlert);
     setEditUnit(prod.unit);
@@ -267,7 +321,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
     setEditSerialNumbersText((prod.serialNumbers || []).join('\n'));
     setEditIsService(!!prod.isService);
     setEditTechnicianWageUSD(prod.technicianWageUSD || 0);
-    setEditTechnicianWageUZS(prod.technicianWageUZS || (prod.technicianWageUSD ? Math.round(prod.technicianWageUSD * exchangeRate) : 0));
+    setEditTechnicianWageUZS(prod.technicianWageUZS || (prod.technicianWageUSD ? Math.round(prod.technicianWageUSD * rate) : 0));
     setEditWarrantyMonths(prod.warrantyMonths !== undefined ? prod.warrantyMonths : 12);
     setEditImageUrl(prod.imageUrl || '');
   };
@@ -287,15 +341,28 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       finalStock = parsedSerials.length;
     }
 
+    const rate = exchangeRate > 0 ? exchangeRate : 12850;
+    const isUSD = editProductCurrency === 'USD';
+
+    const costPriceUZS = isUSD ? Math.round(editCostPrice * rate) : editCostPrice;
+    const costPriceUSD = isUSD ? editCostPrice : (costPriceUZS > 0 ? Number((costPriceUZS / rate).toFixed(2)) : undefined);
+
+    const retailPriceUZS = isUSD ? Math.round(editRetailPrice * rate) : editRetailPrice;
+    const retailPriceUSD = isUSD ? editRetailPrice : (retailPriceUZS > 0 ? Number((retailPriceUZS / rate).toFixed(2)) : undefined);
+
+    const wholesalePriceUZS = isUSD ? Math.round(editWholesalePrice * rate) : (editWholesalePrice || Math.round(retailPriceUZS * 0.9));
+
     const updated: Product = {
       ...editingProduct,
       name: editName,
       barcode: editBarcode,
       sku: editSku,
       category: editCategory,
-      costPrice: editCostPrice,
-      retailPrice: editRetailPrice,
-      wholesalePrice: editWholesalePrice,
+      costPrice: costPriceUZS,
+      costPriceUSD: costPriceUSD,
+      retailPrice: retailPriceUZS,
+      retailPriceUSD: retailPriceUSD,
+      wholesalePrice: wholesalePriceUZS,
       stockQuantity: finalStock,
       minStockAlert: editIsService ? 0 : editMinStock,
       unit: editUnit,
@@ -1842,34 +1909,96 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Tannarx (so&apos;m)</label>
-                  <input
-                    type="number"
-                    value={newCostPrice || ''}
-                    onChange={(e) => setNewCostPrice(Number(e.target.value))}
-                    className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white font-mono"
-                  />
+              {/* Price & Currency Section */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Narxlar va Valyuta</span>
+                  </label>
+
+                  {/* Currency Switcher */}
+                  <div className="flex rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchNewCurrency('UZS')}
+                      className={`px-2.5 py-0.5 text-[11px] font-bold rounded-md transition ${
+                        newProductCurrency === 'UZS'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      SO&apos;M (UZS)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchNewCurrency('USD')}
+                      className={`px-2.5 py-0.5 text-[11px] font-bold rounded-md transition ${
+                        newProductCurrency === 'USD'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      USD ($)
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Sotish Narxi (so&apos;m)</label>
-                  <input
-                    type="number"
-                    required
-                    value={newRetailPrice || ''}
-                    onChange={(e) => setNewRetailPrice(Number(e.target.value))}
-                    className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kafolat (oy)</label>
-                  <input
-                    type="number"
-                    value={newWarrantyMonths}
-                    onChange={(e) => setNewWarrantyMonths(Number(e.target.value))}
-                    className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white font-mono"
-                  />
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      Tannarx ({newProductCurrency === 'USD' ? '$ USD' : 'so\'m'}):
+                    </label>
+                    <input
+                      type="number"
+                      step={newProductCurrency === 'USD' ? '0.01' : '1'}
+                      value={newCostPrice || ''}
+                      onChange={(e) => setNewCostPrice(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                      {newProductCurrency === 'USD'
+                        ? `~ ${formatNumberWithSpaces(Math.round(newCostPrice * exchangeRate))} so'm`
+                        : `~ $${formatUSDNumber(newCostPrice / exchangeRate)}`}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      * Sotish Narxi ({newProductCurrency === 'USD' ? '$ USD' : 'so\'m'}):
+                    </label>
+                    <input
+                      type="number"
+                      step={newProductCurrency === 'USD' ? '0.01' : '1'}
+                      required
+                      value={newRetailPrice || ''}
+                      onChange={(e) => setNewRetailPrice(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="w-full bg-white dark:bg-slate-900 border-2 border-emerald-500/50 focus:border-emerald-500 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300 outline-none"
+                    />
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold block mt-0.5">
+                      {newProductCurrency === 'USD'
+                        ? `~ ${formatNumberWithSpaces(Math.round(newRetailPrice * exchangeRate))} so'm`
+                        : `~ $${formatUSDNumber(newRetailPrice / exchangeRate)}`}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      Kafolat (oy):
+                    </label>
+                    <input
+                      type="number"
+                      value={newWarrantyMonths}
+                      onChange={(e) => setNewWarrantyMonths(parseInt(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -2147,40 +2276,96 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Tannarx</label>
-                  <input
-                    type="number"
-                    value={editCostPrice || ''}
-                    onChange={(e) => setEditCostPrice(Number(e.target.value))}
-                    onFocus={(e) => e.target.select()}
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                    className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono text-slate-900 dark:text-white"
-                  />
+              {/* Price & Currency Section (Edit Mode) */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Narxlar va Valyuta</span>
+                  </label>
+
+                  {/* Currency Switcher */}
+                  <div className="flex rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchEditCurrency('UZS')}
+                      className={`px-2.5 py-0.5 text-[11px] font-bold rounded-md transition ${
+                        editProductCurrency === 'UZS'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      SO&apos;M (UZS)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchEditCurrency('USD')}
+                      className={`px-2.5 py-0.5 text-[11px] font-bold rounded-md transition ${
+                        editProductCurrency === 'USD'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      USD ($)
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Sotish Narxi</label>
-                  <input
-                    type="number"
-                    required
-                    value={editRetailPrice || ''}
-                    onChange={(e) => setEditRetailPrice(Number(e.target.value))}
-                    onFocus={(e) => e.target.select()}
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                    className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-emerald-500/40 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kafolat (oy)</label>
-                  <input
-                    type="number"
-                    value={editWarrantyMonths}
-                    onChange={(e) => setEditWarrantyMonths(Number(e.target.value))}
-                    onFocus={(e) => e.target.select()}
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                    className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono text-slate-900 dark:text-white"
-                  />
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      Tannarx ({editProductCurrency === 'USD' ? '$ USD' : 'so\'m'}):
+                    </label>
+                    <input
+                      type="number"
+                      step={editProductCurrency === 'USD' ? '0.01' : '1'}
+                      value={editCostPrice || ''}
+                      onChange={(e) => setEditCostPrice(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                      {editProductCurrency === 'USD'
+                        ? `~ ${formatNumberWithSpaces(Math.round(editCostPrice * exchangeRate))} so'm`
+                        : `~ $${formatUSDNumber(editCostPrice / exchangeRate)}`}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      * Sotish Narxi ({editProductCurrency === 'USD' ? '$ USD' : 'so\'m'}):
+                    </label>
+                    <input
+                      type="number"
+                      step={editProductCurrency === 'USD' ? '0.01' : '1'}
+                      required
+                      value={editRetailPrice || ''}
+                      onChange={(e) => setEditRetailPrice(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="w-full bg-white dark:bg-slate-900 border-2 border-emerald-500/50 focus:border-emerald-500 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300 outline-none"
+                    />
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold block mt-0.5">
+                      {editProductCurrency === 'USD'
+                        ? `~ ${formatNumberWithSpaces(Math.round(editRetailPrice * exchangeRate))} so'm`
+                        : `~ $${formatUSDNumber(editRetailPrice / exchangeRate)}`}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      Kafolat (oy):
+                    </label>
+                    <input
+                      type="number"
+                      value={editWarrantyMonths}
+                      onChange={(e) => setEditWarrantyMonths(parseInt(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
                 </div>
               </div>
 

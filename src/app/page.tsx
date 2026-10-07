@@ -94,13 +94,29 @@ export default function Home() {
           setExpenseCategories(INITIAL_EXPENSE_CATEGORIES);
           setAiInsights(INITIAL_AI_INSIGHTS);
         } else {
-          // Merge image URLs from INITIAL_PRODUCTS if missing in saved items
+          // Merge image URLs from INITIAL_PRODUCTS and heal any dollar amounts saved in UZS fields
+          const rateToUse = exchangeRate > 0 ? exchangeRate : 12850;
           const enriched = parsed.map((p) => {
+            let retailPrice = p.retailPrice;
+            let costPrice = p.costPrice;
+            let retailPriceUSD = p.retailPriceUSD;
+            let costPriceUSD = p.costPriceUSD;
+
+            // Auto-heal if price was saved as raw USD ($) into UZS field (e.g. 36 instead of 462,600)
+            if (retailPrice > 0 && retailPrice < 500) {
+              retailPriceUSD = retailPrice;
+              retailPrice = Math.round(retailPrice * rateToUse);
+            }
+            if (costPrice > 0 && costPrice < 500) {
+              costPriceUSD = costPrice;
+              costPrice = Math.round(costPrice * rateToUse);
+            }
+
             if (!p.imageUrl) {
               const match = INITIAL_PRODUCTS.find((ip) => ip.id === p.id || ip.sku === p.sku);
-              if (match?.imageUrl) return { ...p, imageUrl: match.imageUrl };
+              if (match?.imageUrl) return { ...p, retailPrice, costPrice, retailPriceUSD, costPriceUSD, imageUrl: match.imageUrl };
             }
-            return p;
+            return { ...p, retailPrice, costPrice, retailPriceUSD, costPriceUSD };
           });
           setProducts(enriched);
         }
