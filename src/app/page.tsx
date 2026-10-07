@@ -208,7 +208,75 @@ export default function Home() {
       if (savedOrders) setCustomerOrders(JSON.parse(savedOrders));
 
       const savedShipments = localStorage.getItem('sc_shipments');
-      if (savedShipments) setShipments(JSON.parse(savedShipments));
+      let loadedShipments: ShipmentOrder[] = INITIAL_SHIPMENTS;
+      if (savedShipments) {
+        try {
+          loadedShipments = JSON.parse(savedShipments);
+        } catch (e) {
+          loadedShipments = INITIAL_SHIPMENTS;
+        }
+      }
+
+      // Backfill missing shipments from receipts
+      if (savedReceipts) {
+        try {
+          const loadedRecs: SaleReceipt[] = JSON.parse(savedReceipts);
+          const existingReceiptIds = new Set(loadedShipments.map(s => s.receiptId).filter(Boolean));
+          const missingShipments: ShipmentOrder[] = [];
+
+          loadedRecs.forEach(r => {
+            if (!existingReceiptIds.has(r.id)) {
+              const posShipmentNumber = `OTG-${r.receiptNumber.replace('CR-', '')}`;
+              missingShipments.push({
+                id: `ship-pos-${r.id}`,
+                shipmentNumber: posShipmentNumber,
+                orderId: `ord-pos-${r.id}`,
+                orderNumber: `POS-${r.receiptNumber}`,
+                receiptId: r.id,
+                organization: r.branchName || 'Chilonzor-1 Filiali',
+                warehouseName: 'Asosiy ombor',
+                exchangeRate: r.exchangeRate || 12850,
+                customerId: r.customer?.id || 'cust-direct',
+                customerName: r.customer?.fullName || 'Standart Xaridor',
+                customerPhone: r.customer?.phone || '',
+                deliveryAddress: r.installationAddress || 'To\'g\'ridan-to\'g\'ri savdo (POS Kassa)',
+                projectName: r.customer ? `${r.customer.fullName} - POS Sotuv` : 'Kassa To\'g\'ridan-to\'g\'ri Sotuv',
+                items: r.items.map(it => ({
+                  productId: it.product.id,
+                  productName: it.product.name,
+                  quantity: it.quantity,
+                  unit: it.product.unit || 'dona',
+                  unitPrice: it.appliedPrice,
+                  unitPriceUSD: it.appliedPriceUSD,
+                  discountPercent: it.discountPercent,
+                  totalPrice: it.appliedPrice * it.quantity,
+                  hasSerialNumber: it.product.hasSerialNumber,
+                  selectedSerialNumbers: it.selectedSerialNumbers,
+                  isService: it.product.isService
+                })),
+                subtotal: r.subtotal,
+                discountTotal: r.discountTotal,
+                totalAmount: r.totalAmount,
+                totalAmountUSD: r.totalAmountUSD || Number((r.totalAmount / (r.exchangeRate || 12850)).toFixed(2)),
+                currency: 'UZS',
+                technicians: r.technicians,
+                status: 'shipped',
+                createdAt: r.createdAt,
+                shippedAt: r.createdAt,
+                createdBy: r.cashierName,
+                comment: `POS Kassa orqali sotildi (#${r.receiptNumber})`
+              });
+            }
+          });
+
+          if (missingShipments.length > 0) {
+            loadedShipments = [...missingShipments, ...loadedShipments];
+          }
+        } catch (e) {
+          console.error("Backfill error", e);
+        }
+      }
+      setShipments(loadedShipments);
 
       const savedPurchases = localStorage.getItem('sc_purchases');
       if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
@@ -633,7 +701,50 @@ export default function Home() {
       setCustomerOrders((prev) => [posOrder, ...prev]);
     }
 
-    // 5. Update technician stats if assigned to this sale (multi-technician support)
+    // 5. Create corresponding Otgruzka (ShipmentOrder) so all POS sales appear in Otgruzka
+    const posShipmentNumber = `OTG-${finalReceipt.receiptNumber.replace('CR-', '')}`;
+    const posShipment: ShipmentOrder = {
+      id: `ship-pos-${finalReceipt.id}`,
+      shipmentNumber: posShipmentNumber,
+      orderId: hasAssignedTech ? `ord-pos-${finalReceipt.id}` : undefined,
+      orderNumber: `POS-${finalReceipt.receiptNumber}`,
+      receiptId: finalReceipt.id,
+      organization: finalReceipt.branchName || 'Chilonzor-1 Filiali',
+      warehouseName: 'Asosiy ombor',
+      exchangeRate: finalReceipt.exchangeRate || exchangeRate,
+      customerId: finalReceipt.customer?.id || 'cust-direct',
+      customerName: finalReceipt.customer?.fullName || 'Standart Xaridor',
+      customerPhone: finalReceipt.customer?.phone || '',
+      deliveryAddress: finalReceipt.installationAddress || 'To\'g\'ridan-to\'g\'ri savdo (POS Kassa)',
+      projectName: finalReceipt.customer ? `${finalReceipt.customer.fullName} - POS Sotuv` : 'Kassa To\'g\'ridan-to\'g\'ri Sotuv',
+      items: finalReceipt.items.map((it) => ({
+        productId: it.product.id,
+        productName: it.product.name,
+        quantity: it.quantity,
+        unit: it.product.unit || 'dona',
+        unitPrice: it.appliedPrice,
+        unitPriceUSD: it.appliedPriceUSD,
+        discountPercent: it.discountPercent,
+        totalPrice: it.appliedPrice * it.quantity,
+        hasSerialNumber: it.product.hasSerialNumber,
+        selectedSerialNumbers: it.selectedSerialNumbers,
+        isService: it.product.isService
+      })),
+      subtotal: finalReceipt.subtotal,
+      discountTotal: finalReceipt.discountTotal,
+      totalAmount: finalReceipt.totalAmount,
+      totalAmountUSD: finalReceipt.totalAmountUSD || Number((finalReceipt.totalAmount / (finalReceipt.exchangeRate || exchangeRate)).toFixed(2)),
+      currency: 'UZS',
+      technicians: finalReceipt.technicians,
+      status: 'shipped',
+      createdAt: finalReceipt.createdAt,
+      shippedAt: finalReceipt.createdAt,
+      createdBy: finalReceipt.cashierName,
+      comment: `POS Kassa orqali sotildi (#${finalReceipt.receiptNumber})`
+    };
+    setShipments((prev) => [posShipment, ...prev]);
+
+    // 6. Update technician stats if assigned to this sale (multi-technician support)
     if (newReceipt.technicians && newReceipt.technicians.length > 0) {
       setEmployees((prev) =>
         prev.map((emp) => {

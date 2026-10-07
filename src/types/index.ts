@@ -415,6 +415,8 @@ export interface ShipmentOrder {
   orderId?: string;       // Qaysi hisob-kitobdan olingan
   orderNumber?: string;
   createdAt: string;
+  shippedAt?: string;
+  createdBy?: string;
   organization: string;   // "WST Namangan"
   customerId?: string;
   customerName: string;
@@ -433,7 +435,7 @@ export interface ShipmentOrder {
   technicians?: AssignedTechnician[];
   status: 'pending' | 'shipped' | 'cancelled';
   receiptId?: string;     // Yaratilgan sotuv cheki ID si
-  paymentMethod: 'cash' | 'card' | 'debt' | 'usd';
+  paymentMethod?: 'cash' | 'card' | 'debt' | 'usd';
   hasHandoverReport?: boolean;
   handoverReportId?: string;
 }

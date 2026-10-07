@@ -928,65 +928,65 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
       </div>
 
       {/* Sub-Tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 print:hidden">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 print:hidden">
+        <button
+          onClick={() => setActiveSubTab('sales_history')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
+            activeSubTab === 'sales_history'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 font-extrabold'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <History className="w-4 h-4 text-emerald-400" />
+          <span>🧾 Savdo Tarixi & Cheklar ({filteredReceipts.length})</span>
+        </button>
+
         <button
           onClick={() => setActiveSubTab('pnl')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
             activeSubTab === 'pnl'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 font-extrabold'
               : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
           }`}
         >
-          <FileText className="w-4 h-4" />
-          <span>Foyda va Zarar (P&L Buxgalteriya)</span>
+          <FileText className="w-4 h-4 text-emerald-400" />
+          <span>📊 Foyda va Zarar (P&L Buxgalteriya)</span>
         </button>
 
         <button
           onClick={() => setActiveSubTab('products')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
             activeSubTab === 'products'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 font-extrabold'
               : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
           }`}
         >
-          <Package className="w-4 h-4" />
-          <span>Tovarlar Rentabelligi & Marja ({pnlData.productStats.length})</span>
+          <Package className="w-4 h-4 text-cyan-400" />
+          <span>📦 Tovarlar Rentabelligi & Marja ({pnlData.productStats.length})</span>
         </button>
 
         <button
           onClick={() => setActiveSubTab('technicians')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
             activeSubTab === 'technicians'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 font-extrabold'
               : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
           }`}
         >
-          <HardHat className="w-4 h-4" />
-          <span>Ustalar Samaradorligi ({pnlData.technicianStats.length})</span>
+          <HardHat className="w-4 h-4 text-purple-400" />
+          <span>👷‍♂️ Ustalar Samaradorligi ({pnlData.technicianStats.length})</span>
         </button>
 
         <button
           onClick={() => setActiveSubTab('cash_flow')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
             activeSubTab === 'cash_flow'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 font-extrabold'
               : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
           }`}
         >
-          <Wallet className="w-4 h-4" />
-          <span>Kassa & Pul Oqimi</span>
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('sales_history')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
-            activeSubTab === 'sales_history'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
-          }`}
-        >
-          <History className="w-4 h-4" />
-          <span>Sotuvlar Tarixi & Cheklar ({filteredReceipts.length})</span>
+          <Wallet className="w-4 h-4 text-amber-400" />
+          <span>💳 Kassa & Pul Oqimi</span>
         </button>
       </div>
 
