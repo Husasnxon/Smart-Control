@@ -36,6 +36,7 @@ import {
   ChevronDown,
   ChevronUp,
   Lock,
+  Bell,
   BellRing
 } from 'lucide-react';
 import { PaymentModal } from './PaymentModal';
@@ -816,7 +817,31 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                   Buyurtmachi / Mijoz
                 </label>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  {/* Ustalardan kelgan smetalar qongiroqcha tugmasi */}
+                  <button
+                    type="button"
+                    onClick={() => setIsApprovalModalOpen(true)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition border shadow-sm ${
+                      pendingTechnicianOrders.length > 0
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400 font-extrabold animate-pulse'
+                        : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                    title={`Ustalardan kelgan joyida hisob-kitoblar (Smetalar)${pendingTechnicianOrders.length > 0 ? `: ${pendingTechnicianOrders.length} ta tasdiqlash kutilmoqda` : ''}`}
+                  >
+                    {pendingTechnicianOrders.length > 0 ? (
+                      <BellRing className="w-3 h-3 text-slate-950 fill-slate-950 shrink-0 animate-bounce" />
+                    ) : (
+                      <Bell className="w-3 h-3 text-slate-500 dark:text-slate-400 shrink-0" />
+                    )}
+                    <span>Usta Smetasi</span>
+                    {pendingTechnicianOrders.length > 0 && (
+                      <span className="w-4 h-4 rounded-full bg-rose-600 text-white text-[9px] font-black flex items-center justify-center shadow">
+                        {pendingTechnicianOrders.length}
+                      </span>
+                    )}
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setIsAddCustomerModalOpen(true)}

@@ -36,6 +36,7 @@ import { SettingsScreen } from '../components/SettingsScreen';
 import { TechnicianPortalScreen } from '../components/TechnicianPortalScreen';
 import { FinancialReportsScreen } from '../components/FinancialReportsScreen';
 import { ZReportModal } from '../components/ZReportModal';
+import { CashierOrderApprovalModal } from '../components/CashierOrderApprovalModal';
 import { LoginScreen } from '../components/LoginScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { getTelegramSettings, sendTelegramMessage, generateDailySalesReport } from '../utils/telegram';
@@ -70,8 +71,12 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isZReportOpen, setIsZReportOpen] = useState<boolean>(false);
+  const [isGlobalApprovalModalOpen, setIsGlobalApprovalModalOpen] = useState<boolean>(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
+
+  // Ustalardan kelgan tasdiqlash kutilayotgan smetalar soni
+  const pendingEstimatesCount = (customerOrders || []).filter(o => o.status === 'pending_cashier_approval').length;
 
   // 1. Dastur ochilganda kompyuterning lokal xotirasidan ma'lumotlarni yuklash
   useEffect(() => {
@@ -403,9 +408,11 @@ export default function Home() {
 
           if (remote.customerOrders) {
             setCustomerOrders(prevOrders => {
-              // Check if a new order was assigned to the currently logged in technician
+              const prevIds = new Set(prevOrders.map(o => o.id));
+              const prevPendingIds = new Set(prevOrders.filter(o => o.status === 'pending_cashier_approval').map(o => o.id));
+
+              // 1. Check if a new order was assigned to the currently logged in technician
               if (currentUser?.systemRole === 'technician' || currentUser?.role?.toLowerCase().includes('usta')) {
-                const prevIds = new Set(prevOrders.map(o => o.id));
                 const newAssignedJob = remote.customerOrders.find((o: any) => 
                   !prevIds.has(o.id) && (
                     o.technicianId === currentUser.id ||
@@ -417,6 +424,18 @@ export default function Home() {
                   showToast(`🔔 Yangi montaj topshirig'i keldi! (#${newAssignedJob.orderNumber})`);
                 }
               }
+
+              // 2. Check if a new on-site estimate was submitted by technician for cashier approval
+              if (currentUser?.systemRole !== 'technician') {
+                const newPendingEstimate = remote.customerOrders.find((o: any) => 
+                  o.status === 'pending_cashier_approval' && !prevPendingIds.has(o.id)
+                );
+                if (newPendingEstimate) {
+                  playOrderNotificationSound();
+                  showToast(`🔔 Usta ${newPendingEstimate.requestedByTechnicianName || newPendingEstimate.technicianName || 'Usta'} yangi smeta yubordi (#${newPendingEstimate.orderNumber})! Tasdiqlash uchun qo'ng'iroqchani bosing.`);
+                }
+              }
+
               return remote.customerOrders;
             });
           }
@@ -1080,6 +1099,95 @@ export default function Home() {
   const handleDeleteOrder = (orderId: string) => {
     setCustomerOrders((prev) => prev.filter((o) => o.id !== orderId));
     showToast("✓ Hisob-kitob smetasi o'chirildi.");
+  };
+
+  const handleDirectApproveEstimate = (order: CustomerOrder) => {
+    const updatedOrder: CustomerOrder = {
+      ...order,
+      status: 'shipped'
+    };
+    handleSaveOrder(updatedOrder);
+
+    // Create automatic sale receipt for financial accounting
+    const newReceipt: SaleReceipt = {
+      id: `rcp-est-${Date.now()}`,
+      receiptNumber: `CHK-${Math.floor(10000 + Math.random() * 90000)}`,
+      createdAt: new Date().toISOString(),
+      cashierName: currentUser?.fullName || 'Bosh Administrator',
+      branchName: 'Chilonzor-1 Filiali',
+      items: order.items.map(it => {
+        const prod = products.find(p => p.id === it.productId || p.sku === it.sku);
+        return {
+          product: prod || {
+            id: it.productId,
+            name: it.productName,
+            sku: it.sku || 'ITEM',
+            barcode: '',
+            category: it.category || 'Boshqa',
+            retailPrice: it.unitPrice,
+            retailPriceUSD: it.unitPriceUSD || Number((it.unitPrice / exchangeRate).toFixed(2)),
+            wholesalePrice: it.unitPrice,
+            costPrice: 0,
+            stockQuantity: 999,
+            minStockAlert: 5,
+            unit: it.unit,
+            hasSerialNumber: it.hasSerialNumber || false,
+            isService: it.isService || false,
+            serialNumbers: it.selectedSerialNumbers || []
+          },
+          quantity: it.quantity,
+          appliedPrice: it.unitPrice,
+          discountPercent: it.discountPercent || 0,
+          selectedSerialNumbers: it.selectedSerialNumbers || []
+        };
+      }),
+      subtotal: order.subtotal || order.totalAmount,
+      discountTotal: order.discountTotal || 0,
+      totalAmount: order.totalAmount,
+      totalAmountUSD: order.totalAmountUSD || Number((order.totalAmount / exchangeRate).toFixed(2)),
+      payments: {
+        cash: order.totalAmount,
+        card: 0,
+        debt: 0,
+        cashbackUsed: 0,
+        total: order.totalAmount,
+        totalUSD: order.totalAmountUSD,
+        currencyPaid: 'UZS'
+      },
+      cashbackEarned: 0,
+      customer: order.customerId ? customers.find(c => c.id === order.customerId) : (order.customerName ? {
+        id: `cust-tmp-${Date.now()}`,
+        fullName: order.customerName,
+        phone: order.customerPhone || '',
+        address: order.deliveryAddress || '',
+        cashbackBalance: 0,
+        totalPurchases: 0,
+        debtBalance: 0,
+        tier: 'Standard',
+        cashbackRate: 1,
+        registeredDate: new Date().toLocaleDateString('uz-UZ')
+      } : undefined),
+      technicians: order.technicians || [],
+      installationAddress: order.deliveryAddress,
+      exchangeRate: exchangeRate,
+      status: 'completed',
+      isOffline: false,
+      synced: true
+    };
+    handleCompleteSale(newReceipt);
+    showToast(`✓ #${order.orderNumber} smeta kassa tomonidan tasdiqlandi va savdoga qabul qilindi!`);
+  };
+
+  const handleRejectEstimate = (orderId: string, reason: string) => {
+    const targetOrd = customerOrders.find((o) => o.id === orderId);
+    if (targetOrd) {
+      handleSaveOrder({
+        ...targetOrd,
+        status: 'rejected',
+        rejectionReason: reason
+      });
+      showToast(`⚠️ #${targetOrd.orderNumber} smeta rad etildi.`);
+    }
   };
 
   const handleSaveShipment = (newShipment: ShipmentOrder) => {
@@ -1835,6 +1943,8 @@ export default function Home() {
           currentUser={currentUser}
           onSwitchUser={() => setIsSwitchUserModalOpen(true)}
           onToggleMobileMenu={() => setIsMobileNavOpen((prev) => !prev)}
+          pendingEstimatesCount={pendingEstimatesCount}
+          onOpenEstimatesApproval={() => setIsGlobalApprovalModalOpen(true)}
         />
 
         {/* Dynamic Screen View */}
@@ -2091,6 +2201,28 @@ export default function Home() {
         branchName="Chilonzor-1 Filiali"
         onSaveZReport={(report) => {
           showToast(`Smena muvaffaqiyatli yopildi! Z-Hisobot: ${report.reportNumber}`);
+        }}
+      />
+
+      {/* Global Cashier Order Approval Modal (Accessible via Header Bell & Notifications) */}
+      <CashierOrderApprovalModal
+        isOpen={isGlobalApprovalModalOpen}
+        onClose={() => setIsGlobalApprovalModalOpen(false)}
+        pendingOrders={(customerOrders || []).filter(o => o.status === 'pending_cashier_approval')}
+        products={products}
+        exchangeRate={exchangeRate}
+        baseCurrency={baseCurrency}
+        onApproveAndLoadToCart={(order) => {
+          handleDirectApproveEstimate(order);
+          setActiveTab('pos');
+          setIsGlobalApprovalModalOpen(false);
+        }}
+        onDirectApproveSale={(order) => {
+          handleDirectApproveEstimate(order);
+          setIsGlobalApprovalModalOpen(false);
+        }}
+        onRejectOrder={(orderId, reason) => {
+          handleRejectEstimate(orderId, reason);
         }}
       />
 

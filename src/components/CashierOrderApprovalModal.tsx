@@ -249,21 +249,36 @@ export const CashierOrderApprovalModal: React.FC<CashierOrderApprovalModalProps>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {/* 1. Load into POS Cart */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {/* 1. Direct Approve into Otgruzka */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDirectApproveSale(selectedOrder, 'cash');
+                        onClose();
+                      }}
+                      className="py-3 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 transition active:scale-98"
+                      title="Smetani kassa tomonidan tasdiqlab to'g'ridan-to'g'ri otgruzka va montajga o'tkazish"
+                    >
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>✓ Tasdiqlash (Otgruzka)</span>
+                    </button>
+
+                    {/* 2. Load into POS Cart for payment checkout */}
                     <button
                       type="button"
                       onClick={() => {
                         onApproveAndLoadToCart(selectedOrder);
                         onClose();
                       }}
-                      className="py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition active:scale-98"
+                      className="py-3 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-purple-600/30 transition active:scale-98"
+                      title="Mahsulotlar va xizmatlarni POS savatchasiga yuklab to'lov qabul qilish"
                     >
-                      <ShoppingCart className="w-4 h-4" />
-                      <span>🛒 Kassaga Yuklash (Chek Urish)</span>
+                      <ShoppingCart className="w-4 h-4 shrink-0" />
+                      <span>🛒 Savatga Yuklash (Kassa)</span>
                     </button>
 
-                    {/* 2. Reject */}
+                    {/* 3. Reject */}
                     <button
                       type="button"
                       onClick={() => {
@@ -272,10 +287,10 @@ export const CashierOrderApprovalModal: React.FC<CashierOrderApprovalModalProps>
                           onRejectOrder(selectedOrder.id, reason);
                         }
                       }}
-                      className="py-3 px-4 rounded-xl bg-slate-900 hover:bg-rose-950 text-rose-400 hover:text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-800 hover:border-rose-800 transition"
+                      className="py-3 px-3 rounded-xl bg-slate-900 hover:bg-rose-950 text-rose-400 hover:text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-800 hover:border-rose-800 transition"
                     >
-                      <XCircle className="w-4 h-4" />
-                      <span>Rad Etish (Bekor qilish)</span>
+                      <XCircle className="w-4 h-4 shrink-0" />
+                      <span>Rad Etish</span>
                     </button>
                   </div>
                 </div>

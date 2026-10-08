@@ -7,11 +7,13 @@ import {
   WifiOff, 
   RefreshCw, 
   DollarSign, 
-  Coins,
-  Lock,
-  Building2,
-  User,
-  Menu
+  Coins, 
+  Lock, 
+  Building2, 
+  User, 
+  Menu,
+  Bell,
+  BellRing
 } from 'lucide-react';
 import { formatDualMoney, formatNumberWithSpaces } from '../utils/formatters';
 
@@ -29,6 +31,8 @@ interface HeaderProps {
   currentUser?: Employee | null;
   onSwitchUser?: () => void;
   onToggleMobileMenu?: () => void;
+  pendingEstimatesCount?: number;
+  onOpenEstimatesApproval?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -44,7 +48,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenZReport,
   currentUser,
   onSwitchUser,
-  onToggleMobileMenu
+  onToggleMobileMenu,
+  pendingEstimatesCount = 0,
+  onOpenEstimatesApproval
 }) => {
   const dualSales = formatDualMoney(todaySalesTotal, baseCurrency, exchangeRate);
 
@@ -83,6 +89,39 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls */}
       <div className="flex items-center gap-1.5 sm:gap-3">
+        
+        {/* ======================================================== */}
+        {/* NOTIFICATION BELL: USTA SMETALARI (TECHNICIAN ESTIMATES) */}
+        {/* ======================================================== */}
+        {onOpenEstimatesApproval && currentUser?.systemRole !== 'technician' && (
+          <button
+            type="button"
+            onClick={onOpenEstimatesApproval}
+            className={`relative p-2 sm:px-3 sm:py-1.5 rounded-xl transition flex items-center gap-1.5 font-bold text-xs ${
+              pendingEstimatesCount > 0
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/30 animate-pulse'
+                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80'
+            }`}
+            title={`Ustalardan kelgan hisob-kitoblar (Smetalar)${pendingEstimatesCount > 0 ? `: ${pendingEstimatesCount} ta tasdiqlash kutilmoqda` : ''}`}
+          >
+            {pendingEstimatesCount > 0 ? (
+              <BellRing className="w-4 h-4 text-slate-950 fill-slate-950 shrink-0 animate-bounce" />
+            ) : (
+              <Bell className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+            )}
+            
+            <span className="hidden md:inline">
+              {pendingEstimatesCount > 0 ? `Usta Smetasi (${pendingEstimatesCount})` : 'Smetalar'}
+            </span>
+
+            {pendingEstimatesCount > 0 && (
+              <span className="md:hidden absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-600 text-white text-[9px] font-black flex items-center justify-center shadow-lg">
+                {pendingEstimatesCount}
+              </span>
+            )}
+          </button>
+        )}
+
         {/* ASOSIY VALYUTANI TANLASH SWITCHERI (Global Currency Switcher) */}
         {onUpdateBaseCurrency && (
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 sm:p-1 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-sm">
