@@ -145,21 +145,21 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
     const extraHours = Math.round((totalDaysAvailable - fullDays) * hoursPerDay);
 
     return {
-      cameraBitrateKbps,
-      totalBitrateKbps,
-      dailyConsumptionGB,
-      hourlyConsumptionGB,
+      cameraBitrateKbps: isNaN(cameraBitrateKbps) ? 1024 : cameraBitrateKbps,
+      totalBitrateKbps: isNaN(totalBitrateKbps) ? 4096 : totalBitrateKbps,
+      dailyConsumptionGB: isNaN(dailyConsumptionGB) ? 10 : dailyConsumptionGB,
+      hourlyConsumptionGB: isNaN(hourlyConsumptionGB) ? 0.4 : hourlyConsumptionGB,
       hoursPerDay,
       // Mode 1 output
-      requiredStorageGB,
-      requiredStorageTB,
-      recommendedHdd,
+      requiredStorageGB: isNaN(requiredStorageGB) ? 150 : requiredStorageGB,
+      requiredStorageTB: isNaN(requiredStorageTB) ? 0.15 : requiredStorageTB,
+      recommendedHdd: recommendedHdd || { tb: 2, gb: 2000, label: '2 TB (2000 GB)' },
       // Mode 2 output
-      actualHddGB,
-      usableHddGB: Number(usableHddGB.toFixed(0)),
-      totalDaysAvailable: Number(totalDaysAvailable.toFixed(1)),
-      fullDays,
-      extraHours
+      actualHddGB: isNaN(actualHddGB) ? 2000 : actualHddGB,
+      usableHddGB: isNaN(usableHddGB) ? 1860 : Number(usableHddGB.toFixed(0)),
+      totalDaysAvailable: isNaN(totalDaysAvailable) ? 30 : Number(totalDaysAvailable.toFixed(1)),
+      fullDays: isNaN(fullDays) ? 30 : fullDays,
+      extraHours: isNaN(extraHours) ? 0 : extraHours
     };
   }, [
     resolution, 
@@ -175,7 +175,7 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
     selectedHddCapacityGB
   ]);
 
-  const activeBrandConfig = BRAND_CONFIGS[brand];
+  const activeBrandConfig = BRAND_CONFIGS[brand] || BRAND_CONFIGS.hikvision;
 
   return (
     <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
@@ -492,7 +492,7 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
                     O&apos;rnatilgan yoki Tanlangan Disk (HDD):
                   </label>
                   <span className="text-xs font-black text-emerald-400 font-mono">
-                    {isCustomHdd ? `${customHddGB} GB` : STANDARD_HDD_SIZES.find(h => h.gb === selectedHddCapacityGB)?.label}
+                    {isCustomHdd ? `${customHddGB} GB` : (STANDARD_HDD_SIZES.find(h => h.gb === selectedHddCapacityGB)?.label || `${selectedHddCapacityGB} GB`)}
                   </span>
                 </div>
 

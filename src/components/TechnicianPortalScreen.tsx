@@ -435,22 +435,25 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     let ratingsCount = 0;
 
     filteredEarningsHandovers.forEach(h => {
-      if (h.clientRating) {
+      if (h?.clientRating) {
         totalRatingSum += h.clientRating;
         ratingsCount++;
       }
-      if (h.installedItems) {
+      if (h?.installedItems && Array.isArray(h.installedItems)) {
         h.installedItems.forEach(it => {
-          if (it.productName.toLowerCase().includes('kamera') || it.productName.toLowerCase().includes('camera')) {
-            totalCamerasInstalled += it.quantity;
+          if (it?.productName && (it.productName.toLowerCase().includes('kamera') || it.productName.toLowerCase().includes('camera'))) {
+            totalCamerasInstalled += (it.quantity || 1);
           }
         });
       }
     });
 
     filteredEarningsJobs.forEach(order => {
-      if (order.technicians) {
-        const myAssignment = order.technicians.find(t => t.id === activeTechnician?.id || t.fullName.toLowerCase().includes(activeTechnician?.fullName.toLowerCase() || ''));
+      if (order?.technicians && Array.isArray(order.technicians)) {
+        const myAssignment = order.technicians.find(t => 
+          t && ((activeTechnician?.id && t.id === activeTechnician.id) || 
+          (t.fullName && activeTechnician?.fullName && t.fullName.toLowerCase().includes(activeTechnician.fullName.toLowerCase())))
+        );
         if (myAssignment) {
           totalWagesUSD += myAssignment.wageUSD || 0;
           totalWagesUZS += myAssignment.wageUZS || (myAssignment.wageUSD ? Math.round(myAssignment.wageUSD * exchangeRate) : 0);
