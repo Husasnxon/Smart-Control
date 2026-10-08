@@ -62,12 +62,17 @@ export const CashierOrderApprovalModal: React.FC<CashierOrderApprovalModalProps>
   const [isAddingProduct, setIsAddingProduct] = useState<boolean>(false);
   const [productSearch, setProductSearch] = useState<string>('');
 
+  // Reject dialog state
+  const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState<boolean>(false);
+  const [rejectReasonText, setRejectReasonText] = useState<string>('Tovarlar omborda yetarli emas yoki narx xato');
+
   // Sync editable items whenever selected order changes or modal opens
   useEffect(() => {
     if (selectedOrder) {
       setEditableItems(selectedOrder.items ? JSON.parse(JSON.stringify(selectedOrder.items)) : []);
       setIsAddingProduct(false);
       setProductSearch('');
+      setIsRejectConfirmOpen(false);
     }
   }, [selectedOrder?.id, isOpen]);
 
@@ -545,18 +550,61 @@ export const CashierOrderApprovalModal: React.FC<CashierOrderApprovalModalProps>
                     {/* 3. Reject */}
                     <button
                       type="button"
-                      onClick={() => {
-                        const reason = window.prompt("Rad etish sababini kiriting (ixtiyoriy):", "Tovarlar omborda yetarli emas yoki narx xato");
-                        if (reason !== null) {
-                          onRejectOrder(selectedOrder.id, reason);
-                        }
-                      }}
-                      className="py-3 px-3 rounded-xl bg-slate-900 hover:bg-rose-950 text-rose-400 hover:text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-800 hover:border-rose-800 transition"
+                      onClick={() => setIsRejectConfirmOpen(true)}
+                      className="py-3 px-3 rounded-xl bg-slate-900 hover:bg-rose-950 text-rose-400 hover:text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-800 hover:border-rose-800 transition active:scale-98"
                     >
                       <XCircle className="w-4 h-4 shrink-0" />
                       <span>Rad Etish</span>
                     </button>
                   </div>
+
+                  {/* Inline Rejection Dialog Popover */}
+                  {isRejectConfirmOpen && (
+                    <div className="p-3 bg-rose-950/80 rounded-2xl border border-rose-700 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="flex items-center gap-2 text-rose-200">
+                        <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                        <span className="text-xs font-bold">Usta smetasini rad etish sababini tasdiqlang:</span>
+                      </div>
+
+                      <input
+                        type="text"
+                        value={rejectReasonText}
+                        onChange={(e) => setRejectReasonText(e.target.value)}
+                        placeholder="Rad etish sababi (ustaga ko'rinadi)..."
+                        className="w-full bg-slate-950 border border-rose-600/80 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500 font-medium"
+                      />
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setIsRejectConfirmOpen(false)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
+                        >
+                          Bekor qilish
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!selectedOrder) return;
+                            const reason = rejectReasonText.trim() || "Tovarlar omborda yetarli emas yoki narx xato";
+                            onRejectOrder(selectedOrder.id, reason);
+                            setIsRejectConfirmOpen(false);
+
+                            const remaining = pendingOrders.filter(o => o.id !== selectedOrder.id);
+                            if (remaining.length === 0) {
+                              onClose();
+                            } else {
+                              setSelectedOrderId(remaining[0].id);
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition flex items-center gap-1 shadow-md shadow-rose-600/30"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>Rad Etishni Tasdiqlash</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

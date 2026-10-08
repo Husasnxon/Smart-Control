@@ -411,7 +411,7 @@ export default function Home() {
               const prevIds = new Set(prevOrders.map(o => o.id));
               const prevPendingIds = new Set(prevOrders.filter(o => o.status === 'pending_cashier_approval').map(o => o.id));
 
-              // 1. Check if a new order was assigned to the currently logged in technician
+              // 1. Check if a new order was assigned to the currently logged in technician OR if their estimate was rejected
               if (currentUser?.systemRole === 'technician' || currentUser?.role?.toLowerCase().includes('usta')) {
                 const newAssignedJob = remote.customerOrders.find((o: any) => 
                   !prevIds.has(o.id) && (
@@ -422,6 +422,23 @@ export default function Home() {
                 if (newAssignedJob) {
                   playOrderNotificationSound();
                   showToast(`🔔 Yangi montaj topshirig'i keldi! (#${newAssignedJob.orderNumber})`);
+                }
+
+                // Check if any estimate created by or assigned to this technician was REJECTED by cashier
+                const newlyRejectedEstimate = remote.customerOrders.find((o: any) => {
+                  const prevOrd = prevOrders.find((p: any) => p.id === o.id);
+                  const isMyOrder = 
+                    o.requestedByTechnicianId === currentUser.id ||
+                    o.technicianId === currentUser.id ||
+                    (o.requestedByTechnicianName && currentUser.fullName && o.requestedByTechnicianName.toLowerCase().includes(currentUser.fullName.toLowerCase())) ||
+                    (o.technicianName && currentUser.fullName && o.technicianName.toLowerCase().includes(currentUser.fullName.toLowerCase()));
+                  
+                  return isMyOrder && o.status === 'rejected' && (!prevOrd || prevOrd.status === 'pending_cashier_approval');
+                });
+
+                if (newlyRejectedEstimate) {
+                  playOrderNotificationSound();
+                  showToast(`❌ Smetangiz (#${newlyRejectedEstimate.orderNumber}) kassir tomonidan rad etildi! Sabab: ${newlyRejectedEstimate.rejectionReason || "Sabab ko'rsatilmadi"}`);
                 }
               }
 
@@ -1046,14 +1063,42 @@ export default function Home() {
 
   // Orders & Shipments Handlers
   const handleSaveOrder = (newOrder: CustomerOrder) => {
+    let nextList: CustomerOrder[] = [];
     setCustomerOrders((prev) => {
       const idx = prev.findIndex((o) => o.id === newOrder.id);
       if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = newOrder;
-        return updated;
+        nextList = [...prev];
+        nextList[idx] = newOrder;
+      } else {
+        nextList = [newOrder, ...prev];
       }
-      return [newOrder, ...prev];
+      return nextList;
+    });
+
+    // Immediate storage & cloud push
+    try {
+      localStorage.setItem('sc_customer_orders', JSON.stringify(nextList.length > 0 ? nextList : [newOrder, ...customerOrders]));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({
+      products,
+      productCategories,
+      customers,
+      receipts,
+      expenses,
+      expenseCategories,
+      employees,
+      customerOrders: nextList.length > 0 ? nextList : [newOrder, ...customerOrders],
+      shipments,
+      purchases,
+      serviceTickets,
+      customerDebtPayments,
+      payrolls,
+      advances,
+      handovers,
+      exchangeRate,
+      baseCurrency
     });
 
     if (newOrder.status === 'pending_cashier_approval') {
@@ -1095,6 +1140,8 @@ export default function Home() {
       } catch (e) {
         console.error(e);
       }
+    } else if (newOrder.status === 'rejected') {
+      showToast(`⚠️ #${newOrder.orderNumber} smeta rad etildi.`);
     } else {
       showToast(`✓ Hisob-kitob (Smeta) ${newOrder.orderNumber} muvaffaqiyatli saqlandi!`);
     }
@@ -1188,9 +1235,25 @@ export default function Home() {
       handleSaveOrder({
         ...targetOrd,
         status: 'rejected',
-        rejectionReason: reason
+        rejectionReason: reason || "Tovarlar omborda yetarli emas yoki narx xato"
       });
-      showToast(`⚠️ #${targetOrd.orderNumber} smeta rad etildi.`);
+      showToast(`⚠️ #${targetOrd.orderNumber} smeta rad etildi va ustaga yuborildi.`);
+
+      // Send Telegram notification
+      try {
+        const tg = getTelegramSettings();
+        if (tg.enabled && tg.botToken && tg.chatId) {
+          const msg = `❌ *SMETA KASSIR TOMONIDAN RAD ETILDI!*\n\n` +
+            `📋 *Smeta raqami:* #${targetOrd.orderNumber}\n` +
+            `🛠️ *Usta:* ${targetOrd.requestedByTechnicianName || targetOrd.technicianName || 'Usta'}\n` +
+            `👤 *Mijoz:* ${targetOrd.customerName || '—'}\n` +
+            `⚠️ *Rad etish sababi:* ${reason || "Tovarlar omborda yetarli emas yoki narx xato"}\n\n` +
+            `📱 *Usta ilovasida tahrirlash va qayta yuborish imkoni mavjud.*`;
+          sendTelegramMessage(tg.botToken, tg.chatId, msg);
+        }
+      } catch (e) {
+        console.error(e);
+      }
     }
   };
 
