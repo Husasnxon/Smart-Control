@@ -19,7 +19,8 @@ import {
   LogOut,
   UserCheck,
   X,
-  BarChart3
+  BarChart3,
+  Kanban
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -66,6 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const allNavItems = [
     { id: 'dashboard' as ActiveTab, label: 'Dashboard (Tahlil)', icon: LayoutDashboard, badge: 'Tahlil', color: 'text-emerald-400' },
     { id: 'financial_reports' as ActiveTab, label: 'Hisobotlar & P&L', icon: BarChart3, badge: 'P&L', color: 'text-emerald-400' },
+    { id: 'crm' as ActiveTab, label: 'CRM & Obyektlar', icon: Kanban, badge: 'Lidlar', color: 'text-indigo-400' },
     { id: 'pos' as ActiveTab, label: 'POS Kassa', icon: ShoppingCart, badge: isOffline ? 'Oflayn' : undefined, color: 'text-emerald-500' },
     { id: 'orders' as ActiveTab, label: 'Hisob-kitob & Otgruzka', icon: FileSpreadsheet, badge: 'Smeta', color: 'text-sky-400' },
     { id: 'inventory' as ActiveTab, label: 'Ombor & Mahsulotlar', icon: Package, color: 'text-cyan-500' },

@@ -1,4 +1,4 @@
-import { Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, PurchaseInvoice, PurchaseItem, ServiceTicket, CustomerDebtPayment, PayrollRecord, EmployeeAdvance, ObjectHandover, DEFAULT_ROLE_PERMISSIONS, DEFAULT_ROLE_TABS } from '../types';
+import { Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, PurchaseInvoice, PurchaseItem, ServiceTicket, CustomerDebtPayment, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_PERMISSIONS, DEFAULT_ROLE_TABS } from '../types';
 
 export const INITIAL_PRODUCT_CATEGORIES: ProductCategory[] = [
   { id: 'pcat-1', name: 'Kuzatuv kameralari (CCTV)', description: 'IP, HD kameralar, PTZ aylanuvchi va Wi-Fi kameralar', color: '#06B6D4' },
@@ -998,6 +998,180 @@ export const INITIAL_ADVANCES: EmployeeAdvance[] = [
 ];
 
 export const INITIAL_HANDOVERS: ObjectHandover[] = [];
+ 
+export const INITIAL_CRM_LEADS: CrmLead[] = [
+  {
+    id: 'lead-1',
+    leadNumber: 'LID-1001',
+    clientName: 'Shoxrux Mirzayev',
+    phone: '+998 90 123 45 67',
+    address: 'Namangan sh., Kosonsoy ko\'chasi 45-uy',
+    source: 'instagram',
+    stage: 'site_visit',
+    objectType: 'xonadon',
+    cameraCountEstimated: 6,
+    budgetEstimatedUZS: 4500000,
+    budgetEstimatedUSD: 350,
+    assignedTechnicianId: 'emp-2',
+    assignedTechnicianName: 'Dilshod Karimov',
+    siteVisitDate: '2026-10-09',
+    siteVisitTime: '14:00',
+    notes: 'Hovli va darvoza uchun 6 ta IP kamera so\'radi, tungi ko\'rish rangli (ColorVu) bo\'lsin',
+    nextActionDate: '2026-10-09',
+    nextActionNote: 'Zamerga borish va smeta hisoblash',
+    createdAt: '2026-10-07 10:30',
+    updatedAt: '2026-10-08 09:00'
+  },
+  {
+    id: 'lead-2',
+    leadNumber: 'LID-1002',
+    clientName: 'Otabek Qo\'chqorov (Supermarket)',
+    phone: '+998 93 987 65 43',
+    address: 'Namangan sh., Navoiy shoh ko\'chasi 12-bino',
+    source: 'recommendation',
+    stage: 'estimate_sent',
+    objectType: 'dokon',
+    cameraCountEstimated: 16,
+    budgetEstimatedUZS: 14500000,
+    budgetEstimatedUSD: 1120,
+    assignedTechnicianId: 'emp-3',
+    assignedTechnicianName: 'Sardorbek Aliyev',
+    siteVisitDate: '2026-10-06',
+    linkedOrderNumber: 'ZK-1002',
+    notes: 'Kassa ustiga 4 ta mikrofonli kamera, savdo zaliga 10 ta, omborga 2 ta. Smeta yuborildi, mijoz ko\'rib chiqmoqda.',
+    nextActionDate: '2026-10-08',
+    nextActionNote: 'Smeta bo\'yicha javobini bilish uchun qo\'ng\'iroq qilish',
+    createdAt: '2026-10-05 15:20',
+    updatedAt: '2026-10-07 11:40'
+  },
+  {
+    id: 'lead-3',
+    leadNumber: 'LID-1003',
+    clientName: 'WST Tekstil Fabrikasi',
+    phone: '+998 97 555 11 22',
+    address: 'Namangan sh., Sanoat hududi 8',
+    source: 'phone',
+    stage: 'new_lead',
+    objectType: 'ombor_zavod',
+    cameraCountEstimated: 32,
+    budgetEstimatedUZS: 32000000,
+    budgetEstimatedUSD: 2480,
+    notes: 'Katta ishlab chiqarish tsexiga to\'liq kuzatuv va domofoniya tizimi kerak. Zamerga usta biriktirish lozim.',
+    nextActionDate: '2026-10-08',
+    nextActionNote: 'Ustani belgilash va vaqtni aniqlash',
+    createdAt: '2026-10-08 09:15',
+    updatedAt: '2026-10-08 09:15'
+  }
+];
+
+export const INITIAL_CRM_OBJECTS: CrmObjectPassport[] = [
+  {
+    id: 'obj-1',
+    passportNumber: 'OBY-1001',
+    customerId: 'cust-1',
+    customerName: 'Grand Qurilish MCHJ',
+    customerPhone: '+998 90 123 45 67',
+    objectName: 'Grand Qurilish Bosh Ofisi & Omborxona',
+    objectType: 'ofis',
+    address: 'Toshkent sh., Chilonzor tumani, Bunyodkor shoh ko\'chasi 42-uy',
+    mapLocationUrl: 'https://maps.google.com/?q=41.2856,69.2034',
+    dvrModel: 'Hikvision DS-7608NI-Q1 8-Kanalli 4K NVR',
+    dvrSerialNumber: 'NVR-7608-5521',
+    dvrIpAddress: '192.168.1.200',
+    dvrCloudId: 'Hik-Connect: 984128941',
+    dvrAdminLogin: 'admin',
+    dvrAdminPassword: 'Grand!2026Secure',
+    installedCamerasCount: 4,
+    hddCapacity: '4 TB WD Purple Surveillance',
+    powerSupply: '12V 20A UPS Zaxirali Quvvat Manbai',
+    installedItems: [
+      { productName: 'Hikvision 4MP IP Tashqi Kamera', serialNumber: 'HK-4MP-982101', locationInFacility: 'Bosh darvoza & Avtoturargoh', quantity: 1 },
+      { productName: 'Hikvision 4MP IP Tashqi Kamera', serialNumber: 'HK-4MP-982102', locationInFacility: 'Orqa hovli & Ombor kirish', quantity: 1 },
+      { productName: 'Dahua 2MP Ichki Dome IP Kamera', serialNumber: 'DH-2MP-84011', locationInFacility: '1-qavat Kassa & Reception', quantity: 1 },
+      { productName: 'Dahua 2MP Ichki Dome IP Kamera', serialNumber: 'DH-2MP-84012', locationInFacility: '2-qavat Koridor & Direktor xonasi oldi', quantity: 1 }
+    ],
+    installationDate: '2026-08-15',
+    warrantyMonths: 24,
+    warrantyExpiresAt: '2028-08-15',
+    installedByTechnicianName: 'Dilshod Karimov',
+    installedByTechnicianPhone: '+998 90 345 67 89',
+    notes: 'Kamera tizimi to\'liq ishga tushirildi. Direktor telefoni (Hik-Connect) orqali masofadan ulandi.',
+    createdAt: '2026-08-15 16:30'
+  },
+  {
+    id: 'obj-2',
+    passportNumber: 'OBY-1002',
+    customerId: 'cust-2',
+    customerName: 'Samirbek Nurmatov',
+    customerPhone: '+998 93 456 78 90',
+    objectName: 'Shaxsiy Kottedj & Hovli',
+    objectType: 'xonadon',
+    address: 'Namangan sh., Bobur bog\'i yaqinida 18-uy',
+    mapLocationUrl: 'https://maps.google.com/?q=40.9983,71.6726',
+    dvrModel: 'Dahua 8-Kanalli WizSense DVR',
+    dvrSerialNumber: 'DH-DVR-99014',
+    dvrIpAddress: '192.168.0.150',
+    dvrCloudId: 'DMSS: SN-8891244',
+    dvrAdminLogin: 'admin',
+    dvrAdminPassword: 'Samir!2026Pass',
+    installedCamerasCount: 2,
+    hddCapacity: '2 TB Seagate SkyHawk',
+    powerSupply: '12V 10A Blok Pitaniya',
+    installedItems: [
+      { productName: 'Hikvision 4MP IP Tashqi Kamera', serialNumber: 'HK-4MP-982103', locationInFacility: 'Ko\'cha tomon & Darvoza', quantity: 1 },
+      { productName: 'Hikvision 4MP IP Tashqi Kamera', serialNumber: 'HK-4MP-982104', locationInFacility: 'Ichki hovli & Garaj', quantity: 1 }
+    ],
+    installationDate: '2026-09-10',
+    warrantyMonths: 12,
+    warrantyExpiresAt: '2027-09-10',
+    installedByTechnicianName: 'Sardorbek Aliyev',
+    installedByTechnicianPhone: '+998 91 234 56 78',
+    notes: 'Mijoz iltimosiga ko\'ra kechasi harakat sezilganda oq chiroq yonadigan rejim yoqildi.',
+    createdAt: '2026-09-10 14:15'
+  }
+];
+
+export const INITIAL_CRM_REMINDERS: CrmReminder[] = [
+  {
+    id: 'rem-1',
+    title: 'Zamerga borish va smeta hisoblash',
+    type: 'visit',
+    dueDate: '2026-10-09',
+    dueTime: '14:00',
+    customerName: 'Shoxrux Mirzayev',
+    customerPhone: '+998 90 123 45 67',
+    leadId: 'lead-1',
+    notes: 'Kosonsoy ko\'chasi 45-uy. 6 ta kamera uchun kabel va qutilar o\'lchanadi.',
+    isCompleted: false,
+    createdAt: '2026-10-08 09:00'
+  },
+  {
+    id: 'rem-2',
+    title: 'Supermarket smetasi javobini bilish',
+    type: 'call',
+    dueDate: '2026-10-08',
+    dueTime: '16:00',
+    customerName: 'Otabek Qo\'chqorov',
+    customerPhone: '+998 93 987 65 43',
+    leadId: 'lead-2',
+    notes: 'Smeta narxi 14,500,000 so\'m bo\'lgan, chegirma so\'rashi mumkin.',
+    isCompleted: false,
+    createdAt: '2026-10-07 11:40'
+  },
+  {
+    id: 'rem-3',
+    title: 'Rejali profilaktika va linzalarni tozalash',
+    type: 'maintenance',
+    dueDate: '2026-10-15',
+    dueTime: '11:00',
+    customerName: 'Grand Qurilish MCHJ',
+    customerPhone: '+998 90 123 45 67',
+    objectId: 'obj-1',
+    notes: 'O\'rnatilganiga 2 oy bo\'ldi, chang ko\'p hududda ekanligi sababli tekshirish.',
+    isCompleted: false,
+    createdAt: '2026-10-05 10:00'
+  }
+];
 
 
 

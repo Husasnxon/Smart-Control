@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ActiveTab, Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, AssignedTechnician, PaymentDetails, CartItem, Currency, PurchaseInvoice, PurchasePaymentRecord, ServiceTicket, CustomerDebtPayment, ZReport, PayrollRecord, EmployeeAdvance, ObjectHandover, DEFAULT_ROLE_TABS } from '../types';
+import { ActiveTab, Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, AssignedTechnician, PaymentDetails, CartItem, Currency, PurchaseInvoice, PurchasePaymentRecord, ServiceTicket, CustomerDebtPayment, ZReport, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_TABS } from '../types';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_CUSTOMERS, 
@@ -18,7 +18,10 @@ import {
   INITIAL_CUSTOMER_DEBT_PAYMENTS, 
   INITIAL_PAYROLLS, 
   INITIAL_ADVANCES, 
-  INITIAL_HANDOVERS 
+  INITIAL_HANDOVERS,
+  INITIAL_CRM_LEADS,
+  INITIAL_CRM_OBJECTS,
+  INITIAL_CRM_REMINDERS
 } from '../data/mockData';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
@@ -35,6 +38,7 @@ import { WarrantyScreen } from '../components/WarrantyScreen';
 import { SettingsScreen } from '../components/SettingsScreen';
 import { TechnicianPortalScreen } from '../components/TechnicianPortalScreen';
 import { FinancialReportsScreen } from '../components/FinancialReportsScreen';
+import { CrmScreen } from '../components/CrmScreen';
 import { ZReportModal } from '../components/ZReportModal';
 import { CashierOrderApprovalModal } from '../components/CashierOrderApprovalModal';
 import { LoginScreen } from '../components/LoginScreen';
@@ -65,6 +69,9 @@ export default function Home() {
   const [advances, setAdvances] = useState<EmployeeAdvance[]>(INITIAL_ADVANCES);
   const [handovers, setHandovers] = useState<ObjectHandover[]>(INITIAL_HANDOVERS);
   const [aiInsights, setAiInsights] = useState<AIInsight[]>(INITIAL_AI_INSIGHTS);
+  const [crmLeads, setCrmLeads] = useState<CrmLead[]>(INITIAL_CRM_LEADS);
+  const [crmObjectPassports, setCrmObjectPassports] = useState<CrmObjectPassport[]>(INITIAL_CRM_OBJECTS);
+  const [crmReminders, setCrmReminders] = useState<CrmReminder[]>(INITIAL_CRM_REMINDERS);
   const [exchangeRate, setExchangeRate] = useState<number>(12850);
   const [baseCurrency, setBaseCurrency] = useState<Currency>('UZS');
   const [technicianSubTab, setTechnicianSubTab] = useState<string>('active_jobs');
@@ -261,6 +268,15 @@ export default function Home() {
 
       const savedHandovers = localStorage.getItem('sc_handovers');
       if (savedHandovers) setHandovers(JSON.parse(savedHandovers));
+
+      const savedLeads = localStorage.getItem('sc_crm_leads');
+      if (savedLeads) setCrmLeads(JSON.parse(savedLeads));
+
+      const savedObjects = localStorage.getItem('sc_crm_objects');
+      if (savedObjects) setCrmObjectPassports(JSON.parse(savedObjects));
+
+      const savedReminders = localStorage.getItem('sc_crm_reminders');
+      if (savedReminders) setCrmReminders(JSON.parse(savedReminders));
     } catch (e) {
       console.error("Local storage load error", e);
     } finally {
@@ -2019,6 +2035,113 @@ export default function Home() {
     showToast(`✓ Qarz to'lovi muvaffaqiyatli qabul qilindi! Kvitansiya ${payment.paymentNumber}`);
   };
 
+  // -------------------------------------------------------------
+  // CRM HANDLERS (Leads, Object Passports, Reminders)
+  // -------------------------------------------------------------
+  const handleAddLead = (lead: CrmLead) => {
+    setCrmLeads((prev) => {
+      const next = [lead, ...prev];
+      localStorage.setItem('sc_crm_leads', JSON.stringify(next));
+      return next;
+    });
+    showToast(`✓ Yangi lid saqlandi: ${lead.clientName}`);
+
+    // Telegram notification
+    try {
+      const tgSettings = getTelegramSettings();
+      if (tgSettings?.botToken && tgSettings?.chatId) {
+        const msg = `🎯 <b>YANGI LID / MUROJAAT</b>\n\n` +
+          `📌 <b>LID:</b> ${lead.leadNumber}\n` +
+          `👤 <b>Mijoz:</b> ${lead.clientName}\n` +
+          `📞 <b>Telefon:</b> ${lead.phone}\n` +
+          `🏠 <b>Obyekt:</b> ${lead.objectType} | ${lead.address || '-'}\n` +
+          `📹 <b>Kameralar:</b> ${lead.cameraCountEstimated || 0} ta\n` +
+          `💰 <b>Byudjet:</b> $${lead.budgetEstimatedUSD || 0}\n` +
+          `👷 <b>Usta:</b> ${lead.assignedTechnicianName || 'Biriktirilmagan'}\n` +
+          `📝 <b>Izoh:</b> ${lead.notes || '-'}`;
+        sendTelegramMessage(tgSettings.botToken, tgSettings.chatId, msg);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUpdateLead = (lead: CrmLead) => {
+    setCrmLeads((prev) => {
+      const next = prev.map((l) => (l.id === lead.id ? lead : l));
+      localStorage.setItem('sc_crm_leads', JSON.stringify(next));
+      return next;
+    });
+    showToast(`✓ Lid yangilandi: ${lead.leadNumber}`);
+  };
+
+  const handleDeleteLead = (leadId: string) => {
+    setCrmLeads((prev) => {
+      const next = prev.filter((l) => l.id !== leadId);
+      localStorage.setItem('sc_crm_leads', JSON.stringify(next));
+      return next;
+    });
+    showToast(`✓ Lid o'chirildi`);
+  };
+
+  const handleAddObjectPassport = (obj: CrmObjectPassport) => {
+    setCrmObjectPassports((prev) => {
+      const next = [obj, ...prev];
+      localStorage.setItem('sc_crm_objects', JSON.stringify(next));
+      return next;
+    });
+    showToast(`✓ Obyekt pasporti yaratildi: ${obj.objectName}`);
+  };
+
+  const handleUpdateObjectPassport = (obj: CrmObjectPassport) => {
+    setCrmObjectPassports((prev) => {
+      const next = prev.map((o) => (o.id === obj.id ? obj : o));
+      localStorage.setItem('sc_crm_objects', JSON.stringify(next));
+      return next;
+    });
+    showToast(`✓ Obyekt pasporti yangilandi`);
+  };
+
+  const handleDeleteObjectPassport = (objId: string) => {
+    setCrmObjectPassports((prev) => {
+      const next = prev.filter((o) => o.id !== objId);
+      localStorage.setItem('sc_crm_objects', JSON.stringify(next));
+      return next;
+    });
+    showToast(`✓ Obyekt pasporti o'chirildi`);
+  };
+
+  const handleAddReminder = (rem: CrmReminder) => {
+    setCrmReminders((prev) => {
+      const next = [rem, ...prev];
+      localStorage.setItem('sc_crm_reminders', JSON.stringify(next));
+      return next;
+    });
+    showToast(`✓ Eslatma qo'shildi: ${rem.title}`);
+  };
+
+  const handleToggleReminder = (remId: string) => {
+    setCrmReminders((prev) => {
+      const next = prev.map((r) => (r.id === remId ? { ...r, isCompleted: !r.isCompleted } : r));
+      localStorage.setItem('sc_crm_reminders', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleDeleteReminder = (remId: string) => {
+    setCrmReminders((prev) => {
+      const next = prev.filter((r) => r.id !== remId);
+      localStorage.setItem('sc_crm_reminders', JSON.stringify(next));
+      return next;
+    });
+    showToast(`✓ Eslatma o'chirildi`);
+  };
+
+  const handleConvertLeadToOrder = (lead: CrmLead) => {
+    setActiveTab('orders');
+    showToast(`✓ Lid ${lead.leadNumber} bo'yicha smeta tuzish ochildi`);
+  };
+
   // Calculate today's sales for header
   const todaySalesTotal = receipts.filter(r => isTodayDate(r.createdAt)).reduce((sum, r) => sum + r.totalAmount, 0);
 
@@ -2151,6 +2274,29 @@ export default function Home() {
               onReturnReceipt={handleReturnReceipt}
               onSaveEditReceipt={handleSaveEditReceipt}
               initialSubTab="pnl"
+            />
+          )}
+
+          {activeTab === 'crm' && (
+            <CrmScreen
+              leads={crmLeads}
+              onAddLead={handleAddLead}
+              onUpdateLead={handleUpdateLead}
+              onDeleteLead={handleDeleteLead}
+              objectPassports={crmObjectPassports}
+              onAddObjectPassport={handleAddObjectPassport}
+              onUpdateObjectPassport={handleUpdateObjectPassport}
+              onDeleteObjectPassport={handleDeleteObjectPassport}
+              reminders={crmReminders}
+              onAddReminder={handleAddReminder}
+              onToggleReminder={handleToggleReminder}
+              onDeleteReminder={handleDeleteReminder}
+              employees={employees}
+              customers={customers}
+              customerOrders={customerOrders}
+              baseCurrency={baseCurrency}
+              exchangeRate={exchangeRate}
+              onConvertToOrder={handleConvertLeadToOrder}
             />
           )}
 

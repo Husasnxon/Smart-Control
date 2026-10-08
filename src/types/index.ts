@@ -293,9 +293,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
 };
 
 export const DEFAULT_ROLE_TABS: Record<SystemRole, ActiveTab[]> = {
-  admin: ['dashboard', 'financial_reports', 'pos', 'orders', 'inventory', 'warranty', 'technician_portal', 'employees', 'customers', 'expenses', 'ai_advisor', 'sales_history', 'settings'],
-  manager: ['dashboard', 'financial_reports', 'pos', 'orders', 'inventory', 'warranty', 'technician_portal', 'customers', 'sales_history'],
-  cashier: ['pos', 'orders', 'customers', 'warranty', 'sales_history'],
+  admin: ['dashboard', 'financial_reports', 'crm', 'pos', 'orders', 'inventory', 'warranty', 'technician_portal', 'employees', 'customers', 'expenses', 'ai_advisor', 'sales_history', 'settings'],
+  manager: ['dashboard', 'financial_reports', 'crm', 'pos', 'orders', 'inventory', 'warranty', 'technician_portal', 'customers', 'sales_history'],
+  cashier: ['crm', 'pos', 'orders', 'customers', 'warranty', 'sales_history'],
   technician: ['technician_portal'],
   warehouse: ['inventory', 'orders', 'warranty'],
 };
@@ -694,5 +694,92 @@ export interface ZReport {
   notes?: string;
 }
 
-export type ActiveTab = 'dashboard' | 'financial_reports' | 'pos' | 'orders' | 'inventory' | 'warranty' | 'technician_portal' | 'customers' | 'employees' | 'expenses' | 'ai_advisor' | 'sales_history' | 'settings';
+export type ActiveTab = 'dashboard' | 'financial_reports' | 'crm' | 'pos' | 'orders' | 'inventory' | 'warranty' | 'technician_portal' | 'customers' | 'employees' | 'expenses' | 'ai_advisor' | 'sales_history' | 'settings';
+
+export type CrmLeadStage = 'new_lead' | 'site_visit' | 'estimate_sent' | 'installation' | 'won' | 'lost';
+export type CrmLeadSource = 'phone' | 'telegram' | 'walk_in' | 'recommendation' | 'instagram' | 'other';
+export type CrmObjectType = 'xonadon' | 'dokon' | 'ofis' | 'ombor_zavod' | 'davlat' | 'boshqa';
+
+export interface CrmLead {
+  id: string;
+  leadNumber: string;               // e.g. "LID-1001"
+  clientName: string;
+  phone: string;
+  address?: string;
+  source: CrmLeadSource;
+  stage: CrmLeadStage;
+  objectType: CrmObjectType;
+  cameraCountEstimated?: number;
+  budgetEstimatedUZS?: number;
+  budgetEstimatedUSD?: number;
+  assignedTechnicianId?: string;
+  assignedTechnicianName?: string;
+  siteVisitDate?: string;
+  siteVisitTime?: string;
+  linkedOrderId?: string;           // Bog'langan smeta ID si
+  linkedOrderNumber?: string;
+  linkedReceiptId?: string;         // Bog'langan sotuv ID si
+  lossReason?: string;
+  notes?: string;
+  nextActionDate?: string;          // Eslatma / qo'ng'iroq sanasi
+  nextActionNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CrmObjectInstalledItem {
+  id?: string;
+  productName: string;
+  category?: string;
+  serialNumber?: string;
+  locationInFacility?: string;      // e.g. "Kirish darvozasi", "Kassa usti", "Ombor burchagi"
+  quantity: number;
+}
+
+export interface CrmObjectPassport {
+  id: string;
+  passportNumber: string;           // e.g. "OBY-1001"
+  customerId?: string;
+  customerName: string;
+  customerPhone: string;
+  objectName: string;               // e.g. "Grand Savdo Do'koni #2", "Hovli - Yangi Hayot"
+  objectType: CrmObjectType;
+  address: string;
+  mapLocationUrl?: string;          // Yandex / Google Maps havola
+  dvrModel?: string;                // e.g. "Hikvision 8-kanalli 4K NVR"
+  dvrSerialNumber?: string;         // e.g. "NVR-7608-5521"
+  dvrIpAddress?: string;            // e.g. "192.168.1.100"
+  dvrCloudId?: string;              // e.g. "Hik-Connect: 98124912"
+  dvrAdminLogin?: string;           // e.g. "admin"
+  dvrAdminPassword?: string;        // e.g. "Admin!2026*"
+  installedCamerasCount: number;
+  hddCapacity?: string;             // e.g. "4 TB WD Purple"
+  powerSupply?: string;             // e.g. "12V 20A UPS zaxirali"
+  installedItems: CrmObjectInstalledItem[];
+  installationDate: string;         // e.g. "2026-10-01"
+  warrantyMonths: number;           // e.g. 12, 24
+  warrantyExpiresAt: string;        // e.g. "2027-10-01"
+  installedByTechnicianName?: string;
+  installedByTechnicianPhone?: string;
+  handoverReportId?: string;        // Bog'langan topshirish akti
+  notes?: string;
+  createdAt: string;
+}
+
+export interface CrmReminder {
+  id: string;
+  title: string;
+  type: 'call' | 'visit' | 'maintenance' | 'debt_reminder' | 'warranty_expiring';
+  dueDate: string;                  // e.g. "2026-10-09"
+  dueTime?: string;                 // e.g. "15:00"
+  customerName: string;
+  customerPhone: string;
+  leadId?: string;
+  objectId?: string;
+  notes?: string;
+  isCompleted: boolean;
+  completedAt?: string;
+  createdAt: string;
+}
+
 
