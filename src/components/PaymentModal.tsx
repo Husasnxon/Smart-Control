@@ -39,6 +39,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [cashUSD, setCashUSD] = useState<number>(0);   // Dollarda naqd ($)
   const [card, setCard] = useState<number>(0);         // So'mda karta
   const [debt, setDebt] = useState<number>(0);         // So'mda qarz
+  const [debtUSD, setDebtUSD] = useState<number>(0);   // Dollarda qarz ($)
+  const [debtCurrencyMode, setDebtCurrencyMode] = useState<'UZS' | 'USD'>(baseCurrency === 'USD' ? 'USD' : 'UZS');
   const [useCashback, setUseCashback] = useState<number>(0); // So'mda cashback
 
   // Calculate total in USD
@@ -49,12 +51,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       if (baseCurrency === 'USD') {
         setCashUSD(totalAmountUSD);
         setCash(0);
+        setDebtCurrencyMode('USD');
       } else {
         setCash(totalAmount);
         setCashUSD(0);
+        setDebtCurrencyMode('UZS');
       }
       setCard(0);
       setDebt(0);
+      setDebtUSD(0);
       setUseCashback(0);
     }
   }, [isOpen, totalAmount, baseCurrency, totalAmountUSD]);
@@ -75,6 +80,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setCashUSD(0);
       setCard(0);
       setDebt(0);
+      setDebtUSD(0);
     } else {
       setUseCashback(0);
       setCash(totalAmount);
@@ -84,9 +90,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // USD to UZS converted amount
   const cashUSDInUZS = Math.round(cashUSD * exchangeRate);
+  const debtUSDInUZS = Math.round(debtUSD * exchangeRate);
 
   // Total covered in UZS
-  const currentCovered = cash + cashUSDInUZS + card + debt + useCashback;
+  const totalDebtUZS = debt + debtUSDInUZS;
+  const totalDebtUSD = Number((debtUSD + (debt > 0 ? debt / exchangeRate : 0)).toFixed(2));
+
+  const currentCovered = cash + cashUSDInUZS + card + totalDebtUZS + useCashback;
   const remainingOrChange = currentCovered - totalAmount;
   const isPaidEnough = currentCovered >= totalAmount;
 
@@ -104,9 +114,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     if (!isPaidEnough) return;
 
     let currencyPaid: 'UZS' | 'USD' | 'MIXED' = 'UZS';
-    if (cashUSD > 0 && cash === 0 && card === 0) {
+    if ((cashUSD > 0 || debtUSD > 0) && cash === 0 && card === 0 && debt === 0) {
       currencyPaid = 'USD';
-    } else if (cashUSD > 0) {
+    } else if (cashUSD > 0 || debtUSD > 0) {
       currencyPaid = 'MIXED';
     }
 
@@ -115,7 +125,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         cash,
         cashUSD: cashUSD > 0 ? cashUSD : undefined,
         card,
-        debt,
+        debt: totalDebtUZS,
+        debtUSD: totalDebtUSD > 0 ? totalDebtUSD : undefined,
         cashbackUsed: useCashback,
         exchangeRate,
         currencyPaid,
@@ -311,27 +322,129 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
             {/* Debt Input (only if customer chosen) */}
             {customer && (
-              <div>
-                <label className="flex items-center justify-between text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">
-                  <span className="flex items-center gap-1.5">
+              <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-300">
                     <Coins className="w-4 h-4 text-amber-500" />
-                    Nasiya / Qarz
-                  </span>
-                  <span className="text-slate-400 font-mono text-[11px]">so&apos;m</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={debt || ''}
-                  onChange={(e) => setDebt(Number(e.target.value) || 0)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-amber-300 dark:border-amber-800 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-amber-500/40 text-slate-900 dark:text-white"
-                />
+                    Nasiya / Qarzga yozish ({customer.fullName})
+                  </label>
+                  
+                  {/* Currency selector tabs for debt */}
+                  <div className="flex items-center bg-amber-200/60 dark:bg-amber-900/60 p-0.5 rounded-lg text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setDebtCurrencyMode('USD')}
+                      className={`px-2 py-0.5 rounded-md transition ${
+                        debtCurrencyMode === 'USD'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'text-amber-800 dark:text-amber-300 hover:text-amber-950'
+                      }`}
+                    >
+                      Dollar ($)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDebtCurrencyMode('UZS')}
+                      className={`px-2 py-0.5 rounded-md transition ${
+                        debtCurrencyMode === 'UZS'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'text-amber-800 dark:text-amber-300 hover:text-amber-950'
+                      }`}
+                    >
+                      So&apos;m
+                    </button>
+                  </div>
+                </div>
+
+                {debtCurrencyMode === 'USD' ? (
+                  <div className="space-y-1">
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0.00 $"
+                          value={debtUSD || ''}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 0;
+                            setDebtUSD(val);
+                            setDebt(0);
+                            const inUZS = Math.round(val * exchangeRate);
+                            const remUZS = Math.max(0, totalAmount - cashUSDInUZS - card - inUZS - useCashback);
+                            setCash(remUZS);
+                          }}
+                          className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-amber-500/40 text-slate-900 dark:text-white"
+                        />
+                        <span className="absolute right-3 top-2.5 text-xs font-bold text-amber-600 font-mono">$ USD</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const remUZS = Math.max(0, totalAmount - cash - cashUSDInUZS - card - useCashback);
+                          const remUSD = Number((remUZS / exchangeRate).toFixed(2));
+                          setDebtUSD(remUSD);
+                          setDebt(0);
+                        }}
+                        className="px-2.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs font-mono transition shadow-sm"
+                        title="Qolgan qismini dollarda qarzga yozish"
+                      >
+                        Qoldiq ($)
+                      </button>
+                    </div>
+                    {debtUSD > 0 && (
+                      <span className="text-[11px] text-amber-700 dark:text-amber-400 font-mono block">
+                        ≈ {formatNumberWithSpaces(debtUSDInUZS)} so&apos;m qarz hisobiga yoziladi
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0 so'm"
+                          value={debt || ''}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 0;
+                            setDebt(val);
+                            setDebtUSD(0);
+                            const remUZS = Math.max(0, totalAmount - cashUSDInUZS - card - val - useCashback);
+                            setCash(remUZS);
+                          }}
+                          className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-amber-500/40 text-slate-900 dark:text-white"
+                        />
+                        <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400 font-mono">so&apos;m</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const remUZS = Math.max(0, totalAmount - cash - cashUSDInUZS - card - useCashback);
+                          setDebt(remUZS);
+                          setDebtUSD(0);
+                        }}
+                        className="px-2.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs font-mono transition shadow-sm"
+                        title="Qolgan qismini so'mda qarzga yozish"
+                      >
+                        Qoldiq (So&apos;m)
+                      </button>
+                    </div>
+                    {debt > 0 && (
+                      <span className="text-[11px] text-amber-700 dark:text-amber-400 font-mono block">
+                        ≈ ${formatUSDNumber(Number((debt / exchangeRate).toFixed(2)))} USD
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           {/* Quick Preset Buttons */}
-          <div className="grid grid-cols-4 gap-2 pt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
             {baseCurrency === 'USD' ? (
               <>
                 <button
@@ -341,6 +454,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     setCash(0);
                     setCard(0);
                     setDebt(0);
+                    setDebtUSD(0);
                   }}
                   className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition shadow-sm"
                 >
@@ -353,6 +467,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     setCashUSD(0);
                     setCard(0);
                     setDebt(0);
+                    setDebtUSD(0);
                   }}
                   className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
                 >
@@ -368,6 +483,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     setCashUSD(0);
                     setCard(0);
                     setDebt(0);
+                    setDebtUSD(0);
                   }}
                   className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition shadow-sm"
                 >
@@ -380,25 +496,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     setCash(0);
                     setCard(0);
                     setDebt(0);
+                    setDebtUSD(0);
                   }}
                   className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 hover:bg-cyan-100 transition"
                 >
-                  100% Dollar
+                  100% Dollar ($)
                 </button>
               </>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                setCashUSD(50);
-                const rem = Math.max(0, totalAmount - (50 * exchangeRate) - useCashback);
-                setCash(rem);
-                setCard(0);
-              }}
-              className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
-            >
-              +$50
-            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -406,11 +512,49 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 setCash(0);
                 setCashUSD(0);
                 setDebt(0);
+                setDebtUSD(0);
               }}
               className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 hover:bg-blue-100 transition"
             >
               100% Karta
             </button>
+
+            {customer ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (baseCurrency === 'USD' || debtCurrencyMode === 'USD') {
+                    setDebtUSD(totalAmountUSD);
+                    setDebt(0);
+                  } else {
+                    setDebt(totalAmount - useCashback);
+                    setDebtUSD(0);
+                  }
+                  setCash(0);
+                  setCashUSD(0);
+                  setCard(0);
+                }}
+                className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 hover:bg-amber-100 transition"
+                title="To'liq summani nasiya qarzga yozish"
+              >
+                100% Nasiya ({baseCurrency === 'USD' ? '$' : 'So\'m'})
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setCashUSD(50);
+                  const rem = Math.max(0, totalAmount - (50 * exchangeRate) - useCashback);
+                  setCash(rem);
+                  setCard(0);
+                  setDebt(0);
+                  setDebtUSD(0);
+                }}
+                className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
+              >
+                +$50 Naqd
+              </button>
+            )}
           </div>
 
           {/* Change or Remaining Calculation */}

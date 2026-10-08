@@ -178,6 +178,30 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
     }
   }, []);
 
+  // Sync state when modal opens with targetOrder (e.g. resubmitting rejected estimate)
+  useEffect(() => {
+    if (isOpen) {
+      if (targetOrder) {
+        setSelectedCustomerId(targetOrder.customerId || '');
+        setCustomerName(targetOrder.customerName || '');
+        setCustomerPhone(targetOrder.customerPhone || '');
+        setDeliveryAddress(targetOrder.deliveryAddress || '');
+        setProjectName(targetOrder.projectName || '');
+        setComment(targetOrder.comment || '');
+        setItems(targetOrder.items ? JSON.parse(JSON.stringify(targetOrder.items)) : []);
+      } else {
+        setSelectedCustomerId('');
+        setCustomerName('');
+        setCustomerPhone('');
+        setDeliveryAddress('');
+        setProjectName('');
+        setComment('');
+        setItems([]);
+      }
+      setSubmittedAttempt(false);
+    }
+  }, [isOpen, targetOrder]);
+
   // Filtered customer list for combobox
   const filteredCustomers = useMemo(() => {
     if (!customerSearchQuery.trim()) {
@@ -483,9 +507,9 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
     };
 
     const newOrder: CustomerOrder = {
-      id: `ord-site-${Date.now()}`,
-      orderNumber: `ZAK-J${Math.floor(1000 + Math.random() * 9000)}`,
-      createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      id: targetOrder?.id || `ord-site-${Date.now()}`,
+      orderNumber: targetOrder?.orderNumber || `ZAK-J${Math.floor(1000 + Math.random() * 9000)}`,
+      createdAt: targetOrder?.createdAt || new Date().toISOString().replace('T', ' ').slice(0, 16),
       organization: 'SMART CONTROL',
       customerId: selectedCustomerId || undefined,
       customerName: customerName.trim(),
@@ -502,6 +526,7 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
       totalAmount: totalAmountUZS,
       totalAmountUSD: totalAmountUSD,
       status: 'pending_cashier_approval', // Kassa tasdig'ini kutmoqda
+      rejectionReason: undefined,
       createdSource: 'technician_on_site',
       requestedByTechnicianName: activeTechnician.fullName,
       requestedByTechnicianId: activeTechnician.id,

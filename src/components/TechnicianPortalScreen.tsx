@@ -63,7 +63,9 @@ import {
   Play,
   Flag,
   CalendarDays,
-  Filter
+  Filter,
+  AlertTriangle,
+  XCircle
 } from 'lucide-react';
 
 export type MainMobileTab = 'orders' | 'in_progress' | 'completed' | 'profile';
@@ -178,7 +180,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   }, [initialSubTab]);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [estimateStatusFilter, setEstimateStatusFilter] = useState<'all' | 'pending' | 'shipped' | 'completed'>('all');
+  const [estimateStatusFilter, setEstimateStatusFilter] = useState<'all' | 'pending' | 'rejected' | 'shipped' | 'completed'>('all');
 
   // Accordion expanded state for job cards (Compact by default)
   const [expandedJobIds, setExpandedJobIds] = useState<Record<string, boolean>>({});
@@ -295,6 +297,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
 
       // Status filter
       if (estimateStatusFilter === 'pending' && order.status !== 'pending_cashier_approval') return false;
+      if (estimateStatusFilter === 'rejected' && order.status !== 'rejected') return false;
       if (estimateStatusFilter === 'shipped' && order.status !== 'shipped') return false;
       if (estimateStatusFilter === 'completed' && order.status !== 'completed') return false;
 
@@ -1015,6 +1018,74 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                 {/* 2. SMETALAR & OTGRUZKALAR LIST */}
                 {ordersSubFilter === 'estimates' && (
                   <div className="space-y-2.5">
+                    {/* Status filter bar */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setEstimateStatusFilter('all')}
+                        className={`px-2.5 py-1 rounded-xl whitespace-nowrap transition ${
+                          estimateStatusFilter === 'all'
+                            ? 'bg-sky-600 text-white shadow-xs'
+                            : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                        }`}
+                      >
+                        Barchasi
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setEstimateStatusFilter('pending')}
+                        className={`px-2.5 py-1 rounded-xl whitespace-nowrap transition flex items-center gap-1 ${
+                          estimateStatusFilter === 'pending'
+                            ? 'bg-amber-600 text-white shadow-xs'
+                            : 'bg-slate-900 text-amber-400/80 border border-slate-800 hover:text-amber-300'
+                        }`}
+                      >
+                        <span>🟡 Kutilmoqda</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setEstimateStatusFilter('rejected')}
+                        className={`px-2.5 py-1 rounded-xl whitespace-nowrap transition flex items-center gap-1 ${
+                          estimateStatusFilter === 'rejected'
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'bg-slate-900 text-rose-400/80 border border-slate-800 hover:text-rose-300'
+                        }`}
+                      >
+                        <span>❌ Rad etilgan</span>
+                        {myEstimatesAndShipments.filter(o => o.status === 'rejected').length > 0 && (
+                          <span className="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] flex items-center justify-center font-bold">
+                            {myEstimatesAndShipments.filter(o => o.status === 'rejected').length}
+                          </span>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setEstimateStatusFilter('shipped')}
+                        className={`px-2.5 py-1 rounded-xl whitespace-nowrap transition ${
+                          estimateStatusFilter === 'shipped'
+                            ? 'bg-sky-600 text-white shadow-xs'
+                            : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                        }`}
+                      >
+                        ✓ Otgruzka
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setEstimateStatusFilter('completed')}
+                        className={`px-2.5 py-1 rounded-xl whitespace-nowrap transition ${
+                          estimateStatusFilter === 'completed'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                        }`}
+                      >
+                        ✓ Bajarildi
+                      </button>
+                    </div>
+
                     {myEstimatesAndShipments.length === 0 ? (
                       <div className="p-8 text-center bg-slate-900/60 rounded-3xl border border-slate-800 space-y-2">
                         <FileSpreadsheet className="w-10 h-10 text-slate-600 mx-auto" />
@@ -1026,14 +1097,19 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                     ) : (
                       myEstimatesAndShipments.map((order) => {
                         const isPendingApproval = order.status === 'pending_cashier_approval';
+                        const isRejected = order.status === 'rejected';
                         const isShipped = order.status === 'shipped';
                         const isCompleted = order.status === 'completed';
 
                         return (
                           <div
                             key={order.id}
-                            className={`bg-slate-900 rounded-2xl border p-3.5 space-y-2.5 shadow-md ${
-                              isPendingApproval ? 'border-amber-500/80 bg-slate-900/95' : 'border-slate-800'
+                            className={`bg-slate-900 rounded-2xl border p-3.5 space-y-2.5 shadow-md transition ${
+                              isRejected
+                                ? 'border-rose-500 bg-rose-950/20 shadow-rose-950/30'
+                                : isPendingApproval
+                                ? 'border-amber-500/80 bg-slate-900/95'
+                                : 'border-slate-800'
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2">
@@ -1043,7 +1119,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                                     #{order.orderNumber}
                                   </span>
                                   <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                                    isPendingApproval
+                                    isRejected
+                                      ? 'bg-rose-950 text-rose-300 border border-rose-700 animate-pulse'
+                                      : isPendingApproval
                                       ? 'bg-amber-950 text-amber-300 border border-amber-800 animate-pulse'
                                       : isShipped
                                       ? 'bg-sky-950 text-sky-300 border border-sky-800'
@@ -1051,7 +1129,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                                       ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
                                       : 'bg-slate-800 text-slate-300'
                                   }`}>
-                                    {isPendingApproval
+                                    {isRejected
+                                      ? '❌ Kassir Rad Etdi'
+                                      : isPendingApproval
                                       ? '🟡 Kassa Tasdig\'i Kutilmoqda'
                                       : isShipped
                                       ? '✓ Kassadan Chiqarildi (Otgruzka)'
@@ -1073,6 +1153,30 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                                 </strong>
                               </div>
                             </div>
+
+                            {/* Rejection Alert Banner & Edit Button */}
+                            {isRejected && (
+                              <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-800/80 space-y-2">
+                                <div className="flex items-start gap-2 text-xs text-rose-300">
+                                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                                  <div>
+                                    <strong className="font-bold text-rose-200 block">Kassir smetani rad etdi:</strong>
+                                    <span className="text-[11px] text-rose-300 italic">{order.rejectionReason || "Tovarlar omborda yetarli emas yoki narx xato"}</span>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEstimateTargetOrder(order);
+                                    setIsOnSiteEstimateOpen(true);
+                                  }}
+                                  className="w-full py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm active:scale-98"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                  <span>Smetani Tahrirlash va Qayta Yuborish</span>
+                                </button>
+                              </div>
+                            )}
 
                             {/* Items count & summary */}
                             <div className="p-2 bg-slate-950 rounded-xl border border-slate-800/80 text-[11px] flex items-center justify-between text-slate-300">

@@ -664,13 +664,17 @@ export default function Home() {
               newReceipt.payments.cashbackUsed +
               newReceipt.cashbackEarned;
             const updatedPurchases = cust.totalPurchases + newReceipt.totalAmount;
-            const updatedDebt = cust.debtBalance + newReceipt.payments.debt;
+            const debtDeltaUZS = newReceipt.payments.debt || (newReceipt.payments.debtUSD ? Math.round(newReceipt.payments.debtUSD * (newReceipt.exchangeRate || exchangeRate)) : 0);
+            const debtDeltaUSD = newReceipt.payments.debtUSD || (newReceipt.payments.debt ? Number((newReceipt.payments.debt / (newReceipt.exchangeRate || exchangeRate)).toFixed(2)) : 0);
+            const updatedDebt = cust.debtBalance + debtDeltaUZS;
+            const updatedDebtUSD = Number(((cust.debtBalanceUSD || (cust.debtBalance > 0 ? cust.debtBalance / (newReceipt.exchangeRate || exchangeRate) : 0)) + debtDeltaUSD).toFixed(2));
 
             return {
               ...cust,
               cashbackBalance: Math.max(0, updatedCashback),
               totalPurchases: updatedPurchases,
-              debtBalance: updatedDebt
+              debtBalance: updatedDebt,
+              debtBalanceUSD: updatedDebtUSD > 0 ? updatedDebtUSD : 0
             };
           }
           return cust;
