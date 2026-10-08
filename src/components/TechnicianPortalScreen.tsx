@@ -788,7 +788,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden antialiased select-none">
+    <div className="flex-1 min-h-0 flex flex-col h-full bg-slate-950 overflow-hidden antialiased select-none">
       
       {/* Top View Mode Switcher (Visible on desktop/tablets, hidden on mobile for native app feel) */}
       <div className="hidden sm:flex bg-slate-950/90 border-b border-slate-800/80 px-4 py-2 items-center justify-between shrink-0 z-30 backdrop-blur-md">
@@ -851,20 +851,20 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
       </div>
 
       {/* Main Container Wrapper (Responsive smartphone frame or full desktop width) */}
-      <div className={`flex-1 flex justify-center overflow-hidden ${deviceMode === 'mobile' ? 'p-0 sm:p-4 bg-slate-950 sm:bg-slate-900/60' : 'p-2 sm:p-4'}`}>
-        <div className={`flex flex-col h-full overflow-hidden bg-slate-950 transition-all duration-300 relative ${
+      <div className={`flex-1 min-h-0 flex justify-center overflow-hidden ${deviceMode === 'mobile' ? 'p-0 sm:p-4 bg-slate-950 sm:bg-slate-900/60' : 'p-2 sm:p-4'}`}>
+        <div className={`flex flex-col h-full min-h-0 overflow-hidden bg-slate-950 transition-all duration-300 relative ${
           deviceMode === 'mobile' 
             ? 'w-full max-w-[460px] sm:rounded-[36px] sm:border-[5px] sm:border-slate-800 sm:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] ring-1 ring-white/10' 
             : 'w-full rounded-2xl border border-slate-800'
         }`}>
 
           {/* ======================================================== */}
-          {/* 1. TECHNICIAN PROFILE HEADER CARD & LIVE STATUS */}
+          {/* 1. TECHNICIAN PROFILE HEADER CARD (PINNED AT TOP) */}
           {/* ======================================================== */}
-          <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-900 via-purple-950/70 to-slate-900 border-b border-purple-900/30 text-white relative shrink-0">
+          <div className="p-3.5 sm:p-4 bg-gradient-to-br from-slate-900 via-purple-950/70 to-slate-900 border-b border-purple-900/30 text-white relative shrink-0 z-20">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 p-0.5 shadow-lg shadow-purple-600/30 shrink-0 relative">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 p-0.5 shadow-lg shadow-purple-600/30 shrink-0 relative">
                   {profileAvatar || activeTechnician?.avatar ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -874,7 +874,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                     />
                   ) : (
                     <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-                      <HardHat className="w-7 h-7 text-purple-300" />
+                      <HardHat className="w-6 h-6 text-purple-300" />
                     </div>
                   )}
                   <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-slate-950 ${currentStatusInfo.dot}`} />
@@ -882,7 +882,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
 
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <h2 className="text-base font-black text-white tracking-tight leading-tight">
+                    <h2 className="text-sm sm:text-base font-black text-white tracking-tight leading-tight">
                       {activeTechnician?.fullName || 'Usta'}
                     </h2>
                     <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-bold">
@@ -898,52 +898,11 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
 
               {/* Status Pill Indicator */}
               <div className="text-right">
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-bold">
+                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800/90 border border-slate-700 text-[10px] font-bold">
                   <span className={`w-2 h-2 rounded-full ${currentStatusInfo.dot}`} />
                   <span className={currentStatusInfo.text}>{currentStatusInfo.label}</span>
                 </div>
               </div>
-            </div>
-
-            {/* Live Status Quick Toggles */}
-            <div className="grid grid-cols-3 gap-1.5 mt-3.5 bg-slate-950/70 p-1 rounded-xl border border-slate-800/80">
-              <button
-                type="button"
-                onClick={() => handleStatusChange('active')}
-                className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 ${
-                  activeTechnician?.status === 'active' || !activeTechnician?.status
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
-                <span>Ishda (Bo&apos;sh)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleStatusChange('on_site')}
-                className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 ${
-                  activeTechnician?.status === 'on_site'
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
-                <span>Obyektda</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleStatusChange('on_leave')}
-                className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 ${
-                  activeTechnician?.status === 'on_leave'
-                    ? 'bg-slate-700 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <span>Ta&apos;tilda</span>
-              </button>
             </div>
           </div>
 
@@ -951,7 +910,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
           {/* TAB 1: BUYURTMALAR (ORDERS & NEW UNSTARTED JOBS) */}
           {/* ======================================================== */}
           {mainTab === 'orders' && (
-            <div className="flex-1 flex flex-col overflow-hidden bg-slate-950">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-slate-950">
               
               {/* Action: On-Site Estimate Button & Search Bar */}
               <div className="p-3 bg-slate-950 border-b border-slate-900 space-y-2 shrink-0">
@@ -1034,7 +993,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               </div>
 
               {/* Scrollable Orders List Content */}
-              <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-2.5 pb-24">
+              <div className="flex-1 min-h-0 p-3 sm:p-4 overflow-y-auto space-y-2.5 pb-24 overscroll-contain">
                 
                 {/* 1. YANGI / KUTILAYOTGAN BUYURTMALAR */}
                 {ordersSubFilter === 'active_jobs' && (
@@ -1182,7 +1141,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
           {/* TAB 2: JARAYONDA (IN-PROGRESS ON-SITE JOBS) */}
           {/* ======================================================== */}
           {mainTab === 'in_progress' && (
-            <div className="flex-1 flex flex-col overflow-hidden bg-slate-950">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-slate-950">
               <div className="p-3 bg-slate-950 border-b border-slate-900 space-y-1 shrink-0">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
@@ -1198,7 +1157,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                 </p>
               </div>
 
-              <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-2.5 pb-24">
+              <div className="flex-1 min-h-0 p-3 sm:p-4 overflow-y-auto space-y-2.5 pb-24 overscroll-contain">
                 {inProgressJobs.length === 0 ? (
                   <div className="p-8 text-center bg-slate-900/60 rounded-3xl border border-slate-800 space-y-3">
                     <Activity className="w-10 h-10 text-purple-400/50 mx-auto" />
@@ -1225,7 +1184,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
           {/* TAB 3: TOPSHIRILGAN ISHLAR (COMPLETED HANDOVERS & ACTS) */}
           {/* ======================================================== */}
           {mainTab === 'completed' && (
-            <div className="flex-1 flex flex-col overflow-hidden bg-slate-950">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-slate-950">
               <div className="p-3 bg-slate-950 border-b border-slate-900 space-y-2 shrink-0">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
@@ -1249,7 +1208,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                 </div>
               </div>
 
-              <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-2.5 pb-24">
+              <div className="flex-1 min-h-0 p-3 sm:p-4 overflow-y-auto space-y-2.5 pb-24 overscroll-contain">
                 {myHandovers.length === 0 ? (
                   <div className="p-8 text-center bg-slate-900/60 rounded-3xl border border-slate-800 space-y-2">
                     <CheckCircle2 className="w-10 h-10 text-slate-600 mx-auto mb-1" />
@@ -1304,7 +1263,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
           {/* TAB 4: PROFIL & DAROMAD (PROFILE & EARNINGS WITH TIME FILTER) */}
           {/* ======================================================== */}
           {mainTab === 'profile' && (
-            <div className="flex-1 p-3 sm:p-5 overflow-y-auto space-y-5 pb-28 bg-slate-950">
+            <div className="flex-1 min-h-0 p-3 sm:p-5 overflow-y-auto space-y-5 pb-28 bg-slate-950 overscroll-contain">
               
               {/* Profile Save Toast */}
               {profileSavedToast && (
@@ -1657,7 +1616,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
           {/* MOBILE BOTTOM NAVIGATION BAR: 4 TABS */}
           {/* [ BUYURTMALAR | JARAYONDA | TOPSHIRILGAN | PROFIL ] */}
           {/* ======================================================== */}
-          <div className="shrink-0 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 p-2 z-30 shadow-2xl">
+          <div className="shrink-0 sticky bottom-0 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 p-2 z-30 shadow-2xl">
             <div className="grid grid-cols-4 gap-1">
               
               {/* Tab 1: Buyurtmalar (New / Unstarted) */}

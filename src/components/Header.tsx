@@ -49,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
   const dualSales = formatDualMoney(todaySalesTotal, baseCurrency, exchangeRate);
 
   return (
-    <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 gap-2 sm:gap-3">
+    <header className="h-16 shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-30 gap-2 sm:gap-3">
       {/* Left: Mobile Menu Button + Brand / Store Info */}
       <div className="flex items-center gap-2 sm:gap-3">
         {onToggleMobileMenu && (
