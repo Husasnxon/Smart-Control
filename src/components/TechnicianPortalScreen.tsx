@@ -69,7 +69,7 @@ import {
 } from 'lucide-react';
 
 export type MainMobileTab = 'orders' | 'in_progress' | 'completed' | 'profile';
-export type OrdersSubFilter = 'active_jobs' | 'estimates' | 'service_tasks';
+export type OrdersSubFilter = 'active_jobs' | 'estimates' | 'service_tasks' | 'rejected';
 export type EarningsPeriod = 'today' | 'yesterday' | 'week' | 'month' | 'all' | 'custom';
 
 interface TechnicianPortalScreenProps {
@@ -253,9 +253,11 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   }, [orders, activeTechnician, activeTechName, searchQuery]);
 
   // 2. Segregate jobs by lifecycle stage:
-  // A) Unstarted Jobs (Yangi kutilayotgan buyurtmalar)
+  // A) Unstarted Jobs (Yangi kutilayotgan buyurtmalar - faqat kassadan tasdiqlangan otgruzka yoki POS montajlari)
   const unstartedJobs = useMemo(() => {
     return assignedActiveJobs.filter(order => {
+      // Smetalar yoki rad etilganlar yangi montaj buyurtmasi sifatida ko'rinmaydi
+      if (order.status === 'pending_cashier_approval' || order.status === 'rejected') return false;
       const matchingHandover = (handovers || []).find(h => h && (h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id)));
       const isCompleted = order.status === 'completed' || !!matchingHandover;
       const isInProgress = order.status === 'in_progress' || (!!order.startedAt && !isCompleted);
@@ -263,16 +265,32 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     });
   }, [assignedActiveJobs, handovers]);
 
-  // B) In-Progress Jobs (Ayni vaqtda montaj jarayonidagi ishlar)
+  // B) Rejected Estimates (Kassir tomonidan rad etilgan smetalar)
+  const myRejectedEstimates = useMemo(() => {
+    if (!activeTechnician) return [];
+    return (orders || []).filter(order => {
+      if (!order || order.status !== 'rejected') return false;
+      const isAssigned = 
+        (order.technicians && Array.isArray(order.technicians) && order.technicians.some(t => t && ((activeTechnician.id && t.id === activeTechnician.id) || (t.fullName && activeTechName && t.fullName.toLowerCase().includes(activeTechName))))) ||
+        (activeTechnician.id && order.technicianId === activeTechnician.id) ||
+        (order.technicianName && activeTechName && order.technicianName.toLowerCase().includes(activeTechName)) ||
+        (activeTechnician.id && order.requestedByTechnicianId === activeTechnician.id) ||
+        (currentUser?.systemRole === 'admin' || currentUser?.systemRole === 'manager');
+      return isAssigned;
+    });
+  }, [orders, activeTechnician, activeTechName, currentUser]);
+
+  // C) In-Progress Jobs (Ayni vaqtda montaj jarayonidagi ishlar)
   const inProgressJobs = useMemo(() => {
     return assignedActiveJobs.filter(order => {
+      if (order.status === 'pending_cashier_approval' || order.status === 'rejected') return false;
       const matchingHandover = (handovers || []).find(h => h && (h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id)));
       const isCompleted = order.status === 'completed' || !!matchingHandover;
       return !isCompleted && (order.status === 'in_progress' || !!order.startedAt);
     });
   }, [assignedActiveJobs, handovers]);
 
-  // C) Completed Jobs (Topshirilgan obyektlar)
+  // D) Completed Jobs (Topshirilgan obyektlar)
   const completedJobsList = useMemo(() => {
     return assignedActiveJobs.filter(order => {
       const matchingHandover = (handovers || []).find(h => h && (h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id)));
@@ -573,16 +591,19 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     const myWageUSD = myWageAssignment?.wageUSD || 0;
     const myWageUZS = myWageAssignment?.wageUZS || (myWageUSD ? Math.round(myWageUSD * exchangeRate) : 0);
     const matchingHandover = (handovers || []).find(h => h && (h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id)));
+    const isRejected = order.status === 'rejected';
     const isPendingApproval = order.status === 'pending_cashier_approval';
     const isCompleted = order.status === 'completed' || !!matchingHandover;
     const isInProgress = order.status === 'in_progress' || (!!order.startedAt && !isCompleted);
-    const isUnstarted = !isCompleted && !isInProgress && !isPendingApproval;
+    const isUnstarted = !isCompleted && !isInProgress && !isPendingApproval && !isRejected;
 
     return (
       <div
         key={order.id}
         className={`bg-slate-900 rounded-2xl border transition shadow-md overflow-hidden ${
-          isPendingApproval 
+          isRejected
+            ? 'border-2 border-rose-500 bg-rose-950/20 shadow-rose-950/30'
+            : isPendingApproval 
             ? 'border-amber-500/80 bg-slate-900/90' 
             : isInProgress
             ? 'border-purple-500/80 bg-slate-900/95 ring-1 ring-purple-500/30'
@@ -602,7 +623,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                 #{order.orderNumber}
               </span>
               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                isCompleted 
+                isRejected
+                  ? 'bg-rose-950 text-rose-300 border border-rose-600 animate-pulse font-black'
+                  : isCompleted 
                   ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' 
                   : isPendingApproval
                   ? 'bg-amber-950 text-amber-300 border border-amber-800 animate-pulse'
@@ -610,7 +633,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                   ? 'bg-purple-950 text-purple-300 border border-purple-800 animate-pulse'
                   : 'bg-sky-950 text-sky-300 border border-sky-800'
               }`}>
-                {isCompleted 
+                {isRejected
+                  ? '❌ Kassir Rad Etdi'
+                  : isCompleted 
                   ? '✓ Topshirilgan' 
                   : isPendingApproval 
                   ? '🟡 Kassa Tasdig\'i' 
@@ -943,6 +968,48 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                   </button>
                 </div>
 
+                {/* Prominent Red Alert Banner if Estimates were Rejected */}
+                {myRejectedEstimates.length > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 border-2 border-rose-500 text-white space-y-2.5 shadow-xl shadow-rose-950/60 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 text-rose-200 font-black text-xs">
+                        <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 animate-bounce" />
+                        <span>❌ KASSIR {myRejectedEstimates.length} TA SMETANI RAD ETDI!</span>
+                      </span>
+                      <span className="text-[10px] bg-rose-600 text-white font-black px-2 py-0.5 rounded-full uppercase shadow">
+                        Tahrirlash Zarur
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {myRejectedEstimates.map((ord) => (
+                        <div key={ord.id} className="p-2.5 bg-slate-950/90 rounded-xl border border-rose-700 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-mono font-black text-rose-400">#{ord.orderNumber}</span>
+                            <span className="text-xs font-bold text-white truncate max-w-[170px]">{ord.customerName}</span>
+                          </div>
+
+                          <div className="text-[11px] text-rose-200 bg-rose-950/80 p-2 rounded-lg border border-rose-800/80 leading-tight">
+                            ⚠️ <strong className="text-rose-100">Rad etish sababi:</strong> <span className="italic">{ord.rejectionReason || "Tovarlar omborda yetarli emas yoki narx xato"}</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEstimateTargetOrder(ord);
+                              setIsOnSiteEstimateOpen(true);
+                            }}
+                            className="w-full py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md shadow-rose-600/30 active:scale-98"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Smetani Tahrirlash va Qayta Yuborish</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Search Bar */}
                 <div className="relative">
                   <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -956,7 +1023,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                 </div>
 
                 {/* Orders Sub-Filter Pills */}
-                <div className="grid grid-cols-3 gap-1 pt-1 select-none">
+                <div className={`grid ${myRejectedEstimates.length > 0 ? 'grid-cols-4' : 'grid-cols-3'} gap-1 pt-1 select-none`}>
                   <button
                     type="button"
                     onClick={() => setOrdersSubFilter('active_jobs')}
@@ -968,6 +1035,20 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                   >
                     Yangi ({unstartedJobs.length})
                   </button>
+
+                  {myRejectedEstimates.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setOrdersSubFilter('rejected')}
+                      className={`py-1.5 px-1 rounded-xl text-[10px] transition text-center truncate flex items-center justify-center gap-0.5 ${
+                        ordersSubFilter === 'rejected'
+                          ? 'bg-rose-600 text-white shadow-sm font-black'
+                          : 'bg-rose-950/70 text-rose-300 hover:text-white border border-rose-700 animate-pulse font-bold'
+                      }`}
+                    >
+                      <span>❌ Rad ({myRejectedEstimates.length})</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -998,6 +1079,77 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               {/* Scrollable Orders List Content */}
               <div className="flex-1 min-h-0 p-3 sm:p-4 overflow-y-auto space-y-2.5 pb-24 overscroll-contain">
                 
+                {/* 0. RAD ETILGAN SMETALAR LIST */}
+                {ordersSubFilter === 'rejected' && (
+                  <div className="space-y-2.5">
+                    {myRejectedEstimates.length === 0 ? (
+                      <div className="p-8 text-center bg-slate-900/60 rounded-3xl border border-slate-800 space-y-2">
+                        <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+                        <h3 className="text-sm font-bold text-white">Rad etilgan smetalar yo&apos;q</h3>
+                        <p className="text-xs text-slate-400">Barcha hisob-kitoblar tasdiqlangan yoki kutilmoqda.</p>
+                      </div>
+                    ) : (
+                      myRejectedEstimates.map((order) => (
+                        <div
+                          key={order.id}
+                          className="bg-rose-950/30 rounded-2xl border-2 border-rose-500 p-3.5 space-y-2.5 shadow-lg shadow-rose-950/40"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-black font-mono text-rose-300 bg-rose-950 px-1.5 py-0.5 rounded border border-rose-700">
+                                  #{order.orderNumber}
+                                </span>
+                                <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-rose-900 text-rose-200 border border-rose-600 animate-pulse">
+                                  ❌ Kassir Rad Etdi
+                                </span>
+                              </div>
+                              <h4 className="text-xs font-black text-white mt-1">
+                                {order.projectName || 'Smeta / Obyekt'}
+                              </h4>
+                              <span className="text-[11px] text-slate-300 block">👤 {order.customerName}</span>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-[10px] text-slate-400 block">Jami summa:</span>
+                              <strong className="text-xs font-black text-white font-mono block">
+                                ${order.totalAmountUSD || Number((order.totalAmount / exchangeRate).toFixed(1))}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {/* Rejection Alert Box */}
+                          <div className="p-2.5 rounded-xl bg-rose-950/80 border border-rose-700/80 space-y-1.5">
+                            <div className="flex items-start gap-2 text-xs text-rose-200">
+                              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                              <div>
+                                <strong className="font-bold text-rose-100 block">Rad etish sababi:</strong>
+                                <span className="text-[11px] text-rose-300 italic">{order.rejectionReason || "Tovarlar omborda yetarli emas yoki narx xato"}</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEstimateTargetOrder(order);
+                                setIsOnSiteEstimateOpen(true);
+                              }}
+                              className="w-full py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-sm active:scale-98"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Smetani Tahrirlash va Qayta Yuborish</span>
+                            </button>
+                          </div>
+
+                          <div className="p-2 bg-slate-950 rounded-xl border border-slate-800/80 text-[11px] flex items-center justify-between text-slate-300">
+                            <span>📦 {order.items.length} xil mahsulot / xizmat</span>
+                            <span className="font-mono text-slate-400">{formatNumberWithSpaces(order.totalAmount)} so&apos;m</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
                 {/* 1. YANGI / KUTILAYOTGAN BUYURTMALAR */}
                 {ordersSubFilter === 'active_jobs' && (
                   <div className="space-y-2.5">
