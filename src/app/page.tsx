@@ -1052,6 +1052,25 @@ export default function Home() {
       } catch (e) {
         console.error(e);
       }
+    } else if (newOrder.status === 'in_progress') {
+      showToast(`▶️ Montaj boshlandi! Usta obyektda ishga kirishdi (#${newOrder.orderNumber}).`);
+
+      try {
+        const tg = getTelegramSettings();
+        if (tg.enabled && tg.botToken && tg.chatId) {
+          const techNames = newOrder.technicians?.map(t => t.fullName).join(', ') || newOrder.technicianName || 'Usta';
+          const msg = `⚡ *MONTAJ ISHLARI BOSHLANDI!*\n\n` +
+            `📋 *Buyurtma / Obyekt:* #${newOrder.orderNumber}\n` +
+            `👷‍♂️ *Usta:* ${techNames}\n` +
+            `👤 *Mijoz:* ${newOrder.customerName} (${newOrder.customerPhone || '—'})\n` +
+            `📍 *Manzil:* ${newOrder.deliveryAddress || 'Ko\'rsatilmagan'}\n` +
+            `⏰ *Boshlangan vaqt:* ${newOrder.startedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n` +
+            `🟢 *Holat:* Obyektda montaj jarayonida`;
+          sendTelegramMessage(tg.botToken, tg.chatId, msg);
+        }
+      } catch (e) {
+        console.error(e);
+      }
     } else {
       showToast(`✓ Hisob-kitob (Smeta) ${newOrder.orderNumber} muvaffaqiyatli saqlandi!`);
     }

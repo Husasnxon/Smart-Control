@@ -57,7 +57,9 @@ import {
   KeyRound,
   Edit3,
   Save,
-  Check
+  Check,
+  Play,
+  Flag
 } from 'lucide-react';
 
 export type MainMobileTab = 'orders' | 'earnings' | 'profile';
@@ -404,6 +406,23 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     setTimeout(() => setProfileSavedToast(false), 3000);
   };
 
+  // Start job handler (Montajni boshlash)
+  const handleStartJob = (order: CustomerOrder) => {
+    const startTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const updatedOrder: CustomerOrder = {
+      ...order,
+      status: 'in_progress',
+      startedAt: order.startedAt || startTime
+    };
+    if (onSaveOrder) {
+      onSaveOrder(updatedOrder);
+    }
+    if (activeTechnician && onUpdateEmployeeStatus) {
+      onUpdateEmployeeStatus(activeTechnician.id, 'on_site');
+    }
+    setExpandedJobIds(prev => ({ ...prev, [order.id]: true }));
+  };
+
   // Status styling badge helper
   const getStatusBadge = (status?: string) => {
     switch (status) {
@@ -697,12 +716,21 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                         const myWageUZS = myWageAssignment?.wageUZS || (myWageUSD ? Math.round(myWageUSD * exchangeRate) : 0);
                         const matchingHandover = handovers.find(h => h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id));
                         const isPendingApproval = order.status === 'pending_cashier_approval';
+                        const isCompleted = order.status === 'completed' || !!matchingHandover;
+                        const isInProgress = order.status === 'in_progress' || (!!order.startedAt && !isCompleted);
+                        const isUnstarted = !isCompleted && !isInProgress && !isPendingApproval;
 
                         return (
                           <div
                             key={order.id}
                             className={`bg-slate-900 rounded-2xl border transition shadow-md overflow-hidden ${
-                              isPendingApproval ? 'border-amber-500/80 bg-slate-900/90' : 'border-slate-800'
+                              isPendingApproval 
+                                ? 'border-amber-500/80 bg-slate-900/90' 
+                                : isInProgress
+                                ? 'border-purple-500/80 bg-slate-900/95 ring-1 ring-purple-500/30'
+                                : isCompleted
+                                ? 'border-emerald-700/60 bg-slate-900'
+                                : 'border-sky-700/60'
                             }`}
                           >
                             {/* COMPACT CARD HEADER (CLICK TO EXPAND) */}
@@ -715,14 +743,22 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                                   <span className="text-[10px] font-black font-mono text-purple-400 bg-purple-950/80 px-1.5 py-0.5 rounded border border-purple-800">
                                     #{order.orderNumber}
                                   </span>
-                                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
-                                    matchingHandover 
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                    isCompleted 
                                       ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' 
                                       : isPendingApproval
                                       ? 'bg-amber-950 text-amber-300 border border-amber-800 animate-pulse'
-                                      : 'bg-indigo-950 text-indigo-300 border border-indigo-800'
+                                      : isInProgress
+                                      ? 'bg-purple-950 text-purple-300 border border-purple-800 animate-pulse'
+                                      : 'bg-sky-950 text-sky-300 border border-sky-800'
                                   }`}>
-                                    {matchingHandover ? '✓ Topshirilgan' : isPendingApproval ? '🟡 Kassa Tasdig\'i' : 'Montaj jarayonida'}
+                                    {isCompleted 
+                                      ? '✓ Topshirilgan' 
+                                      : isPendingApproval 
+                                      ? '🟡 Kassa Tasdig\'i' 
+                                      : isInProgress 
+                                      ? `⚡ Montaj jarayonida (${order.startedAt || 'Boshlangan'})` 
+                                      : '⏳ Boshlanmagan'}
                                   </span>
                                 </div>
 
@@ -828,9 +864,22 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                                   </div>
                                 )}
 
-                                {/* Action Buttons */}
+                                {/* Action Buttons for 3 Stages */}
                                 <div className="space-y-2 pt-1">
-                                  {!matchingHandover && (
+                                  {/* STAGE 1: UNSTARTED - START JOB BUTTON */}
+                                  {isUnstarted && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartJob(order)}
+                                      className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition active:scale-98 animate-pulse"
+                                    >
+                                      <Play className="w-4 h-4 fill-white text-white" />
+                                      <span>▶️ Ishni Boshlash (Obyektga Kirishish)</span>
+                                    </button>
+                                  )}
+
+                                  {/* EXTRA ITEM / SERVICE ADDITION */}
+                                  {!isCompleted && (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -844,20 +893,8 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                                     </button>
                                   )}
 
-                                  {matchingHandover ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedViewingHandover(matchingHandover);
-                                        setSelectedHandoverOrder(order);
-                                        setIsHandoverModalOpen(true);
-                                      }}
-                                      className="w-full py-3 px-4 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 border border-emerald-800 transition"
-                                    >
-                                      <FileText className="w-4 h-4" />
-                                      <span>Rasmiy Aktni Ko&apos;rish (PDF / Chop)</span>
-                                    </button>
-                                  ) : (
+                                  {/* STAGE 2: IN PROGRESS - COMPLETE & HANDOVER ACT */}
+                                  {isInProgress && (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -867,9 +904,25 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                                       }}
                                       className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30 transition active:scale-98"
                                     >
-                                      <Camera className="w-4 h-4" />
-                                      <span>📸 Obyektni Topshirish (Foto &amp; E-Imzo)</span>
+                                      <Flag className="w-4 h-4 text-emerald-400" />
+                                      <span>🏁 Ishni Yakunlash &amp; Akt Tuzish (Foto &amp; E-Imzo)</span>
                                       <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                                    </button>
+                                  )}
+
+                                  {/* STAGE 3: COMPLETED - VIEW OFFICIAL ACT */}
+                                  {isCompleted && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedViewingHandover(matchingHandover || null);
+                                        setSelectedHandoverOrder(order);
+                                        setIsHandoverModalOpen(true);
+                                      }}
+                                      className="w-full py-3 px-4 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 border border-emerald-800 transition"
+                                    >
+                                      <FileText className="w-4 h-4" />
+                                      <span>📜 Rasmiy Aktni Ko&apos;rish (PDF / Chop)</span>
                                     </button>
                                   )}
                                 </div>

@@ -394,7 +394,9 @@ export interface CustomerOrder {
   discountTotal: number;
   totalAmount: number;
   totalAmountUSD?: number;
-  status: 'new' | 'calculated' | 'approved' | 'shipped' | 'completed' | 'cancelled' | 'pending_cashier_approval' | 'rejected';
+  status: 'new' | 'calculated' | 'approved' | 'shipped' | 'in_progress' | 'completed' | 'cancelled' | 'pending_cashier_approval' | 'rejected';
+  startedAt?: string;
+  completedAt?: string;
   shipmentId?: string;
   receiptId?: string;
   technicians?: AssignedTechnician[];
