@@ -15,8 +15,10 @@ import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { compressImage } from '../utils/imageCompressor';
 import { HandoverModal } from './HandoverModal';
 import { OnSiteEstimateModal } from './OnSiteEstimateModal';
+import { HddCalculatorModal } from './HddCalculatorModal';
 import { 
   HardHat, 
+  HardDrive,
   MapPin, 
   Phone, 
   CheckCircle2, 
@@ -183,6 +185,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   // On-Site Estimate Modal state
   const [isOnSiteEstimateOpen, setIsOnSiteEstimateOpen] = useState(false);
   const [estimateTargetOrder, setEstimateTargetOrder] = useState<CustomerOrder | null>(null);
+
+  // HDD Calculator Modal state
+  const [isHddCalcOpen, setIsHddCalcOpen] = useState(false);
 
   // Profile Edit State
   const [profileFullName, setProfileFullName] = useState(activeTechnician?.fullName || '');
@@ -934,20 +939,31 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               
               {/* Action: On-Site Estimate Button & Search Bar */}
               <div className="p-3 bg-slate-950 border-b border-slate-900 space-y-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEstimateTargetOrder(null);
-                    setIsOnSiteEstimateOpen(true);
-                  }}
-                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition active:scale-98"
-                >
-                  <Calculator className="w-4 h-4" />
-                  <span>➕ Joyida Yangi Smeta / Hisob-kitob Tuzish</span>
-                  <span className="text-[9px] bg-slate-950 text-amber-400 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold">
-                    Kassaga
-                  </span>
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEstimateTargetOrder(null);
+                      setIsOnSiteEstimateOpen(true);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition active:scale-98"
+                  >
+                    <Calculator className="w-4 h-4" />
+                    <span>➕ Joyida Yangi Smeta</span>
+                    <span className="text-[9px] bg-slate-950 text-amber-400 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold">
+                      Kassaga
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsHddCalcOpen(true)}
+                    className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 transition active:scale-98"
+                  >
+                    <HardDrive className="w-4 h-4 text-purple-200" />
+                    <span>💾 CCTV HDD Kalkulyator</span>
+                  </button>
+                </div>
 
                 {/* Search Bar */}
                 <div className="relative">
@@ -1592,6 +1608,27 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                     <span>💾 Profil Ma&apos;lumotlarini Saqlash</span>
                   </button>
                 </form>
+
+                {/* Quick HDD Tool in Profile */}
+                <div
+                  onClick={() => setIsHddCalcOpen(true)}
+                  className="p-3.5 bg-gradient-to-r from-purple-950/60 via-slate-900 to-slate-900 border border-purple-800/50 rounded-2xl flex items-center justify-between cursor-pointer hover:border-purple-600 transition shadow-md group active:scale-98"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-600/20 text-purple-400 flex items-center justify-center border border-purple-500/30 group-hover:scale-105 transition">
+                      <HardDrive className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-white group-hover:text-purple-300 transition">
+                        💾 CCTV Qattiq Disk (HDD) Kalkulyatori
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        Disk hajmi yoki arxiv kunini hisoblash (Hik/Dah/UNV/Tiandy/VIGI)
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition" />
+                </div>
               </div>
 
             </div>
@@ -1720,6 +1757,14 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
           onSaveHandover(handover);
           setSelectedViewingHandover(handover);
         }}
+      />
+
+      {/* ======================================================== */}
+      {/* MODAL 3: CCTV HDD STORAGE CALCULATOR */}
+      {/* ======================================================== */}
+      <HddCalculatorModal
+        isOpen={isHddCalcOpen}
+        onClose={() => setIsHddCalcOpen(false)}
       />
     </div>
   );
