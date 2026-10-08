@@ -210,79 +210,39 @@ export default function Home() {
         }
       }
 
-      const savedOrders = localStorage.getItem('sc_customer_orders');
-      if (savedOrders) setCustomerOrders(JSON.parse(savedOrders));
-
-      const savedShipments = localStorage.getItem('sc_shipments');
-      let loadedShipments: ShipmentOrder[] = INITIAL_SHIPMENTS;
-      if (savedShipments) {
-        try {
-          loadedShipments = JSON.parse(savedShipments);
-        } catch (e) {
-          loadedShipments = INITIAL_SHIPMENTS;
-        }
-      }
-
-      // Backfill missing shipments from receipts
-      if (savedReceipts) {
-        try {
-          const loadedRecs: SaleReceipt[] = JSON.parse(savedReceipts);
-          const existingReceiptIds = new Set(loadedShipments.map(s => s.receiptId).filter(Boolean));
-          const missingShipments: ShipmentOrder[] = [];
-
-          loadedRecs.forEach(r => {
-            if (!existingReceiptIds.has(r.id)) {
-              const posShipmentNumber = `OTG-${r.receiptNumber.replace('CR-', '')}`;
-              missingShipments.push({
-                id: `ship-pos-${r.id}`,
-                shipmentNumber: posShipmentNumber,
-                orderId: `ord-pos-${r.id}`,
-                orderNumber: `POS-${r.receiptNumber}`,
-                receiptId: r.id,
-                organization: r.branchName || 'Chilonzor-1 Filiali',
-                warehouseName: 'Asosiy ombor',
-                exchangeRate: r.exchangeRate || 12850,
-                customerId: r.customer?.id || 'cust-direct',
-                customerName: r.customer?.fullName || 'Standart Xaridor',
-                customerPhone: r.customer?.phone || '',
-                deliveryAddress: r.installationAddress || 'To\'g\'ridan-to\'g\'ri savdo (POS Kassa)',
-                projectName: r.customer ? `${r.customer.fullName} - POS Sotuv` : 'Kassa To\'g\'ridan-to\'g\'ri Sotuv',
-                items: r.items.map(it => ({
-                  productId: it.product.id,
-                  productName: it.product.name,
-                  quantity: it.quantity,
-                  unit: it.product.unit || 'dona',
-                  unitPrice: it.appliedPrice,
-                  unitPriceUSD: it.appliedPriceUSD,
-                  discountPercent: it.discountPercent,
-                  totalPrice: it.appliedPrice * it.quantity,
-                  hasSerialNumber: it.product.hasSerialNumber,
-                  selectedSerialNumbers: it.selectedSerialNumbers,
-                  isService: it.product.isService
-                })),
-                subtotal: r.subtotal,
-                discountTotal: r.discountTotal,
-                totalAmount: r.totalAmount,
-                totalAmountUSD: r.totalAmountUSD || Number((r.totalAmount / (r.exchangeRate || 12850)).toFixed(2)),
-                currency: 'UZS',
-                technicians: r.technicians,
-                status: 'shipped',
-                createdAt: r.createdAt,
-                shippedAt: r.createdAt,
-                createdBy: r.cashierName,
-                comment: `POS Kassa orqali sotildi (#${r.receiptNumber})`
-              });
-            }
-          });
-
-          if (missingShipments.length > 0) {
-            loadedShipments = [...missingShipments, ...loadedShipments];
+      // One-time cleanup of old test orders and shipments
+      const isOrdersPurged = localStorage.getItem('sc_orders_purged_v3');
+      if (!isOrdersPurged) {
+        localStorage.setItem('sc_customer_orders', JSON.stringify([]));
+        localStorage.setItem('sc_shipments', JSON.stringify([]));
+        localStorage.setItem('sc_handovers', JSON.stringify([]));
+        localStorage.setItem('sc_orders_purged_v3', 'true');
+        setCustomerOrders([]);
+        setShipments([]);
+        setHandovers([]);
+      } else {
+        const savedOrders = localStorage.getItem('sc_customer_orders');
+        if (savedOrders) {
+          try {
+            setCustomerOrders(JSON.parse(savedOrders));
+          } catch (e) {
+            setCustomerOrders([]);
           }
-        } catch (e) {
-          console.error("Backfill error", e);
+        } else {
+          setCustomerOrders([]);
+        }
+
+        const savedShipments = localStorage.getItem('sc_shipments');
+        if (savedShipments) {
+          try {
+            setShipments(JSON.parse(savedShipments));
+          } catch (e) {
+            setShipments([]);
+          }
+        } else {
+          setShipments([]);
         }
       }
-      setShipments(loadedShipments);
 
       const savedPurchases = localStorage.getItem('sc_purchases');
       if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
@@ -1148,8 +1108,34 @@ export default function Home() {
   };
 
   const handleDeleteOrder = (orderId: string) => {
-    setCustomerOrders((prev) => prev.filter((o) => o.id !== orderId));
+    const updated = customerOrders.filter((o) => o.id !== orderId);
+    setCustomerOrders(updated);
+    try {
+      localStorage.setItem('sc_customer_orders', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ customerOrders: updated });
     showToast("✓ Hisob-kitob smetasi o'chirildi.");
+  };
+
+  const handleClearAllOrders = () => {
+    setCustomerOrders([]);
+    setShipments([]);
+    setHandovers([]);
+    try {
+      localStorage.setItem('sc_customer_orders', JSON.stringify([]));
+      localStorage.setItem('sc_shipments', JSON.stringify([]));
+      localStorage.setItem('sc_handovers', JSON.stringify([]));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({
+      customerOrders: [],
+      shipments: [],
+      handovers: []
+    });
+    showToast("✓ Barcha buyurtmalar, hisob-kitoblar va otgruzkalar tozalandi!");
   };
 
   const handleDirectApproveEstimate = (order: CustomerOrder) => {
@@ -2050,6 +2036,7 @@ export default function Home() {
               onCompleteShipmentSale={handleCompleteShipmentSale}
               onAddCustomer={handleAddCustomer}
               onSaveHandover={handleSaveHandover}
+              onClearAllOrders={handleClearAllOrders}
             />
           )}
 

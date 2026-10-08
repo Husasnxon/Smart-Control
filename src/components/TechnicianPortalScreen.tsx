@@ -968,48 +968,6 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                   </button>
                 </div>
 
-                {/* Prominent Red Alert Banner if Estimates were Rejected */}
-                {myRejectedEstimates.length > 0 && (
-                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 border-2 border-rose-500 text-white space-y-2.5 shadow-xl shadow-rose-950/60 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 text-rose-200 font-black text-xs">
-                        <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 animate-bounce" />
-                        <span>❌ KASSIR {myRejectedEstimates.length} TA SMETANI RAD ETDI!</span>
-                      </span>
-                      <span className="text-[10px] bg-rose-600 text-white font-black px-2 py-0.5 rounded-full uppercase shadow">
-                        Tahrirlash Zarur
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      {myRejectedEstimates.map((ord) => (
-                        <div key={ord.id} className="p-2.5 bg-slate-950/90 rounded-xl border border-rose-700 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-mono font-black text-rose-400">#{ord.orderNumber}</span>
-                            <span className="text-xs font-bold text-white truncate max-w-[170px]">{ord.customerName}</span>
-                          </div>
-
-                          <div className="text-[11px] text-rose-200 bg-rose-950/80 p-2 rounded-lg border border-rose-800/80 leading-tight">
-                            ⚠️ <strong className="text-rose-100">Rad etish sababi:</strong> <span className="italic">{ord.rejectionReason || "Tovarlar omborda yetarli emas yoki narx xato"}</span>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEstimateTargetOrder(ord);
-                              setIsOnSiteEstimateOpen(true);
-                            }}
-                            className="w-full py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md shadow-rose-600/30 active:scale-98"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            <span>Smetani Tahrirlash va Qayta Yuborish</span>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* Search Bar */}
                 <div className="relative">
                   <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />

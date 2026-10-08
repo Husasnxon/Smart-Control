@@ -74,6 +74,7 @@ interface OrdersAndShipmentsScreenProps {
   currentUser?: Employee | null;
   handovers?: ObjectHandover[];
   onSaveHandover?: (handover: ObjectHandover) => void;
+  onClearAllOrders?: () => void;
 }
 
 export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> = ({
@@ -91,7 +92,8 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   onAddCustomer,
   currentUser,
   handovers = [],
-  onSaveHandover
+  onSaveHandover,
+  onClearAllOrders
 }) => {
   // Main Sub-tabs: 'orders' (Hisob-kitob / Zakaz) or 'shipments' (Otgruzka) or 'handovers' (Obyekt topshirish)
   const [activeSubTab, setActiveSubTab] = useState<'orders' | 'shipments' | 'handovers'>('orders');
@@ -763,6 +765,21 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
 
         {/* Action Button */}
         <div className="flex items-center gap-2.5">
+          {onClearAllOrders && (currentUser?.systemRole === 'admin' || currentUser?.systemRole === 'manager' || !currentUser?.systemRole) && (orders.length > 0 || shipments.length > 0) && (
+            <button
+              onClick={() => {
+                if (window.confirm("Haqiqatan ham barcha eski buyurtmalar, hisob-kitoblar va otgruzkani tozalab o'chirib tashlamoqchimisiz?")) {
+                  onClearAllOrders();
+                }
+              }}
+              className="px-3.5 py-2.5 rounded-xl font-bold text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 dark:text-rose-400 border border-rose-500/30 transition flex items-center gap-1.5 shadow-sm"
+              title="Barcha buyurtmalarni tozalash"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Barcha Zakazlarni Tozalash</span>
+            </button>
+          )}
+
           {activeSubTab === 'orders' && canCreateOrders && (
             <button
               onClick={handleOpenNewOrder}
