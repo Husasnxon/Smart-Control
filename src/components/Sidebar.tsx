@@ -100,8 +100,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (!tabs.includes('financial_reports')) {
         tabs.splice(1, 0, 'financial_reports');
       }
+      if (!tabs.includes('crm')) {
+        tabs.splice(2, 0, 'crm');
+      }
       if (!tabs.includes('technician_portal')) {
         tabs.push('technician_portal');
+      }
+    } else if (currentUser.systemRole === 'cashier') {
+      if (!tabs.includes('crm')) {
+        tabs.unshift('crm');
       }
     }
     return tabs;

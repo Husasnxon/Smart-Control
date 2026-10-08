@@ -178,8 +178,17 @@ export default function Home() {
                 if (!tabs.includes('financial_reports')) {
                   tabs.splice(1, 0, 'financial_reports');
                 }
+                if (!tabs.includes('crm')) {
+                  tabs.splice(2, 0, 'crm');
+                }
                 if (!tabs.includes('technician_portal')) {
                   tabs.push('technician_portal');
+                }
+                return { ...emp, allowedTabs: tabs };
+              } else if (emp.systemRole === 'cashier') {
+                const tabs: ActiveTab[] = emp.allowedTabs ? [...emp.allowedTabs] : ([...DEFAULT_ROLE_TABS.cashier] as ActiveTab[]);
+                if (!tabs.includes('crm')) {
+                  tabs.unshift('crm');
                 }
                 return { ...emp, allowedTabs: tabs };
               }
@@ -206,8 +215,17 @@ export default function Home() {
             if (!tabs.includes('financial_reports')) {
               tabs.splice(1, 0, 'financial_reports');
             }
+            if (!tabs.includes('crm')) {
+              tabs.splice(2, 0, 'crm');
+            }
             if (!tabs.includes('technician_portal')) {
               tabs.push('technician_portal');
+            }
+            user = { ...user, allowedTabs: tabs };
+          } else if (user.systemRole === 'cashier') {
+            const tabs: ActiveTab[] = user.allowedTabs ? [...user.allowedTabs] : ([...DEFAULT_ROLE_TABS.cashier] as ActiveTab[]);
+            if (!tabs.includes('crm')) {
+              tabs.unshift('crm');
             }
             user = { ...user, allowedTabs: tabs };
           }
