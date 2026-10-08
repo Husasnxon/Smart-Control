@@ -376,13 +376,24 @@ export default function Home() {
           const remote = json.data;
 
           if (remote.customerOrders) {
+            const rawOrders: CustomerOrder[] = remote.customerOrders;
+            const deduped: CustomerOrder[] = [];
+            const seenNums = new Set<string>();
+            rawOrders.forEach(o => {
+              const key = o.orderNumber || o.id;
+              if (!seenNums.has(key)) {
+                seenNums.add(key);
+                deduped.push(o);
+              }
+            });
+
             setCustomerOrders(prevOrders => {
               const prevIds = new Set(prevOrders.map(o => o.id));
               const prevPendingIds = new Set(prevOrders.filter(o => o.status === 'pending_cashier_approval').map(o => o.id));
 
               // 1. Check if a new order was assigned to the currently logged in technician OR if their estimate was rejected
               if (currentUser?.systemRole === 'technician' || currentUser?.role?.toLowerCase().includes('usta')) {
-                const newAssignedJob = remote.customerOrders.find((o: any) => 
+                const newAssignedJob = deduped.find((o: any) => 
                   !prevIds.has(o.id) && (
                     o.technicianId === currentUser.id ||
                     (o.technicians && o.technicians.some((t: any) => t.id === currentUser.id || t.fullName?.toLowerCase().includes(currentUser.fullName.toLowerCase())))
@@ -394,8 +405,8 @@ export default function Home() {
                 }
 
                 // Check if any estimate created by or assigned to this technician was REJECTED by cashier
-                const newlyRejectedEstimate = remote.customerOrders.find((o: any) => {
-                  const prevOrd = prevOrders.find((p: any) => p.id === o.id);
+                const newlyRejectedEstimate = deduped.find((o: any) => {
+                  const prevOrd = prevOrders.find((p: any) => p.id === o.id || p.orderNumber === o.orderNumber);
                   const isMyOrder = 
                     o.requestedByTechnicianId === currentUser.id ||
                     o.technicianId === currentUser.id ||
@@ -413,7 +424,7 @@ export default function Home() {
 
               // 2. Check if a new on-site estimate was submitted by technician for cashier approval
               if (currentUser?.systemRole !== 'technician') {
-                const newPendingEstimate = remote.customerOrders.find((o: any) => 
+                const newPendingEstimate = deduped.find((o: any) => 
                   o.status === 'pending_cashier_approval' && !prevPendingIds.has(o.id)
                 );
                 if (newPendingEstimate) {
@@ -422,7 +433,7 @@ export default function Home() {
                 }
               }
 
-              return remote.customerOrders;
+              return deduped;
             });
           }
 
@@ -431,7 +442,19 @@ export default function Home() {
           if (remote.receipts) setReceipts(remote.receipts);
           if (remote.expenses) setExpenses(remote.expenses);
           if (remote.employees) setEmployees(remote.employees);
-          if (remote.shipments) setShipments(remote.shipments);
+          if (remote.shipments) {
+            const rawShipments: ShipmentOrder[] = remote.shipments;
+            const dedupedShipments: ShipmentOrder[] = [];
+            const seenShipNums = new Set<string>();
+            rawShipments.forEach(s => {
+              const key = s.shipmentNumber || s.id || s.orderId || s.orderNumber || '';
+              if (!seenShipNums.has(key)) {
+                seenShipNums.add(key);
+                dedupedShipments.push(s);
+              }
+            });
+            setShipments(dedupedShipments);
+          }
           if (remote.purchases) setPurchases(remote.purchases);
           if (remote.serviceTickets) setServiceTickets(remote.serviceTickets);
           if (remote.handovers) setHandovers(remote.handovers);
@@ -1044,7 +1067,7 @@ export default function Home() {
   const handleSaveOrder = (newOrder: CustomerOrder) => {
     let nextList: CustomerOrder[] = [];
     setCustomerOrders((prev) => {
-      const idx = prev.findIndex((o) => o.id === newOrder.id);
+      const idx = prev.findIndex((o) => o.id === newOrder.id || (o.orderNumber && newOrder.orderNumber && o.orderNumber === newOrder.orderNumber));
       if (idx >= 0) {
         nextList = [...prev];
         nextList[idx] = newOrder;
@@ -1054,30 +1077,16 @@ export default function Home() {
       return nextList;
     });
 
+    const finalOrders = nextList.length > 0 ? nextList : [newOrder, ...customerOrders];
+
     // Immediate storage & cloud push
     try {
-      localStorage.setItem('sc_customer_orders', JSON.stringify(nextList.length > 0 ? nextList : [newOrder, ...customerOrders]));
+      localStorage.setItem('sc_customer_orders', JSON.stringify(finalOrders));
     } catch (e) {
       console.error(e);
     }
     pushDataToCloud({
-      products,
-      productCategories,
-      customers,
-      receipts,
-      expenses,
-      expenseCategories,
-      employees,
-      customerOrders: nextList.length > 0 ? nextList : [newOrder, ...customerOrders],
-      shipments,
-      purchases,
-      serviceTickets,
-      customerDebtPayments,
-      payrolls,
-      advances,
-      handovers,
-      exchangeRate,
-      baseCurrency
+      customerOrders: finalOrders
     });
 
     if (newOrder.status === 'pending_cashier_approval') {
@@ -1158,107 +1167,160 @@ export default function Home() {
   };
 
   const handleDirectApproveEstimate = (order: CustomerOrder) => {
+    const shipmentId = order.shipmentId || `ship-${Date.now()}`;
+    const cleanNum = (order.orderNumber || '').replace('ZAK-', '').replace('ZK-', '');
+    const shipmentNumber = `OTG-${cleanNum || Math.floor(1000 + Math.random() * 9000)}`;
+
     const updatedOrder: CustomerOrder = {
       ...order,
-      status: 'shipped'
+      status: 'approved',
+      shipmentId: shipmentId
     };
-    handleSaveOrder(updatedOrder);
 
-    // Create automatic sale receipt for financial accounting
-    const newReceipt: SaleReceipt = {
-      id: `rcp-est-${Date.now()}`,
-      receiptNumber: `CHK-${Math.floor(10000 + Math.random() * 90000)}`,
-      createdAt: new Date().toISOString(),
-      cashierName: currentUser?.fullName || 'Bosh Administrator',
-      branchName: 'Chilonzor-1 Filiali',
-      items: order.items.map(it => {
-        const prod = products.find(p => p.id === it.productId || p.sku === it.sku);
-        return {
-          product: prod || {
-            id: it.productId,
-            name: it.productName,
-            sku: it.sku || 'ITEM',
-            barcode: '',
-            category: it.category || 'Boshqa',
-            retailPrice: it.unitPrice,
-            retailPriceUSD: it.unitPriceUSD || Number((it.unitPrice / exchangeRate).toFixed(2)),
-            wholesalePrice: it.unitPrice,
-            costPrice: 0,
-            stockQuantity: 999,
-            minStockAlert: 5,
-            unit: it.unit,
-            hasSerialNumber: it.hasSerialNumber || false,
-            isService: it.isService || false,
-            serialNumbers: it.selectedSerialNumbers || []
-          },
-          quantity: it.quantity,
-          appliedPrice: it.unitPrice,
-          discountPercent: it.discountPercent || 0,
-          selectedSerialNumbers: it.selectedSerialNumbers || []
-        };
-      }),
+    const newShipment: ShipmentOrder = {
+      id: shipmentId,
+      shipmentNumber: shipmentNumber,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      organization: order.organization || 'SMART CONTROL',
+      warehouseName: order.warehouseName || 'Asosiy Ombor',
+      customerId: order.customerId || 'cust-direct',
+      customerName: order.customerName || 'Mijoz',
+      customerPhone: order.customerPhone || '',
+      deliveryAddress: order.deliveryAddress || 'Obyektda',
+      projectName: order.projectName || `${order.customerName} - Obyekt montaji`,
+      comment: order.comment || `Usta smetasi asosida yaratildi (#${order.orderNumber})`,
+      currency: order.currency || 'UZS',
+      exchangeRate: order.exchangeRate || exchangeRate,
+      technicians: order.technicians || [],
+      items: order.items.map(it => ({
+        productId: it.productId,
+        productName: it.productName,
+        quantity: it.quantity,
+        unit: it.unit || 'dona',
+        unitPrice: it.unitPrice,
+        unitPriceUSD: it.unitPriceUSD,
+        discountPercent: it.discountPercent || 0,
+        totalPrice: it.totalPrice || (it.unitPrice * it.quantity),
+        hasSerialNumber: it.hasSerialNumber || false,
+        selectedSerialNumbers: it.selectedSerialNumbers || [],
+        isService: it.isService || false
+      })),
       subtotal: order.subtotal || order.totalAmount,
       discountTotal: order.discountTotal || 0,
       totalAmount: order.totalAmount,
-      totalAmountUSD: order.totalAmountUSD || Number((order.totalAmount / exchangeRate).toFixed(2)),
-      payments: {
-        cash: order.totalAmount,
-        card: 0,
-        debt: 0,
-        cashbackUsed: 0,
-        total: order.totalAmount,
-        totalUSD: order.totalAmountUSD,
-        currencyPaid: 'UZS'
-      },
-      cashbackEarned: 0,
-      customer: order.customerId ? customers.find(c => c.id === order.customerId) : (order.customerName ? {
-        id: `cust-tmp-${Date.now()}`,
-        fullName: order.customerName,
-        phone: order.customerPhone || '',
-        address: order.deliveryAddress || '',
-        cashbackBalance: 0,
-        totalPurchases: 0,
-        debtBalance: 0,
-        tier: 'Standard',
-        cashbackRate: 1,
-        registeredDate: new Date().toLocaleDateString('uz-UZ')
-      } : undefined),
-      technicians: order.technicians || [],
-      installationAddress: order.deliveryAddress,
-      exchangeRate: exchangeRate,
-      status: 'completed',
-      isOffline: false,
-      synced: true
+      totalAmountUSD: order.totalAmountUSD || Number((order.totalAmount / (order.exchangeRate || exchangeRate || 12850)).toFixed(2)),
+      status: 'pending',
+      paymentMethod: 'cash'
     };
-    handleCompleteSale(newReceipt);
-    showToast(`✓ #${order.orderNumber} smeta kassa tomonidan tasdiqlandi va savdoga qabul qilindi!`);
+
+    // Update customer orders list without duplicates
+    let nextOrders: CustomerOrder[] = [];
+    setCustomerOrders(prev => {
+      const idx = prev.findIndex(o => o.id === order.id || o.orderNumber === order.orderNumber);
+      if (idx >= 0) {
+        nextOrders = [...prev];
+        nextOrders[idx] = updatedOrder;
+      } else {
+        nextOrders = [updatedOrder, ...prev];
+      }
+      return nextOrders;
+    });
+
+    // Update shipments list without duplicates
+    let nextShipments: ShipmentOrder[] = [];
+    setShipments(prev => {
+      const idx = prev.findIndex(s => s.id === shipmentId || s.orderId === order.id || s.orderNumber === order.orderNumber);
+      if (idx >= 0) {
+        nextShipments = [...prev];
+        nextShipments[idx] = newShipment;
+      } else {
+        nextShipments = [newShipment, ...prev];
+      }
+      return nextShipments;
+    });
+
+    const finalOrders = nextOrders.length > 0 ? nextOrders : [updatedOrder];
+    const finalShipments = nextShipments.length > 0 ? nextShipments : [newShipment];
+
+    try {
+      localStorage.setItem('sc_customer_orders', JSON.stringify(finalOrders));
+      localStorage.setItem('sc_shipments', JSON.stringify(finalShipments));
+    } catch (e) {
+      console.error(e);
+    }
+
+    pushDataToCloud({
+      customerOrders: finalOrders,
+      shipments: finalShipments
+    });
+
+    // Notify telegram
+    try {
+      const tg = getTelegramSettings();
+      if (tg.enabled && tg.botToken && tg.chatId) {
+        const msg = `✅ *SMETA KASSIR TOMONIDAN TASDIQLANDI!*\n\n` +
+          `📋 *Smeta raqami:* #${order.orderNumber}\n` +
+          `📦 *Otgruzka raqami:* #${shipmentNumber}\n` +
+          `🛠️ *Usta:* ${order.requestedByTechnicianName || order.technicianName || 'Usta'}\n` +
+          `👤 *Mijoz:* ${order.customerName || '—'}\n` +
+          `💰 *Jami Summa:* $${order.totalAmountUSD || Number((order.totalAmount / (order.exchangeRate || exchangeRate)).toFixed(1))} (${order.totalAmount.toLocaleString()} so'm)\n\n` +
+          `🚚 *Holat:* "2. Otgruzka" bo'limiga o'tkazildi. To'lov usta pulni olib kelganda qabul qilinadi.`;
+        sendTelegramMessage(tg.botToken, tg.chatId, msg);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    showToast(`✓ #${order.orderNumber} smeta tasdiqlandi va "2. Otgruzka" bo'limiga o'tkazildi! To'lov usta pulni olib kelganda kiritiladi.`);
   };
 
   const handleRejectEstimate = (orderId: string, reason: string) => {
-    const targetOrd = customerOrders.find((o) => o.id === orderId);
-    if (targetOrd) {
-      handleSaveOrder({
+    let nextOrders: CustomerOrder[] = [];
+    let rejectedOrderNum = '';
+    setCustomerOrders(prev => {
+      const targetOrd = prev.find((o) => o.id === orderId);
+      if (!targetOrd) return prev;
+      rejectedOrderNum = targetOrd.orderNumber;
+      const updated: CustomerOrder = {
         ...targetOrd,
         status: 'rejected',
         rejectionReason: reason || "Tovarlar omborda yetarli emas yoki narx xato"
-      });
-      showToast(`⚠️ #${targetOrd.orderNumber} smeta rad etildi va ustaga yuborildi.`);
+      };
+      nextOrders = prev.map(o => (o.id === orderId || o.orderNumber === targetOrd.orderNumber ? updated : o));
+      return nextOrders;
+    });
 
-      // Send Telegram notification
-      try {
-        const tg = getTelegramSettings();
-        if (tg.enabled && tg.botToken && tg.chatId) {
-          const msg = `❌ *SMETA KASSIR TOMONIDAN RAD ETILDI!*\n\n` +
-            `📋 *Smeta raqami:* #${targetOrd.orderNumber}\n` +
-            `🛠️ *Usta:* ${targetOrd.requestedByTechnicianName || targetOrd.technicianName || 'Usta'}\n` +
-            `👤 *Mijoz:* ${targetOrd.customerName || '—'}\n` +
-            `⚠️ *Rad etish sababi:* ${reason || "Tovarlar omborda yetarli emas yoki narx xato"}\n\n` +
-            `📱 *Usta ilovasida tahrirlash va qayta yuborish imkoni mavjud.*`;
-          sendTelegramMessage(tg.botToken, tg.chatId, msg);
-        }
-      } catch (e) {
-        console.error(e);
+    const finalOrders = nextOrders.length > 0 ? nextOrders : customerOrders;
+
+    try {
+      localStorage.setItem('sc_customer_orders', JSON.stringify(finalOrders));
+    } catch (e) {
+      console.error(e);
+    }
+
+    pushDataToCloud({
+      customerOrders: finalOrders
+    });
+
+    const targetOrd = customerOrders.find(o => o.id === orderId);
+    showToast(`⚠️ #${targetOrd?.orderNumber || rejectedOrderNum || ''} smeta rad etildi va ustaga yuborildi.`);
+
+    // Send Telegram notification
+    try {
+      const tg = getTelegramSettings();
+      if (tg.enabled && tg.botToken && tg.chatId) {
+        const msg = `❌ *SMETA KASSIR TOMONIDAN RAD ETILDI!*\n\n` +
+          `📋 *Smeta raqami:* #${targetOrd?.orderNumber || rejectedOrderNum || orderId}\n` +
+          `🛠️ *Usta:* ${targetOrd?.requestedByTechnicianName || targetOrd?.technicianName || 'Usta'}\n` +
+          `👤 *Mijoz:* ${targetOrd?.customerName || '—'}\n` +
+          `⚠️ *Rad etish sababi:* ${reason || "Tovarlar omborda yetarli emas yoki narx xato"}\n\n` +
+          `📱 *Usta ilovasida "❌ Rad" bo'limida tahrirlash va qayta yuborish imkoni mavjud.*`;
+        sendTelegramMessage(tg.botToken, tg.chatId, msg);
       }
+    } catch (e) {
+      console.error(e);
     }
   };
 
