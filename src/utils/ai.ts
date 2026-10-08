@@ -34,8 +34,12 @@ export const saveGeminiApiKey = (key: string): void => {
 };
 
 export const getGeminiModel = (): string => {
-  if (typeof window === 'undefined') return 'gemini-1.5-flash';
-  return localStorage.getItem('sc_gemini_model') || 'gemini-1.5-flash';
+  if (typeof window === 'undefined') return 'gemini-3.8-flash';
+  const saved = localStorage.getItem('sc_gemini_model');
+  if (!saved || saved.includes('1.5') || saved.includes('2.0')) {
+    return 'gemini-3.8-flash';
+  }
+  return saved;
 };
 
 export const saveGeminiModel = (model: string): void => {
@@ -224,50 +228,52 @@ Return ONLY valid JSON (no markdown formatting, no backticks, no code fence) mat
   "commercialProposalText": "Polite, professional offer in Uzbek language with emojis, ready to be sent via Telegram"
 }`;
 
-  try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: systemPrompt },
-              { text: `Customer inquiry / Technician Voice Note:\n"${rawInput}"` }
-            ]
+  const candidateModels = [model, 'gemini-3.8-flash', 'gemini-flash-latest'].filter((v, i, a) => a.indexOf(v) === i);
+
+  for (const currentModel of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: systemPrompt },
+                { text: `Customer inquiry / Technician Voice Note:\n"${rawInput}"` }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 1024,
+            responseMimeType: 'application/json'
           }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 1024,
-          responseMimeType: 'application/json'
-        }
-      })
-    });
+        })
+      });
 
-    if (!response.ok) {
-      console.warn(`Gemini API returned status ${response.status}. Falling back to local parser.`);
-      return localHeuristicCrmParser(rawInput, products, employees);
+      if (!response.ok) {
+        console.warn(`Gemini model ${currentModel} returned status ${response.status}. Trying next candidate model...`);
+        continue;
+      }
+
+      const data = await response.json();
+      const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (candidateText) {
+        const cleanJson = candidateText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanJson);
+        return {
+          ...localHeuristicCrmParser(rawInput, products, employees),
+          ...parsed
+        };
+      }
+    } catch (error) {
+      console.error(`Gemini model ${currentModel} fetch error:`, error);
     }
-
-    const data = await response.json();
-    const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (candidateText) {
-      // Clean JSON in case markdown fences are present
-      const cleanJson = candidateText.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
-      return {
-        ...localHeuristicCrmParser(rawInput, products, employees),
-        ...parsed
-      };
-    }
-
-    return localHeuristicCrmParser(rawInput, products, employees);
-  } catch (error) {
-    console.error('Gemini API fetch error:', error);
-    return localHeuristicCrmParser(rawInput, products, employees);
   }
+
+  return localHeuristicCrmParser(rawInput, products, employees);
 };

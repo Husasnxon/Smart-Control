@@ -2442,9 +2442,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         onChange={(e) => setGeminiModel(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-purple-500 text-xs"
                       >
-                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (Tavsiya etiladi - Bepul & Tezkor)</option>
-                        <option value="gemini-2.0-flash">Gemini 2.0 Flash (Eng yangi avlod)</option>
-                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (Murakkab tahlillar uchun)</option>
+                        <option value="gemini-3.8-flash">Gemini 3.8 Flash (Tavsiya etiladi - Bepul & Juda tezkor)</option>
+                        <option value="gemini-flash-latest">Gemini Flash Latest (Eng oxirgi avlod)</option>
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (Barqaror)</option>
                       </select>
                     </div>
 
@@ -2467,25 +2467,40 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       onClick={async () => {
                         setIsAiTesting(true);
                         setAiTestResult(null);
-                        try {
-                          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey.trim()}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              contents: [{ parts: [{ text: "Salom! Smart Control CCTV uchun AI tayyormi?" }] }]
-                            })
-                          });
-                          if (res.ok) {
-                            setAiTestResult({ success: true, message: "Ajoyib! Google Gemini API muvaffaqiyatli ulandi va ishlamoqda." });
-                          } else {
-                            const err = await res.json();
-                            setAiTestResult({ success: false, message: `Xatolik: ${err.error?.message || 'API kalit noto\'g\'ri'}` });
+                        const testModels = [geminiModel, 'gemini-3.8-flash', 'gemini-flash-latest'].filter((v, i, a) => a.indexOf(v) === i);
+                        let isSuccess = false;
+                        let lastErrMsg = '';
+
+                        for (const modelToTry of testModels) {
+                          try {
+                            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelToTry}:generateContent?key=${geminiApiKey.trim()}`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                contents: [{ parts: [{ text: "Salom! Smart Control CCTV uchun AI tayyormi?" }] }]
+                              })
+                            });
+                            if (res.ok) {
+                              setAiTestResult({ success: true, message: `Ajoyib! Google Gemini API muvaffaqiyatli ulandi (${modelToTry}) va ishlamoqda.` });
+                              isSuccess = true;
+                              if (modelToTry !== geminiModel) {
+                                setGeminiModel(modelToTry);
+                                saveGeminiModel(modelToTry);
+                              }
+                              break;
+                            } else {
+                              const err = await res.json();
+                              lastErrMsg = err.error?.message || 'API kalit xato yoki model topilmadi';
+                            }
+                          } catch (e: any) {
+                            lastErrMsg = e.message;
                           }
-                        } catch (e: any) {
-                          setAiTestResult({ success: false, message: `Ulanishda xatolik: ${e.message}` });
-                        } finally {
-                          setIsAiTesting(false);
                         }
+
+                        if (!isSuccess) {
+                          setAiTestResult({ success: false, message: `Xatolik: ${lastErrMsg}` });
+                        }
+                        setIsAiTesting(false);
                       }}
                       className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold transition disabled:opacity-50"
                     >
