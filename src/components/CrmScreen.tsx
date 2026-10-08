@@ -272,168 +272,134 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   };
 
   // -------------------------------------------------------------
-  // 2. RENDER: STATS BAR
+  // 2. RENDER: COMPACT SLEEK TOOLBAR & SUB-TABS
   // -------------------------------------------------------------
   return (
     <div className="flex-1 bg-slate-950 text-slate-100 flex flex-col min-h-screen">
-      {/* Top Banner & Title Bar */}
-      <div className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur px-6 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* Compact Top Header & Controls (Single sleek row) */}
+      <div className="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur sticky top-0 z-20 px-4 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          {/* Left: Brand + Navigation Pills */}
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white font-black text-xl">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black text-white tracking-wide">CCTV CRM & Mijozlar Obyektlari</h1>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-                  Smart Voronka
-                </span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xs shadow-md">
+                <Users className="w-4 h-4" />
               </div>
-              <p className="text-xs text-slate-400">Lidlar oqimi, zamerlar, obyekt pasportlari, S/N kafolatlari va eslatmalar</p>
+              <span className="font-extrabold text-sm text-white tracking-wide">CRM</span>
+            </div>
+
+            {/* Sub-Tabs Pills */}
+            <div className="flex items-center bg-slate-950/90 p-1 rounded-xl border border-slate-800 text-xs">
+              <button
+                onClick={() => setActiveSubTab('pipeline')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold transition ${
+                  activeSubTab === 'pipeline'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Kanban className="w-3.5 h-3.5" />
+                Voronka
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  activeSubTab === 'pipeline' ? 'bg-indigo-900 text-indigo-200' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {filteredLeads.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveSubTab('passports')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold transition ${
+                  activeSubTab === 'passports'
+                    ? 'bg-teal-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Obyektlar Pasporti
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  activeSubTab === 'passports' ? 'bg-teal-900 text-teal-200' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {filteredPassports.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveSubTab('reminders')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold transition ${
+                  activeSubTab === 'reminders'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <CalendarClock className="w-3.5 h-3.5" />
+                Eslatmalar
+                {activeRemindersCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-400 text-slate-950 font-black">
+                    {activeRemindersCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setActiveSubTab('analytics')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold transition ${
+                  activeSubTab === 'analytics'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Tahlil
+              </button>
             </div>
           </div>
 
-          {/* Quick Action Buttons */}
+          {/* Middle/Right: Compact KPIs & Action Buttons */}
           <div className="flex items-center gap-2">
+            {/* Quick Metrics Chips */}
+            <div className="hidden lg:flex items-center gap-2 text-xs font-semibold">
+              <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+                Lidlar: <strong className="text-sky-400">{activeLeadsCount}</strong> faol
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+                Byudjet: <strong className="text-amber-400">${formatUSDNumber(totalPipelineBudgetUSD)}</strong>
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+                Konversiya: <strong className="text-emerald-400">{conversionRate}%</strong>
+              </span>
+            </div>
+
+            {/* Quick Action Buttons */}
             <button
               onClick={() => setIsAddLeadModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 transition active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition active:scale-95"
             >
-              <Plus className="w-4 h-4" />
-              Yangi Lid / Murojaat
+              <Plus className="w-3.5 h-3.5" />
+              Lid qo'shish
             </button>
             <button
               onClick={() => setIsAddPassportModalOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 font-semibold text-xs transition"
+              title="Yangi Obyekt Pasporti"
             >
-              <ShieldCheck className="w-4 h-4 text-teal-400" />
-              Obyekt Pasporti
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
+              <span className="hidden sm:inline">Obyekt</span>
             </button>
             <button
               onClick={() => setIsAddReminderModalOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-semibold text-xs transition"
+              title="Yangi Eslatma"
             >
-              <CalendarClock className="w-4 h-4 text-amber-400" />
-              Eslatma
+              <CalendarClock className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Eslatma</span>
             </button>
           </div>
-        </div>
-
-        {/* Top KPIs / Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-slate-400">Jami Lidlar / Oqim</p>
-              <p className="text-xl font-extrabold text-white mt-0.5">{totalLeadsCount} ta</p>
-              <span className="text-[10px] text-sky-400 font-medium">{activeLeadsCount} ta faol ishlanmoqda</span>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center">
-              <Kanban className="w-5 h-5" />
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-slate-400">Konversiya (Yopilgan)</p>
-              <p className="text-xl font-extrabold text-emerald-400 mt-0.5">{conversionRate}%</p>
-              <span className="text-[10px] text-slate-400">{wonLeadsCount} ta muvaffaqiyatli</span>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-slate-400">Voronka Byudjeti</p>
-              <p className="text-lg font-black text-amber-400 mt-0.5">
-                ${formatUSDNumber(totalPipelineBudgetUSD)}
-              </p>
-              <span className="text-[10px] text-slate-400">{formatNumberWithSpaces(Math.round(totalPipelineBudgetUSD * exchangeRate))} so'm</span>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
-              <Award className="w-5 h-5" />
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-slate-400">Obyektlar & Kafolatlar</p>
-              <p className="text-xl font-extrabold text-teal-400 mt-0.5">{objectPassports.length} ta</p>
-              <span className="text-[10px] text-teal-400 font-medium">{activeRemindersCount} ta ochiq eslatma</span>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Sub-Tabs */}
-        <div className="flex items-center gap-2 mt-4 border-t border-slate-800/80 pt-3">
-          <button
-            onClick={() => setActiveSubTab('pipeline')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-              activeSubTab === 'pipeline'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <Kanban className="w-4 h-4" />
-            1. Sotuv Voronkasi (Kanban)
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-400/30">
-              {filteredLeads.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('passports')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-              activeSubTab === 'passports'
-                ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            2. Obyektlar & Qurilmalar Pasporti (S/N)
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-teal-950 text-teal-300 border border-teal-400/30">
-              {filteredPassports.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('reminders')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-              activeSubTab === 'reminders'
-                ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <CalendarClock className="w-4 h-4" />
-            3. Eslatmalar & Chaqiruvlar
-            {activeRemindersCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-400 text-slate-950 font-black">
-                {activeRemindersCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('analytics')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-              activeSubTab === 'analytics'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            4. CRM Tahlili & Hisobot
-          </button>
         </div>
       </div>
 
       {/* Main Content Body */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 p-4 overflow-y-auto">
         {/* ========================================================================= */}
         {/* SUB-TAB 1: PIPELINE / KANBAN */}
         {/* ========================================================================= */}
