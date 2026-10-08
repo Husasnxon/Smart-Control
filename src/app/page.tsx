@@ -337,14 +337,23 @@ export default function Home() {
     }
   }, [products, productCategories, customers, receipts, expenses, expenseCategories, employees, customerOrders, shipments, purchases, serviceTickets, customerDebtPayments, payrolls, advances, handovers, baseCurrency, isLoaded]);
 
+  const syncFunctionRef = useRef<((force?: boolean) => Promise<void>) | null>(null);
+
+  const handleForceSync = async () => {
+    if (syncFunctionRef.current) {
+      await syncFunctionRef.current(true);
+      showToast("✓ Ma'lumotlar bulutdan yangilandi!");
+    }
+  };
+
   // 3. Real-time Cross-Device Cloud Sync Poller (Telefon va Kompyuter o'rtasida real-vaqtda sinxronizatsiya)
   useEffect(() => {
     if (!isLoaded) return;
 
     let isMounted = true;
 
-    const syncWithCloud = async () => {
-      if (isSyncingRef.current) return;
+    const syncWithCloud = async (force: boolean = false) => {
+      if (isSyncingRef.current && !force) return;
       isSyncingRef.current = true;
       try {
         const res = await fetch('/api/sync', { cache: 'no-store' });
@@ -361,8 +370,8 @@ export default function Home() {
           return;
         }
 
-        // If server has newer data
-        if (json.timestamp > lastSyncedTimestampRef.current) {
+        // If server has newer data or forced manual refresh
+        if (force || json.timestamp > lastSyncedTimestampRef.current) {
           lastSyncedTimestampRef.current = json.timestamp;
           const remote = json.data;
 
@@ -441,19 +450,29 @@ export default function Home() {
       }
     };
 
+    syncFunctionRef.current = syncWithCloud;
+
     // Initial sync
     syncWithCloud();
 
-    // Poll every 3 seconds for fast cross-device sync
-    const intervalId = setInterval(syncWithCloud, 3000);
+    // Fast polling every 2 seconds for real-time cross-device sync
+    const intervalId = setInterval(() => syncWithCloud(), 2000);
 
-    const onFocus = () => syncWithCloud();
+    const onFocus = () => syncWithCloud(true);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncWithCloud(true);
+      }
+    };
+
     window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       isMounted = false;
       clearInterval(intervalId);
       window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [isLoaded, currentUser]);
 
@@ -1998,6 +2017,7 @@ export default function Home() {
           onToggleMobileMenu={() => setIsMobileNavOpen((prev) => !prev)}
           pendingEstimatesCount={pendingEstimatesCount}
           onOpenEstimatesApproval={() => setIsGlobalApprovalModalOpen(true)}
+          onForceRefresh={handleForceSync}
         />
 
         {/* Dynamic Screen View */}
@@ -2238,6 +2258,7 @@ export default function Home() {
               onUpdateServiceTicket={handleUpdateServiceTicket}
               onUpdateEmployeeStatus={handleUpdateEmployeeStatus}
               onUpdateEmployee={handleUpdateEmployee}
+              onRefresh={handleForceSync}
             />
           )}
         </main>

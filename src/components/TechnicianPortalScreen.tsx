@@ -65,7 +65,8 @@ import {
   CalendarDays,
   Filter,
   AlertTriangle,
-  XCircle
+  XCircle,
+  RefreshCw
 } from 'lucide-react';
 
 export type MainMobileTab = 'orders' | 'in_progress' | 'completed' | 'profile';
@@ -89,6 +90,7 @@ interface TechnicianPortalScreenProps {
   onUpdateServiceTicket?: (ticket: ServiceTicket) => void;
   onUpdateEmployeeStatus?: (employeeId: string, newStatus: 'active' | 'on_site' | 'on_leave') => void;
   onUpdateEmployee?: (emp: Employee) => void;
+  onRefresh?: () => Promise<void> | void;
 }
 
 export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
@@ -107,7 +109,8 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   onSaveOrder,
   onUpdateServiceTicket,
   onUpdateEmployeeStatus,
-  onUpdateEmployee
+  onUpdateEmployee,
+  onRefresh
 }) => {
   // Device view mode: 'mobile' (default) or 'desktop'
   const [deviceMode, setDeviceMode] = useState<'mobile' | 'desktop'>('mobile');
@@ -222,6 +225,93 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
       ...prev,
       [orderId]: !prev[orderId]
     }));
+  };
+
+  // Pull-to-refresh touch gesture state
+  const [pullY, setPullY] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const touchStartYRef = React.useRef(0);
+  const isAtTopRef = React.useRef(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isRefreshing) return;
+    const target = e.target as HTMLElement;
+    const scrollParent = target.closest('.overflow-y-auto') || target;
+    const scrollTop = scrollParent ? (scrollParent as HTMLElement).scrollTop : window.scrollY;
+    
+    if (scrollTop <= 2) {
+      isAtTopRef.current = true;
+      touchStartYRef.current = e.touches[0].clientY;
+    } else {
+      isAtTopRef.current = false;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isAtTopRef.current || isRefreshing) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - touchStartYRef.current;
+    
+    if (diff > 5) {
+      // Damped pull distance for native feel
+      const distance = Math.min(85, Math.pow(diff, 0.82));
+      setPullY(distance);
+      setIsPulling(true);
+    } else {
+      setPullY(0);
+      setIsPulling(false);
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (!isPulling || isRefreshing) return;
+    
+    if (pullY >= 48) {
+      setIsRefreshing(true);
+      setPullY(45);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(35); } catch (_) {}
+      }
+      try {
+        if (onRefresh) {
+          await onRefresh();
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setTimeout(() => {
+          setIsRefreshing(false);
+          setPullY(0);
+          setIsPulling(false);
+        }, 500);
+      }
+    } else {
+      setPullY(0);
+      setIsPulling(false);
+    }
+  };
+
+  const handleTriggerManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    setPullY(45);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try { navigator.vibrate(25); } catch (_) {}
+    }
+    try {
+      if (onRefresh) {
+        await onRefresh();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+        setPullY(0);
+        setIsPulling(false);
+      }, 500);
+    }
   };
 
   // 1. Filter active jobs assigned to this technician
@@ -880,11 +970,16 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
 
       {/* Main Container Wrapper (Responsive smartphone frame or full desktop width) */}
       <div className={`flex-1 min-h-0 flex justify-center overflow-hidden ${deviceMode === 'mobile' ? 'p-0 sm:p-4 bg-slate-950 sm:bg-slate-900/60' : 'p-2 sm:p-4'}`}>
-        <div className={`flex flex-col h-full min-h-0 overflow-hidden bg-slate-950 transition-all duration-300 relative ${
-          deviceMode === 'mobile' 
-            ? 'w-full max-w-[460px] sm:rounded-[36px] sm:border-[5px] sm:border-slate-800 sm:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] ring-1 ring-white/10' 
-            : 'w-full rounded-2xl border border-slate-800'
-        }`}>
+        <div 
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className={`flex flex-col h-full min-h-0 overflow-hidden bg-slate-950 transition-all duration-300 relative ${
+            deviceMode === 'mobile' 
+              ? 'w-full max-w-[460px] sm:rounded-[36px] sm:border-[5px] sm:border-slate-800 sm:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] ring-1 ring-white/10' 
+              : 'w-full rounded-2xl border border-slate-800'
+          }`}
+        >
 
           {/* ======================================================== */}
           {/* 1. TECHNICIAN PROFILE HEADER CARD (PINNED AT TOP) */}
@@ -924,13 +1019,45 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                 </div>
               </div>
 
-              {/* Status Pill Indicator */}
-              <div className="text-right">
+              {/* Status Pill Indicator + 1-Tap Refresh Button */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleTriggerManualRefresh}
+                  className="p-1.5 rounded-full bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white active:scale-90 transition shadow-sm"
+                  title="Ma'lumotlarni yangilash"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-purple-400' : ''}`} />
+                </button>
+
                 <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800/90 border border-slate-700 text-[10px] font-bold">
                   <span className={`w-2 h-2 rounded-full ${currentStatusInfo.dot}`} />
                   <span className={currentStatusInfo.text}>{currentStatusInfo.label}</span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Pull-To-Refresh Animated Visual Indicator Bar */}
+          <div 
+            className="overflow-hidden transition-all duration-200 ease-out flex items-center justify-center bg-gradient-to-b from-purple-950/90 via-slate-900 to-transparent border-b border-purple-800/40 shrink-0 z-10 select-none"
+            style={{ 
+              height: isRefreshing ? '44px' : `${pullY}px`,
+              opacity: pullY > 8 || isRefreshing ? 1 : 0
+            }}
+          >
+            <div className="flex items-center gap-2 text-[11px] font-bold text-purple-200 py-1 px-3.5 rounded-full bg-slate-900/95 border border-purple-500/40 shadow-lg shadow-purple-950/60">
+              <RefreshCw 
+                className={`w-3.5 h-3.5 text-purple-400 ${isRefreshing ? 'animate-spin' : ''}`}
+                style={{ transform: !isRefreshing ? `rotate(${pullY * 5}deg)` : undefined }}
+              />
+              <span>
+                {isRefreshing 
+                  ? "⚡ Ma'lumotlar yangilanmoqda..." 
+                  : pullY >= 48 
+                    ? "✓ Yangilash uchun qo'yib yuboring" 
+                    : "↓ Yangilash uchun pastga torting..."}
+              </span>
             </div>
           </div>
 

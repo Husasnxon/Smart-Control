@@ -33,6 +33,7 @@ interface HeaderProps {
   onToggleMobileMenu?: () => void;
   pendingEstimatesCount?: number;
   onOpenEstimatesApproval?: () => void;
+  onForceRefresh?: () => Promise<void> | void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -50,8 +51,10 @@ export const Header: React.FC<HeaderProps> = ({
   onSwitchUser,
   onToggleMobileMenu,
   pendingEstimatesCount = 0,
-  onOpenEstimatesApproval
+  onOpenEstimatesApproval,
+  onForceRefresh
 }) => {
+  const [isManualSyncing, setIsManualSyncing] = React.useState(false);
   const dualSales = formatDualMoney(todaySalesTotal, baseCurrency, exchangeRate);
 
   return (
@@ -231,6 +234,22 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Quick Force Cloud Refresh Button */}
+        {onForceRefresh && (
+          <button
+            type="button"
+            onClick={async () => {
+              setIsManualSyncing(true);
+              if (onForceRefresh) await onForceRefresh();
+              setTimeout(() => setIsManualSyncing(false), 500);
+            }}
+            title="Bulut bilan darhol yangilash"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition active:scale-95 border border-slate-200 dark:border-slate-700/80 shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isManualSyncing ? 'animate-spin text-emerald-500' : ''}`} />
+          </button>
         )}
 
         {/* Offline Simulation Toggle Button */}
