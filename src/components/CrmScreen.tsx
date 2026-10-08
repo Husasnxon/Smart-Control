@@ -58,6 +58,8 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { getTelegramSettings, sendTelegramMessage } from '../utils/telegram';
+import { AiCrmAssistantModal } from './AiCrmAssistantModal';
+import { Product } from '../types';
 
 interface CrmScreenProps {
   leads: CrmLead[];
@@ -75,6 +77,7 @@ interface CrmScreenProps {
   employees: Employee[];
   customers: Customer[];
   customerOrders: CustomerOrder[];
+  products?: Product[];
   baseCurrency?: Currency;
   exchangeRate?: number;
   onConvertToOrder?: (lead: CrmLead) => void;
@@ -159,6 +162,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   employees = [],
   customers = [],
   customerOrders = [],
+  products = [],
   baseCurrency = 'UZS',
   exchangeRate = 12850,
   onConvertToOrder
@@ -177,6 +181,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
   const [isAddPassportModalOpen, setIsAddPassportModalOpen] = useState(false);
   const [isAddReminderModalOpen, setIsAddReminderModalOpen] = useState(false);
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<CrmLead | null>(null);
   const [selectedPassportForDetail, setSelectedPassportForDetail] = useState<CrmObjectPassport | null>(null);
   const [printingPassport, setPrintingPassport] = useState<CrmObjectPassport | null>(null);
@@ -357,18 +362,15 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
 
           {/* Middle/Right: Compact KPIs & Action Buttons */}
           <div className="flex items-center gap-2">
-            {/* Quick Metrics Chips */}
-            <div className="hidden lg:flex items-center gap-2 text-xs font-semibold">
-              <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
-                Lidlar: <strong className="text-sky-400">{activeLeadsCount}</strong> faol
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
-                Byudjet: <strong className="text-amber-400">${formatUSDNumber(totalPipelineBudgetUSD)}</strong>
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
-                Konversiya: <strong className="text-emerald-400">{conversionRate}%</strong>
-              </span>
-            </div>
+            {/* AI Assistant Button */}
+            <button
+              onClick={() => setIsAiAssistantOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-sky-500 hover:from-purple-500 hover:to-sky-400 text-white font-extrabold text-xs shadow-md shadow-purple-500/20 transition active:scale-95 animate-pulse hover:animate-none"
+              title="Ovozli yoki matnli AI orqali tezkor Lid va Smeta ochish"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>AI Yordamchi</span>
+            </button>
 
             {/* Quick Action Buttons */}
             <button
@@ -1887,6 +1889,19 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
           </div>
         </div>
       )}
+
+      {/* AI CRM & Smeta Assistant Modal */}
+      <AiCrmAssistantModal
+        isOpen={isAiAssistantOpen}
+        onClose={() => setIsAiAssistantOpen(false)}
+        products={products}
+        employees={employees}
+        onSaveLead={onAddLead}
+        onSaveReminder={onAddReminder}
+        baseCurrency={baseCurrency}
+        exchangeRate={exchangeRate}
+        onConvertToOrder={onConvertToOrder}
+      />
     </div>
   );
 };

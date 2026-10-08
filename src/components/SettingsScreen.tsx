@@ -27,6 +27,7 @@ import {
   generateServiceWarrantyReport,
   TelegramSettings
 } from '../utils/telegram';
+import { getGeminiApiKey, saveGeminiApiKey, getGeminiModel, saveGeminiModel } from '../utils/ai';
 import { formatNumberWithSpaces, formatUSDNumber, isTodayDate } from '../utils/formatters';
 import { 
   Send, 
@@ -67,7 +68,8 @@ import {
   Table,
   ToggleLeft,
   ToggleRight,
-  User
+  User,
+  ExternalLink
 } from 'lucide-react';
 
 interface SettingsScreenProps {
@@ -105,7 +107,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   currentUser,
   onUpdateEmployee
 }) => {
-  const [activeTab, setActiveTab] = useState<'telegram' | 'reports' | 'store' | 'backup' | 'permissions'>('permissions');
+  const [activeTab, setActiveTab] = useState<'telegram' | 'reports' | 'store' | 'backup' | 'permissions' | 'ai'>('telegram');
+
+  // AI Gemini settings state
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => getGeminiApiKey());
+  const [geminiModel, setGeminiModel] = useState<string>(() => getGeminiModel());
+  const [showAiKey, setShowAiKey] = useState(false);
+  const [isAiSaved, setIsAiSaved] = useState(false);
+  const [isAiTesting, setIsAiTesting] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Telegram settings state
   const [settings, setSettings] = useState<TelegramSettings>(() => getTelegramSettings());
@@ -496,6 +506,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           >
             <ShieldCheck className="w-4 h-4 text-amber-400" />
             <span>Xodimlar Huquqlari & Ruxsatlar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('ai')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              activeTab === 'ai'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/20'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <span>Google Gemini AI</span>
           </button>
         </div>
 
@@ -2349,6 +2372,185 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ============================================================= */}
+        {/* TAB 6: GOOGLE GEMINI AI SOZLAMALARI */}
+        {/* ============================================================= */}
+        {activeTab === 'ai' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+            {/* Form Column (2 spans) */}
+            <div className="lg:col-span-2 space-y-5">
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-purple-500" />
+                      <span>Google Gemini Sun'iy Intellekt Sozlamalari</span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Ovozli xabarlarni tahlil qilish, avtomat lid ochish, aqlli smeta va tijoriy taklif generatsiya qilish
+                    </p>
+                  </div>
+                  {geminiApiKey ? (
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Gemini Ulangan
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                      Lokal Rejim (Offline)
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+                      Gemini API Kaliti (Google AI Studio API Key):
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showAiKey ? 'text' : 'password'}
+                        value={geminiApiKey}
+                        onChange={(e) => setGeminiApiKey(e.target.value)}
+                        placeholder="AIzaSy..."
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono focus:outline-none focus:border-purple-500 pr-20 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAiKey(!showAiKey)}
+                        className="absolute right-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                        title={showAiKey ? "Yashirish" : "Ko'rsatish"}
+                      >
+                        {showAiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Google AI Studio dan bepul olingan API kalitni shu yerga kiriting.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+                        Gemini Modeli:
+                      </label>
+                      <select
+                        value={geminiModel}
+                        onChange={(e) => setGeminiModel(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-purple-500 text-xs"
+                      >
+                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (Tavsiya etiladi - Bepul & Tezkor)</option>
+                        <option value="gemini-2.0-flash">Gemini 2.0 Flash (Eng yangi avlod)</option>
+                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (Murakkab tahlillar uchun)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+                        Kunlik Bepul Limit:
+                      </label>
+                      <div className="px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-emerald-500 flex items-center justify-between">
+                        <span>1,500 ta so'rov / kuniga</span>
+                        <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">0$ Bepul</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions & Test Connection */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      disabled={isAiTesting || !geminiApiKey}
+                      onClick={async () => {
+                        setIsAiTesting(true);
+                        setAiTestResult(null);
+                        try {
+                          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey.trim()}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              contents: [{ parts: [{ text: "Salom! Smart Control CCTV uchun AI tayyormi?" }] }]
+                            })
+                          });
+                          if (res.ok) {
+                            setAiTestResult({ success: true, message: "Ajoyib! Google Gemini API muvaffaqiyatli ulandi va ishlamoqda." });
+                          } else {
+                            const err = await res.json();
+                            setAiTestResult({ success: false, message: `Xatolik: ${err.error?.message || 'API kalit noto\'g\'ri'}` });
+                          }
+                        } catch (e: any) {
+                          setAiTestResult({ success: false, message: `Ulanishda xatolik: ${e.message}` });
+                        } finally {
+                          setIsAiTesting(false);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold transition disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isAiTesting ? 'animate-spin text-purple-500' : ''}`} />
+                      <span>{isAiTesting ? "Tekshirilmoqda..." : "Ulanishni Tekshirish"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        saveGeminiApiKey(geminiApiKey);
+                        saveGeminiModel(geminiModel);
+                        setIsAiSaved(true);
+                        setTimeout(() => setIsAiSaved(false), 2500);
+                      }}
+                      className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-purple-600/20 transition active:scale-95"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{isAiSaved ? "Saqlandi!" : "Sozlamalarni Saqlash"}</span>
+                    </button>
+                  </div>
+
+                  {/* Test Result Feedback */}
+                  {aiTestResult && (
+                    <div className={`p-3 rounded-xl border flex items-center gap-2 ${
+                      aiTestResult.success 
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300' 
+                        : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                    }`}>
+                      {aiTestResult.success ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+                      <span className="text-xs font-semibold">{aiTestResult.message}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Guide Column (1 span) */}
+            <div className="space-y-4">
+              <div className="bg-gradient-to-br from-purple-900/40 to-slate-900 p-5 rounded-2xl border border-purple-500/30 text-xs space-y-3">
+                <h4 className="font-extrabold text-white text-sm flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-400" />
+                  Bepul API Kalit Olish:
+                </h4>
+                <ol className="space-y-2 text-slate-300 list-decimal list-inside leading-relaxed">
+                  <li>
+                    <strong className="text-white">Google AI Studio</strong> ga kiring:
+                    <a 
+                      href="https://aistudio.google.com/app/apikey" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-sky-400 hover:underline ml-1 font-semibold"
+                    >
+                      aistudio.google.com <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </li>
+                  <li>Google hisobingiz (Gmail) bilan kiring.</li>
+                  <li><strong className="text-white">&ldquo;Create API key&rdquo;</strong> tugmasini bosing.</li>
+                  <li>Nusxalangan kalitni chapdagi maydonga joylang va <strong className="text-white">&ldquo;Saqlash&rdquo;</strong>ni bosing.</li>
+                </ol>
+                <div className="p-2.5 rounded-xl bg-purple-950/60 border border-purple-500/30 text-[11px] text-purple-200">
+                  💡 <strong>Eslatma:</strong> API kalit kiritilmagan taqdirda ham CRM dagi sun'iy intellekt maxsus lokal tahlilchi (offline engine) orqali to'liq ishlayveradi!
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
