@@ -37,6 +37,7 @@ import { TechnicianPortalScreen } from '../components/TechnicianPortalScreen';
 import { FinancialReportsScreen } from '../components/FinancialReportsScreen';
 import { ZReportModal } from '../components/ZReportModal';
 import { LoginScreen } from '../components/LoginScreen';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { getTelegramSettings, sendTelegramMessage, generateDailySalesReport } from '../utils/telegram';
 import { isTodayDate, getNowFormatted } from '../utils/formatters';
 import { playOrderNotificationSound } from '../utils/sound';
@@ -1798,7 +1799,8 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-100 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 antialiased">
+    <ErrorBoundary>
+      <div className="flex h-screen w-screen overflow-hidden bg-slate-100 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 antialiased">
       {/* Left Sidebar (Desktop + Mobile Drawer) */}
       <Sidebar
         activeTab={activeTab}
@@ -2120,6 +2122,7 @@ export default function Home() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

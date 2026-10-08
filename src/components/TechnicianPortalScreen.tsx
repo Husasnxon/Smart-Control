@@ -112,11 +112,15 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
 
   // Filter technicians list
   const techniciansList = useMemo(() => {
-    return employees.filter(
-      e => e.systemRole === 'technician' || 
-      e.role.toLowerCase().includes('usta') || 
-      e.role.toLowerCase().includes('muhandis') ||
-      e.role.toLowerCase().includes('montaj')
+    return (employees || []).filter(
+      e => e && (
+        e.systemRole === 'technician' || 
+        (e.role && (
+          e.role.toLowerCase().includes('usta') || 
+          e.role.toLowerCase().includes('muhandis') ||
+          e.role.toLowerCase().includes('montaj')
+        ))
+      )
     );
   }, [employees]);
 
@@ -126,8 +130,10 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   });
 
   const activeTechnician = useMemo(() => {
-    return employees.find(e => e.id === selectedTechId) || currentUser || employees[0];
+    return (employees || []).find(e => e && e.id === selectedTechId) || currentUser || employees[0];
   }, [employees, selectedTechId, currentUser]);
+
+  const activeTechName = (activeTechnician?.fullName || '').toLowerCase().trim();
 
   // Main Bottom Navigation Tab: 'orders' | 'in_progress' | 'completed' | 'profile'
   const [mainTab, setMainTab] = useState<MainMobileTab>(() => {
@@ -200,8 +206,8 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
 
   useEffect(() => {
     if (activeTechnician) {
-      setProfileFullName(activeTechnician.fullName);
-      setProfilePhone(activeTechnician.phone);
+      setProfileFullName(activeTechnician.fullName || '');
+      setProfilePhone(activeTechnician.phone || '');
       setProfileAvatar(activeTechnician.avatar || '');
       setProfilePassword(activeTechnician.password || '');
       setProfilePin(activeTechnician.pin || '');
@@ -220,34 +226,35 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   const assignedActiveJobs = useMemo(() => {
     if (!activeTechnician) return [];
 
-    return orders.filter(order => {
+    return (orders || []).filter(order => {
+      if (!order) return false;
       const isAssigned = 
-        (order.technicians && order.technicians.some(t => t.id === activeTechnician.id || t.fullName.toLowerCase().includes(activeTechnician.fullName.toLowerCase()))) ||
-        order.technicianId === activeTechnician.id ||
-        (order.technicianName && order.technicianName.toLowerCase().includes(activeTechnician.fullName.toLowerCase())) ||
-        (order.requestedByTechnicianId === activeTechnician.id);
+        (order.technicians && Array.isArray(order.technicians) && order.technicians.some(t => t && ((activeTechnician.id && t.id === activeTechnician.id) || (t.fullName && activeTechName && t.fullName.toLowerCase().includes(activeTechName))))) ||
+        (activeTechnician.id && order.technicianId === activeTechnician.id) ||
+        (order.technicianName && activeTechName && order.technicianName.toLowerCase().includes(activeTechName)) ||
+        (activeTechnician.id && order.requestedByTechnicianId === activeTechnician.id);
       
       if (!isAssigned) return false;
 
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         const match = 
-          order.orderNumber.toLowerCase().includes(q) ||
-          order.customerName.toLowerCase().includes(q) ||
-          (order.projectName && order.projectName.toLowerCase().includes(q)) ||
-          (order.deliveryAddress && order.deliveryAddress.toLowerCase().includes(q));
+          (order.orderNumber || '').toLowerCase().includes(q) ||
+          (order.customerName || '').toLowerCase().includes(q) ||
+          (order.projectName || '').toLowerCase().includes(q) ||
+          (order.deliveryAddress || '').toLowerCase().includes(q);
         if (!match) return false;
       }
 
       return true;
     });
-  }, [orders, activeTechnician, searchQuery]);
+  }, [orders, activeTechnician, activeTechName, searchQuery]);
 
   // 2. Segregate jobs by lifecycle stage:
   // A) Unstarted Jobs (Yangi kutilayotgan buyurtmalar)
   const unstartedJobs = useMemo(() => {
     return assignedActiveJobs.filter(order => {
-      const matchingHandover = handovers.find(h => h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id));
+      const matchingHandover = (handovers || []).find(h => h && (h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id)));
       const isCompleted = order.status === 'completed' || !!matchingHandover;
       const isInProgress = order.status === 'in_progress' || (!!order.startedAt && !isCompleted);
       return !isCompleted && !isInProgress;
@@ -257,7 +264,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   // B) In-Progress Jobs (Ayni vaqtda montaj jarayonidagi ishlar)
   const inProgressJobs = useMemo(() => {
     return assignedActiveJobs.filter(order => {
-      const matchingHandover = handovers.find(h => h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id));
+      const matchingHandover = (handovers || []).find(h => h && (h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id)));
       const isCompleted = order.status === 'completed' || !!matchingHandover;
       return !isCompleted && (order.status === 'in_progress' || !!order.startedAt);
     });
@@ -266,7 +273,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   // C) Completed Jobs (Topshirilgan obyektlar)
   const completedJobsList = useMemo(() => {
     return assignedActiveJobs.filter(order => {
-      const matchingHandover = handovers.find(h => h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id));
+      const matchingHandover = (handovers || []).find(h => h && (h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id)));
       return order.status === 'completed' || !!matchingHandover;
     });
   }, [assignedActiveJobs, handovers]);
@@ -275,12 +282,13 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   const myEstimatesAndShipments = useMemo(() => {
     if (!activeTechnician) return [];
 
-    return orders.filter(order => {
+    return (orders || []).filter(order => {
+      if (!order) return false;
       const isAssigned = 
-        (order.technicians && order.technicians.some(t => t.id === activeTechnician.id || t.fullName.toLowerCase().includes(activeTechnician.fullName.toLowerCase()))) ||
-        order.technicianId === activeTechnician.id ||
-        (order.technicianName && order.technicianName.toLowerCase().includes(activeTechnician.fullName.toLowerCase())) ||
-        (order.requestedByTechnicianId === activeTechnician.id) ||
+        (order.technicians && Array.isArray(order.technicians) && order.technicians.some(t => t && ((activeTechnician.id && t.id === activeTechnician.id) || (t.fullName && activeTechName && t.fullName.toLowerCase().includes(activeTechName))))) ||
+        (activeTechnician.id && order.technicianId === activeTechnician.id) ||
+        (order.technicianName && activeTechName && order.technicianName.toLowerCase().includes(activeTechName)) ||
+        (activeTechnician.id && order.requestedByTechnicianId === activeTechnician.id) ||
         (currentUser?.systemRole === 'admin' || currentUser?.systemRole === 'manager');
 
       if (!isAssigned) return false;
@@ -292,68 +300,70 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
 
       // Search query
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         const match = 
-          order.orderNumber.toLowerCase().includes(q) ||
-          order.customerName.toLowerCase().includes(q) ||
-          (order.projectName && order.projectName.toLowerCase().includes(q)) ||
-          (order.deliveryAddress && order.deliveryAddress.toLowerCase().includes(q));
+          (order.orderNumber || '').toLowerCase().includes(q) ||
+          (order.customerName || '').toLowerCase().includes(q) ||
+          (order.projectName || '').toLowerCase().includes(q) ||
+          (order.deliveryAddress || '').toLowerCase().includes(q);
         if (!match) return false;
       }
 
       return true;
     });
-  }, [orders, activeTechnician, estimateStatusFilter, searchQuery, currentUser]);
+  }, [orders, activeTechnician, activeTechName, estimateStatusFilter, searchQuery, currentUser]);
 
   // 4. Filter completed handovers/acts for this technician
   const myHandovers = useMemo(() => {
     if (!activeTechnician) return [];
 
-    return handovers.filter(h => {
+    return (handovers || []).filter(h => {
+      if (!h) return false;
       const isMyAct = 
-        (h.technicians && h.technicians.some(t => t.id === activeTechnician.id || t.fullName.toLowerCase().includes(activeTechnician.fullName.toLowerCase()))) ||
-        h.createdBy.toLowerCase().includes(activeTechnician.fullName.toLowerCase());
+        (h.technicians && Array.isArray(h.technicians) && h.technicians.some(t => t && ((activeTechnician.id && t.id === activeTechnician.id) || (t.fullName && activeTechName && t.fullName.toLowerCase().includes(activeTechName))))) ||
+        (h.createdBy && activeTechName && h.createdBy.toLowerCase().includes(activeTechName));
       
       if (!isMyAct) return false;
 
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         const match = 
-          h.handoverNumber.toLowerCase().includes(q) ||
-          h.customerName.toLowerCase().includes(q) ||
-          h.installationAddress.toLowerCase().includes(q) ||
-          (h.projectName ? h.projectName.toLowerCase().includes(q) : false);
+          (h.handoverNumber || '').toLowerCase().includes(q) ||
+          (h.customerName || '').toLowerCase().includes(q) ||
+          (h.installationAddress || '').toLowerCase().includes(q) ||
+          (h.projectName || '').toLowerCase().includes(q);
         if (!match) return false;
       }
 
       return true;
     });
-  }, [handovers, activeTechnician, searchQuery]);
+  }, [handovers, activeTechnician, activeTechName, searchQuery]);
 
   // 5. Filter service tickets for this technician
   const myServiceTickets = useMemo(() => {
     if (!activeTechnician) return [];
 
-    return serviceTickets.filter(t => {
+    return (serviceTickets || []).filter(t => {
+      if (!t) return false;
       const isMyTicket = 
-        (t.assignedTechnicianName && t.assignedTechnicianName.toLowerCase().includes(activeTechnician.fullName.toLowerCase())) ||
+        (t.assignedTechnicianName && activeTechName && t.assignedTechnicianName.toLowerCase().includes(activeTechName)) ||
         (currentUser?.systemRole === 'admin' || currentUser?.systemRole === 'manager');
 
       if (!isMyTicket) return false;
 
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         const match = 
-          t.ticketNumber.toLowerCase().includes(q) ||
-          t.customerName.toLowerCase().includes(q) ||
-          t.productName.toLowerCase().includes(q) ||
-          t.serialNumber.toLowerCase().includes(q);
+          (t.ticketNumber || '').toLowerCase().includes(q) ||
+          (t.customerName || '').toLowerCase().includes(q) ||
+          (t.productName || '').toLowerCase().includes(q) ||
+          (t.serialNumber || '').toLowerCase().includes(q);
         if (!match) return false;
       }
 
       return true;
     });
-  }, [serviceTickets, activeTechnician, searchQuery, currentUser]);
+  }, [serviceTickets, activeTechnician, activeTechName, searchQuery, currentUser]);
 
   // Helper to test if a date string falls inside the chosen earningsPeriod
   const checkDateInPeriod = (dateInput?: string, period: EarningsPeriod = 'all', startStr?: string, endStr?: string): boolean => {
@@ -553,10 +563,13 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
     const yandexMapsUrl = `https://yandex.uz/maps/?text=${encodeURIComponent(address)}`;
     
-    const myWageAssignment = order.technicians?.find(t => t.id === activeTechnician?.id || t.fullName.toLowerCase().includes(activeTechnician?.fullName.toLowerCase() || ''));
+    const myWageAssignment = order.technicians?.find(t => 
+      t && ((activeTechnician?.id && t.id === activeTechnician.id) || 
+      (t.fullName && activeTechName && t.fullName.toLowerCase().includes(activeTechName)))
+    );
     const myWageUSD = myWageAssignment?.wageUSD || 0;
     const myWageUZS = myWageAssignment?.wageUZS || (myWageUSD ? Math.round(myWageUSD * exchangeRate) : 0);
-    const matchingHandover = handovers.find(h => h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id));
+    const matchingHandover = (handovers || []).find(h => h && (h.orderNumber === order.orderNumber || (order.id && h.orderId === order.id)));
     const isPendingApproval = order.status === 'pending_cashier_approval';
     const isCompleted = order.status === 'completed' || !!matchingHandover;
     const isInProgress = order.status === 'in_progress' || (!!order.startedAt && !isCompleted);
@@ -1462,7 +1475,10 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                     </div>
                   ) : (
                     filteredEarningsJobs.map((order) => {
-                      const myWageAssignment = order.technicians?.find(t => t.id === activeTechnician?.id || t.fullName.toLowerCase().includes(activeTechnician?.fullName.toLowerCase() || ''));
+                      const myWageAssignment = order.technicians?.find(t => 
+                        t && ((activeTechnician?.id && t.id === activeTechnician.id) || 
+                        (t.fullName && activeTechName && t.fullName.toLowerCase().includes(activeTechName)))
+                      );
                       const wageUSD = myWageAssignment?.wageUSD || 0;
                       return (
                         <div key={order.id} className="p-3 bg-slate-900 rounded-2xl border border-slate-800 flex items-center justify-between text-xs">

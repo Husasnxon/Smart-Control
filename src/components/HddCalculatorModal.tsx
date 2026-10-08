@@ -87,6 +87,11 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
 
   // Calculation Logic
   const calculationResults = useMemo(() => {
+    const safeCamCount = isNaN(cameraCount) || cameraCount <= 0 ? 1 : cameraCount;
+    const safeTargetDays = isNaN(targetDays) || targetDays <= 0 ? 15 : targetDays;
+    const safeCustomHddGB = isNaN(customHddGB) || customHddGB <= 0 ? 2000 : customHddGB;
+    const safeDailyHours = isNaN(customDailyHours) || customDailyHours <= 0 ? 14 : customDailyHours;
+
     const resConfig = RESOLUTION_OPTIONS.find(r => r.value === resolution) || RESOLUTION_OPTIONS[1];
     let baseBitrate = resConfig.baseBitrateH264;
 
@@ -109,7 +114,7 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
     }
 
     // Total bitrate for all cameras
-    const totalBitrateKbps = cameraBitrateKbps * cameraCount;
+    const totalBitrateKbps = cameraBitrateKbps * safeCamCount;
 
     // Daily active recording hours
     let hoursPerDay = 24;
@@ -118,7 +123,7 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
     } else if (recordingMode === 'business_12') {
       hoursPerDay = 12; // 12 hours office/shop
     } else if (recordingMode === 'custom_hours') {
-      hoursPerDay = Math.max(1, Math.min(24, customDailyHours));
+      hoursPerDay = Math.max(1, Math.min(24, safeDailyHours));
     }
 
     // Daily consumption in GB: (Kbps * 3600 * hours) / (8 * 1024 * 1024)
@@ -126,7 +131,7 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
     const hourlyConsumptionGB = Number((dailyConsumptionGB / hoursPerDay).toFixed(2));
 
     // MODE 1: From Target Days -> Required HDD Size
-    const requiredStorageGB = Number((dailyConsumptionGB * targetDays).toFixed(1));
+    const requiredStorageGB = Number((dailyConsumptionGB * safeTargetDays).toFixed(1));
     const requiredStorageTB = Number((requiredStorageGB / 1024).toFixed(2));
 
     // Find recommended commercial HDD size (factoring in 7% format overhead)
@@ -138,7 +143,7 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
     };
 
     // MODE 2: From Given HDD Size -> Available Days
-    const actualHddGB = isCustomHdd ? customHddGB : selectedHddCapacityGB;
+    const actualHddGB = isCustomHdd ? safeCustomHddGB : selectedHddCapacityGB;
     const usableHddGB = actualHddGB * 0.93; // 93% usable after file system format
     const totalDaysAvailable = dailyConsumptionGB > 0 ? usableHddGB / dailyConsumptionGB : 0;
     const fullDays = Math.floor(totalDaysAvailable);
