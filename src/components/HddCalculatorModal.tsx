@@ -83,9 +83,7 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
   const [isCustomHdd, setIsCustomHdd] = useState<boolean>(false);
   const [customHddGB, setCustomHddGB] = useState<number>(2000);
 
-  if (!isOpen) return null;
-
-  // Calculation Logic
+  // Calculation Logic — ALL hooks MUST be called before any conditional return
   const calculationResults = useMemo(() => {
     const safeCamCount = isNaN(cameraCount) || cameraCount <= 0 ? 1 : cameraCount;
     const safeTargetDays = isNaN(targetDays) || targetDays <= 0 ? 15 : targetDays;
@@ -155,11 +153,9 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
       dailyConsumptionGB: isNaN(dailyConsumptionGB) ? 10 : dailyConsumptionGB,
       hourlyConsumptionGB: isNaN(hourlyConsumptionGB) ? 0.4 : hourlyConsumptionGB,
       hoursPerDay,
-      // Mode 1 output
       requiredStorageGB: isNaN(requiredStorageGB) ? 150 : requiredStorageGB,
       requiredStorageTB: isNaN(requiredStorageTB) ? 0.15 : requiredStorageTB,
       recommendedHdd: recommendedHdd || { tb: 2, gb: 2000, label: '2 TB (2000 GB)' },
-      // Mode 2 output
       actualHddGB: isNaN(actualHddGB) ? 2000 : actualHddGB,
       usableHddGB: isNaN(usableHddGB) ? 1860 : Number(usableHddGB.toFixed(0)),
       totalDaysAvailable: isNaN(totalDaysAvailable) ? 30 : Number(totalDaysAvailable.toFixed(1)),
@@ -181,6 +177,9 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
   ]);
 
   const activeBrandConfig = BRAND_CONFIGS[brand] || BRAND_CONFIGS.hikvision;
+
+  // Conditional return AFTER all hooks — React Rules of Hooks compliance
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
