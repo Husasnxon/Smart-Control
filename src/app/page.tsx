@@ -98,66 +98,61 @@ export default function Home() {
       }
       const savedProducts = localStorage.getItem('sc_products');
       if (savedProducts) {
-        const parsed: Product[] = JSON.parse(savedProducts);
-        const isOldData = parsed.some((p) => p.sku === 'BEV-001' || p.category === 'Ichimliklar');
-        if (isOldData) {
-          setProducts(INITIAL_PRODUCTS);
-          setProductCategories(INITIAL_PRODUCT_CATEGORIES);
-          setCustomers(INITIAL_CUSTOMERS);
-          setReceipts(INITIAL_RECEIPTS);
-          setExpenses(INITIAL_EXPENSES);
-          setExpenseCategories(INITIAL_EXPENSE_CATEGORIES);
-          setAiInsights(INITIAL_AI_INSIGHTS);
-        } else {
-          // Merge image URLs from INITIAL_PRODUCTS and heal any dollar amounts saved in UZS fields
-          const rateToUse = exchangeRate > 0 ? exchangeRate : 12850;
-          const enriched = parsed.map((p) => {
-            let retailPrice = p.retailPrice;
-            let costPrice = p.costPrice;
-            let retailPriceUSD = p.retailPriceUSD;
-            let costPriceUSD = p.costPriceUSD;
-
-            // Auto-heal if price was saved as raw USD ($) into UZS field (e.g. 36 instead of 462,600)
-            if (retailPrice > 0 && retailPrice < 500) {
-              retailPriceUSD = retailPrice;
-              retailPrice = Math.round(retailPrice * rateToUse);
-            }
-            if (costPrice > 0 && costPrice < 500) {
-              costPriceUSD = costPrice;
-              costPrice = Math.round(costPrice * rateToUse);
-            }
-
-            if (!p.imageUrl) {
-              const match = INITIAL_PRODUCTS.find((ip) => ip.id === p.id || ip.sku === p.sku);
-              if (match?.imageUrl) return { ...p, retailPrice, costPrice, retailPriceUSD, costPriceUSD, imageUrl: match.imageUrl };
-            }
-            return { ...p, retailPrice, costPrice, retailPriceUSD, costPriceUSD };
-          });
-          setProducts(enriched);
+        try {
+          const parsed: Product[] = JSON.parse(savedProducts);
+          if (Array.isArray(parsed)) {
+            setProducts(parsed);
+          }
+        } catch (e) {
+          console.error("Failed to parse saved products", e);
         }
+      } else {
+        localStorage.setItem('sc_products', JSON.stringify(INITIAL_PRODUCTS));
+        setProducts(INITIAL_PRODUCTS);
       }
 
       const savedCustomers = localStorage.getItem('sc_customers');
       if (savedCustomers) {
-        const parsedCust = JSON.parse(savedCustomers);
-        if (!parsedCust.some((c: any) => c.fullName.includes('Grand Qurilish'))) {
-          setCustomers(INITIAL_CUSTOMERS);
-        } else {
-          setCustomers(parsedCust);
+        try {
+          const parsedCust = JSON.parse(savedCustomers);
+          if (Array.isArray(parsedCust)) {
+            setCustomers(parsedCust);
+          }
+        } catch (e) {
+          console.error("Failed to parse saved customers", e);
         }
+      } else {
+        localStorage.setItem('sc_customers', JSON.stringify(INITIAL_CUSTOMERS));
+        setCustomers(INITIAL_CUSTOMERS);
       }
 
       const savedReceipts = localStorage.getItem('sc_receipts');
-      if (savedReceipts) setReceipts(JSON.parse(savedReceipts));
+      if (savedReceipts) {
+        try {
+          setReceipts(JSON.parse(savedReceipts));
+        } catch (e) {}
+      }
 
       const savedExpenses = localStorage.getItem('sc_expenses');
-      if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
+      if (savedExpenses) {
+        try {
+          setExpenses(JSON.parse(savedExpenses));
+        } catch (e) {}
+      }
 
       const savedCategories = localStorage.getItem('sc_categories');
-      if (savedCategories) setExpenseCategories(JSON.parse(savedCategories));
+      if (savedCategories) {
+        try {
+          setExpenseCategories(JSON.parse(savedCategories));
+        } catch (e) {}
+      }
 
       const savedProdCats = localStorage.getItem('sc_product_categories');
-      if (savedProdCats) setProductCategories(JSON.parse(savedProdCats));
+      if (savedProdCats) {
+        try {
+          setProductCategories(JSON.parse(savedProdCats));
+        } catch (e) {}
+      }
 
       const savedEmployees = localStorage.getItem('sc_employees');
       if (savedEmployees) {
@@ -304,6 +299,7 @@ export default function Home() {
 
   const lastSyncedTimestampRef = useRef<number>(0);
   const isSyncingRef = useRef<boolean>(false);
+  const lastLocalProductMutationRef = useRef<number>(0);
 
   // Helper to push central snapshot to server
   const pushDataToCloud = async (overrideData?: any) => {
@@ -472,7 +468,11 @@ export default function Home() {
             });
           }
 
-          if (remote.products) setProducts(remote.products);
+          // Guard against stale server lambda snapshots overwriting fresh local product changes
+          const isLocalProductRecentlyChanged = (Date.now() - lastLocalProductMutationRef.current) < 8000;
+          if (remote.products && (!isLocalProductRecentlyChanged || force)) {
+            setProducts(remote.products);
+          }
           if (remote.customers) setCustomers(remote.customers);
           if (remote.receipts) setReceipts(remote.receipts);
           if (remote.expenses) setExpenses(remote.expenses);
@@ -1605,6 +1605,7 @@ export default function Home() {
 
   // Add Product
   const handleAddProduct = (newProd: Product) => {
+    lastLocalProductMutationRef.current = Date.now();
     let nextList: Product[] = [];
     setProducts((prev) => {
       nextList = [newProd, ...prev];
@@ -1622,6 +1623,7 @@ export default function Home() {
 
   // Update Stock
   const handleUpdateStock = (productId: string, newStock: number) => {
+    lastLocalProductMutationRef.current = Date.now();
     let nextList: Product[] = [];
     setProducts((prev) => {
       nextList = prev.map((p) => (p.id === productId ? { ...p, stockQuantity: newStock } : p));
@@ -1639,6 +1641,7 @@ export default function Home() {
 
   // Update Product (Redakt qilish)
   const handleUpdateProduct = (updatedProduct: Product) => {
+    lastLocalProductMutationRef.current = Date.now();
     let nextList: Product[] = [];
     setProducts((prev) => {
       nextList = prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
@@ -1656,6 +1659,7 @@ export default function Home() {
 
   // Delete Product (O'chirish)
   const handleDeleteProduct = (productId: string) => {
+    lastLocalProductMutationRef.current = Date.now();
     const prod = products.find((p) => p.id === productId);
     let nextList: Product[] = [];
     setProducts((prev) => {
@@ -1674,6 +1678,7 @@ export default function Home() {
 
   // Omborga tovar kirimi (Prixod / Nakladnoy) - Yangi qo'shish va Tahrirlash (Redakt)
   const handleSavePurchase = (invoice: PurchaseInvoice, updatedProducts: Product[]) => {
+    lastLocalProductMutationRef.current = Date.now();
     setPurchases((prev) => {
       const exists = prev.some((p) => p.id === invoice.id);
       if (exists) {
