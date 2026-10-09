@@ -2817,6 +2817,7 @@ export default function Home() {
               shipments={shipments}
               handovers={handovers}
               serviceTickets={serviceTickets}
+              objectPassports={crmObjectPassports}
               products={products}
               customers={customers}
               exchangeRate={exchangeRate}
@@ -2825,6 +2826,7 @@ export default function Home() {
               onSaveHandover={handleSaveHandover}
               onSaveOrder={handleSaveOrder}
               onUpdateServiceTicket={handleUpdateServiceTicket}
+              onUpdateObjectPassport={handleUpdateObjectPassport}
               onUpdateEmployeeStatus={handleUpdateEmployeeStatus}
               onUpdateEmployee={handleUpdateEmployee}
               onRefresh={handleForceSync}

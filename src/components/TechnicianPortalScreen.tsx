@@ -9,13 +9,16 @@ import {
   ServiceTicket, 
   Currency,
   Product,
-  Customer
+  Customer,
+  CrmObjectPassport
 } from '../types';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { compressImage } from '../utils/imageCompressor';
 import { HandoverModal } from './HandoverModal';
 import { OnSiteEstimateModal } from './OnSiteEstimateModal';
 import { HddCalculatorModal } from './HddCalculatorModal';
+import { InteractiveFloorPlanEditor } from './InteractiveFloorPlanEditor';
+import { ObjectQrPassportModal } from './ObjectQrPassportModal';
 import { 
   HardHat, 
   HardDrive,
@@ -66,11 +69,13 @@ import {
   Filter,
   AlertTriangle,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  Compass,
+  QrCode
 } from 'lucide-react';
 
 export type MainMobileTab = 'orders' | 'in_progress' | 'completed' | 'profile';
-export type OrdersSubFilter = 'active_jobs' | 'estimates' | 'service_tasks' | 'rejected';
+export type OrdersSubFilter = 'active_jobs' | 'floor_plans' | 'estimates' | 'service_tasks' | 'rejected';
 export type EarningsPeriod = 'today' | 'yesterday' | 'week' | 'month' | 'all' | 'custom';
 
 interface TechnicianPortalScreenProps {
@@ -80,6 +85,7 @@ interface TechnicianPortalScreenProps {
   shipments: ShipmentOrder[];
   handovers: ObjectHandover[];
   serviceTickets: ServiceTicket[];
+  objectPassports?: CrmObjectPassport[];
   products?: Product[];
   customers?: Customer[];
   exchangeRate: number;
@@ -88,6 +94,7 @@ interface TechnicianPortalScreenProps {
   onSaveHandover: (handover: ObjectHandover) => void;
   onSaveOrder?: (order: CustomerOrder) => void;
   onUpdateServiceTicket?: (ticket: ServiceTicket) => void;
+  onUpdateObjectPassport?: (obj: CrmObjectPassport) => void;
   onUpdateEmployeeStatus?: (employeeId: string, newStatus: 'active' | 'on_site' | 'on_leave') => void;
   onUpdateEmployee?: (emp: Employee) => void;
   onRefresh?: () => Promise<void> | void;
@@ -100,6 +107,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   shipments,
   handovers,
   serviceTickets,
+  objectPassports = [],
   products = [],
   customers = [],
   exchangeRate,
@@ -108,6 +116,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   onSaveHandover,
   onSaveOrder,
   onUpdateServiceTicket,
+  onUpdateObjectPassport,
   onUpdateEmployeeStatus,
   onUpdateEmployee,
   onRefresh
@@ -175,6 +184,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
       } else if (initialSubTab === 'service_tasks') {
         setMainTab('orders');
         setOrdersSubFilter('service_tasks');
+      } else if (initialSubTab === 'floor_plans' || initialSubTab === 'floorplans') {
+        setMainTab('orders');
+        setOrdersSubFilter('floor_plans');
       } else if (initialSubTab === 'active_jobs' || initialSubTab === 'orders') {
         setMainTab('orders');
         setOrdersSubFilter('active_jobs');
@@ -184,6 +196,10 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [estimateStatusFilter, setEstimateStatusFilter] = useState<'all' | 'pending' | 'rejected' | 'shipped' | 'completed'>('all');
+
+  // Floor plan & QR Modals state for technicians
+  const [selectedPassportForFloorPlan, setSelectedPassportForFloorPlan] = useState<CrmObjectPassport | null>(null);
+  const [selectedPassportForQr, setSelectedPassportForQr] = useState<CrmObjectPassport | null>(null);
 
   // Accordion expanded state for job cards (Compact by default)
   const [expandedJobIds, setExpandedJobIds] = useState<Record<string, boolean>>({});
@@ -354,6 +370,20 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
       return !isCompleted && !isInProgress;
     });
   }, [assignedActiveJobs, handovers]);
+
+  // Floor plan objects accessible for technician
+  const myFloorPlanObjects = useMemo(() => {
+    return (objectPassports || []).filter(obj => {
+      if (!obj) return false;
+      const matchesSearch = !searchQuery || 
+        obj.objectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        obj.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        obj.customerPhone.includes(searchQuery) ||
+        obj.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        obj.passportNumber.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesSearch;
+    });
+  }, [objectPassports, searchQuery]);
 
   // B) Rejected Estimates (Kassir tomonidan rad etilgan smetalar)
   const myRejectedEstimates = useMemo(() => {
@@ -1108,7 +1138,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                 </div>
 
                 {/* Orders Sub-Filter Pills */}
-                <div className={`grid ${myRejectedEstimates.length > 0 ? 'grid-cols-4' : 'grid-cols-3'} gap-1 pt-1 select-none`}>
+                <div className={`grid ${myRejectedEstimates.length > 0 ? 'grid-cols-5' : 'grid-cols-4'} gap-1 pt-1 select-none`}>
                   <button
                     type="button"
                     onClick={() => setOrdersSubFilter('active_jobs')}
@@ -1119,6 +1149,19 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                     }`}
                   >
                     Yangi ({unstartedJobs.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOrdersSubFilter('floor_plans')}
+                    className={`py-1.5 px-1 rounded-xl text-[10px] font-bold transition text-center truncate flex items-center justify-center gap-0.5 ${
+                      ordersSubFilter === 'floor_plans'
+                        ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-900 text-sky-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    <Compass className="w-3 h-3 text-sky-400 shrink-0" />
+                    <span>2D Sxema ({myFloorPlanObjects.length})</span>
                   </button>
 
                   {myRejectedEstimates.length > 0 && (
@@ -1248,6 +1291,97 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                       </div>
                     ) : (
                       unstartedJobs.map(order => renderJobCard(order))
+                    )}
+                  </div>
+                )}
+
+                {/* 1.5. 2D SXEMALAR & XONALAR LOYIHASI */}
+                {ordersSubFilter === 'floor_plans' && (
+                  <div className="space-y-3">
+                    {myFloorPlanObjects.length === 0 ? (
+                      <div className="p-8 text-center bg-slate-900/60 rounded-3xl border border-slate-800/80 space-y-2">
+                        <Compass className="w-10 h-10 text-sky-400/60 mx-auto" />
+                        <h3 className="text-sm font-bold text-white">2D Sxemalar mavjud emas</h3>
+                        <p className="text-xs text-slate-400">
+                          Obyektlarning 2D chizma loyihalari va xonalar xaritasi bu yerda ko&apos;rinadi.
+                        </p>
+                      </div>
+                    ) : (
+                      myFloorPlanObjects.map((obj) => {
+                        const totalPins = (obj.floorPlans || []).flatMap(p => p.pins || []).length;
+                        const cabledPins = (obj.floorPlans || []).flatMap(p => p.pins || []).filter(p => p.status === 'cabled').length;
+                        const installedPins = (obj.floorPlans || []).flatMap(p => p.pins || []).filter(p => p.status === 'installed' || p.status === 'tested').length;
+                        const stage = obj.installationStage || 'cabling_phase';
+
+                        return (
+                          <div
+                            key={obj.id}
+                            className="p-4 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-mono font-bold text-teal-400 bg-teal-950 px-2 py-0.5 rounded border border-teal-500/30">
+                                    {obj.passportNumber}
+                                  </span>
+                                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                    stage === 'cabling_phase'
+                                      ? 'bg-sky-500/10 text-sky-400 border-sky-500/30'
+                                      : stage === 'devices_phase'
+                                      ? 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+                                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  }`}>
+                                    {stage === 'cabling_phase' ? '🔌 1-Kabel Bosqichi' : stage === 'devices_phase' ? '📹 2-Qurilmalar Bosqichi' : '✅ To\'liq Topshirilgan'}
+                                  </span>
+                                </div>
+                                <h4 className="text-xs font-black text-white mt-1">{obj.objectName}</h4>
+                                <p className="text-[11px] text-slate-300 font-semibold">👤 {obj.customerName}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">📍 {obj.address}</p>
+                              </div>
+
+                              {/* Quick Call */}
+                              <a
+                                href={`tel:${obj.customerPhone}`}
+                                className="p-2 rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 transition shrink-0"
+                                title="Qo'ng'iroq qilish"
+                              >
+                                <Phone className="w-4 h-4" />
+                              </a>
+                            </div>
+
+                            {/* Pins and Cable stats */}
+                            <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs">
+                              <span className="text-slate-400">Nuqtalar: <b className="text-white font-mono">{totalPins} ta</b></span>
+                              <div className="flex items-center gap-2 text-[11px] font-mono font-bold">
+                                <span className="text-sky-400">🔌 {cabledPins} kabel</span>
+                                <span className="text-slate-600">/</span>
+                                <span className="text-emerald-400">📹 {installedPins} o&apos;rnatildi</span>
+                              </div>
+                            </div>
+
+                            {/* Action buttons */}
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPassportForFloorPlan(obj)}
+                                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 active:scale-95"
+                              >
+                                <Compass className="w-4 h-4" />
+                                <span>2D Sxema & Xarita</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPassportForQr(obj)}
+                                className="py-2.5 px-3 rounded-xl bg-teal-600/20 hover:bg-teal-600/30 text-teal-300 border border-teal-500/30 font-bold text-xs transition flex items-center justify-center gap-1.5 active:scale-95"
+                              >
+                                <QrCode className="w-4 h-4" />
+                                <span>QR Stiker / Pasport</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 )}
@@ -2085,6 +2219,38 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
         isOpen={isHddCalcOpen}
         onClose={() => setIsHddCalcOpen(false)}
       />
+
+      {/* ======================================================== */}
+      {/* MODAL 4: 2D FLOOR PLAN & BLUEPRINT EDITOR */}
+      {/* ======================================================== */}
+      {selectedPassportForFloorPlan && (
+        <InteractiveFloorPlanEditor
+          objectPassport={selectedPassportForFloorPlan}
+          onSaveObjectPassport={(updated) => {
+            if (onUpdateObjectPassport) {
+              onUpdateObjectPassport(updated);
+            }
+            setSelectedPassportForFloorPlan(null);
+          }}
+          onClose={() => setSelectedPassportForFloorPlan(null)}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 5: QR TECHNICAL PASSPORT & THERMAL STICKER */}
+      {/* ======================================================== */}
+      {selectedPassportForQr && (
+        <ObjectQrPassportModal
+          objectPassport={selectedPassportForQr}
+          onSaveObjectPassport={(updated) => {
+            if (onUpdateObjectPassport) {
+              onUpdateObjectPassport(updated);
+            }
+            setSelectedPassportForQr(null);
+          }}
+          onClose={() => setSelectedPassportForQr(null)}
+        />
+      )}
     </div>
   );
 };
