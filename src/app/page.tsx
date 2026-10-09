@@ -268,7 +268,19 @@ export default function Home() {
       if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
 
       const savedTickets = localStorage.getItem('sc_service_tickets');
-      if (savedTickets) setServiceTickets(JSON.parse(savedTickets));
+      if (savedTickets) {
+        try {
+          const parsed = JSON.parse(savedTickets);
+          if (Array.isArray(parsed)) {
+            setServiceTickets(parsed);
+          }
+        } catch (e) {
+          console.error("Service tickets parse error", e);
+        }
+      } else {
+        localStorage.setItem('sc_service_tickets', JSON.stringify(INITIAL_SERVICE_TICKETS));
+        setServiceTickets(INITIAL_SERVICE_TICKETS);
+      }
 
       const savedDebtPayments = localStorage.getItem('sc_customer_debt_payments');
       if (savedDebtPayments) setCustomerDebtPayments(JSON.parse(savedDebtPayments));
@@ -299,7 +311,15 @@ export default function Home() {
 
   const lastSyncedTimestampRef = useRef<number>(0);
   const isSyncingRef = useRef<boolean>(false);
-  const lastLocalProductMutationRef = useRef<number>(0);
+  const lastLocalMutationsRef = useRef<Record<string, number>>({});
+
+  const recordLocalMutation = (key: string) => {
+    lastLocalMutationsRef.current[key] = Date.now();
+  };
+
+  const isLocalRecentlyMutated = (key: string) => {
+    return (Date.now() - (lastLocalMutationsRef.current[key] || 0)) < 8000;
+  };
 
   // Helper to push central snapshot to server
   const pushDataToCloud = async (overrideData?: any) => {
@@ -468,15 +488,25 @@ export default function Home() {
             });
           }
 
-          // Guard against stale server lambda snapshots overwriting fresh local product changes
-          const isLocalProductRecentlyChanged = (Date.now() - lastLocalProductMutationRef.current) < 8000;
-          if (remote.products && (!isLocalProductRecentlyChanged || force)) {
+          // Guard against stale server lambda snapshots overwriting fresh local changes
+          if (remote.products && (!isLocalRecentlyMutated('products') || force)) {
             setProducts(remote.products);
           }
-          if (remote.customers) setCustomers(remote.customers);
-          if (remote.receipts) setReceipts(remote.receipts);
-          if (remote.expenses) setExpenses(remote.expenses);
-          if (remote.employees) setEmployees(remote.employees);
+          if (remote.serviceTickets && (!isLocalRecentlyMutated('serviceTickets') || force)) {
+            setServiceTickets(remote.serviceTickets);
+          }
+          if (remote.customers && (!isLocalRecentlyMutated('customers') || force)) {
+            setCustomers(remote.customers);
+          }
+          if (remote.receipts && (!isLocalRecentlyMutated('receipts') || force)) {
+            setReceipts(remote.receipts);
+          }
+          if (remote.expenses && (!isLocalRecentlyMutated('expenses') || force)) {
+            setExpenses(remote.expenses);
+          }
+          if (remote.employees && (!isLocalRecentlyMutated('employees') || force)) {
+            setEmployees(remote.employees);
+          }
           if (remote.shipments) {
             const rawShipments: ShipmentOrder[] = remote.shipments;
             const dedupedShipments: ShipmentOrder[] = [];
@@ -490,12 +520,21 @@ export default function Home() {
             });
             setShipments(dedupedShipments);
           }
-          if (remote.purchases) setPurchases(remote.purchases);
-          if (remote.serviceTickets) setServiceTickets(remote.serviceTickets);
-          if (remote.handovers) setHandovers(remote.handovers);
-          if (remote.customerDebtPayments) setCustomerDebtPayments(remote.customerDebtPayments);
-          if (remote.payrolls) setPayrolls(remote.payrolls);
-          if (remote.advances) setAdvances(remote.advances);
+          if (remote.purchases && (!isLocalRecentlyMutated('purchases') || force)) {
+            setPurchases(remote.purchases);
+          }
+          if (remote.handovers && (!isLocalRecentlyMutated('handovers') || force)) {
+            setHandovers(remote.handovers);
+          }
+          if (remote.customerDebtPayments && (!isLocalRecentlyMutated('customerDebtPayments') || force)) {
+            setCustomerDebtPayments(remote.customerDebtPayments);
+          }
+          if (remote.payrolls && (!isLocalRecentlyMutated('payrolls') || force)) {
+            setPayrolls(remote.payrolls);
+          }
+          if (remote.advances && (!isLocalRecentlyMutated('advances') || force)) {
+            setAdvances(remote.advances);
+          }
           if (remote.exchangeRate) setExchangeRate(remote.exchangeRate);
           if (remote.baseCurrency) setBaseCurrency(remote.baseCurrency);
         }
@@ -1605,7 +1644,7 @@ export default function Home() {
 
   // Add Product
   const handleAddProduct = (newProd: Product) => {
-    lastLocalProductMutationRef.current = Date.now();
+    recordLocalMutation('products');
     let nextList: Product[] = [];
     setProducts((prev) => {
       nextList = [newProd, ...prev];
@@ -1623,7 +1662,7 @@ export default function Home() {
 
   // Update Stock
   const handleUpdateStock = (productId: string, newStock: number) => {
-    lastLocalProductMutationRef.current = Date.now();
+    recordLocalMutation('products');
     let nextList: Product[] = [];
     setProducts((prev) => {
       nextList = prev.map((p) => (p.id === productId ? { ...p, stockQuantity: newStock } : p));
@@ -1641,7 +1680,7 @@ export default function Home() {
 
   // Update Product (Redakt qilish)
   const handleUpdateProduct = (updatedProduct: Product) => {
-    lastLocalProductMutationRef.current = Date.now();
+    recordLocalMutation('products');
     let nextList: Product[] = [];
     setProducts((prev) => {
       nextList = prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
@@ -1659,7 +1698,7 @@ export default function Home() {
 
   // Delete Product (O'chirish)
   const handleDeleteProduct = (productId: string) => {
-    lastLocalProductMutationRef.current = Date.now();
+    recordLocalMutation('products');
     const prod = products.find((p) => p.id === productId);
     let nextList: Product[] = [];
     setProducts((prev) => {
@@ -1678,7 +1717,8 @@ export default function Home() {
 
   // Omborga tovar kirimi (Prixod / Nakladnoy) - Yangi qo'shish va Tahrirlash (Redakt)
   const handleSavePurchase = (invoice: PurchaseInvoice, updatedProducts: Product[]) => {
-    lastLocalProductMutationRef.current = Date.now();
+    recordLocalMutation('products');
+    recordLocalMutation('purchases');
     setPurchases((prev) => {
       const exists = prev.some((p) => p.id === invoice.id);
       if (exists) {
@@ -1717,12 +1757,14 @@ export default function Home() {
 
   // Add Customer
   const handleAddCustomer = (newCustomer: Customer) => {
+    recordLocalMutation('customers');
     setCustomers((prev) => [newCustomer, ...prev]);
     showToast(`✓ Mijoz "${newCustomer.fullName}" ro'yxatga olindi (+10 000 so'm cashback berildi).`);
   };
 
   // Update Customer
   const handleUpdateCustomer = (updatedCustomer: Customer) => {
+    recordLocalMutation('customers');
     setCustomers((prev) =>
       prev.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c))
     );
@@ -1731,6 +1773,7 @@ export default function Home() {
 
   // Add manual cashback bonus
   const handleUpdateCashback = (customerId: string, amount: number) => {
+    recordLocalMutation('customers');
     setCustomers((prev) =>
       prev.map((c) =>
         c.id === customerId ? { ...c, cashbackBalance: c.cashbackBalance + amount } : c
@@ -1741,6 +1784,7 @@ export default function Home() {
 
   // Add Expense or Income (Prixod & Rasxod) with Automatic Counterparty Debt Deduction
   const handleAddExpense = (newExp: Expense) => {
+    recordLocalMutation('expenses');
     setExpenses((prev) => [newExp, ...prev]);
 
     if (newExp.type === 'income') {
@@ -1752,6 +1796,8 @@ export default function Home() {
       );
 
       if (targetCustomer) {
+        recordLocalMutation('customers');
+        recordLocalMutation('customerDebtPayments');
         const oldDebt = targetCustomer.debtBalance || 0;
         const newDebtUZS = Math.max(0, oldDebt - newExp.amount);
         const newDebtUSD = Number((newDebtUZS / exchangeRate).toFixed(2));
@@ -1806,6 +1852,7 @@ export default function Home() {
         let remainingDeduction = newExp.amount;
         let supplierDebtReduced = false;
 
+        recordLocalMutation('purchases');
         setPurchases((prev) =>
           prev.map((p) => {
             // Match specific invoice or match supplier name
@@ -1855,17 +1902,20 @@ export default function Home() {
   };
 
   const handleDeleteExpense = (expenseId: string) => {
+    recordLocalMutation('expenses');
     setExpenses((prev) => prev.filter((e) => e.id !== expenseId));
     showToast(`✓ Moliya yozuvi o'chirildi!`);
   };
 
   // Category management handlers
   const handleAddCategory = (newCat: ExpenseCategory) => {
+    recordLocalMutation('expenseCategories');
     setExpenseCategories((prev) => [...prev, newCat]);
     showToast(`✓ Yangi toifa qo'shildi: "${newCat.name}"`);
   };
 
   const handleUpdateCategory = (categoryId: string, newName: string, newDesc?: string) => {
+    recordLocalMutation('expenseCategories');
     const oldCat = expenseCategories.find((c) => c.id === categoryId);
     const oldName = oldCat?.name;
 
@@ -1874,6 +1924,7 @@ export default function Home() {
     );
 
     if (oldName && oldName !== newName) {
+      recordLocalMutation('expenses');
       setExpenses((prev) =>
         prev.map((e) => (e.category === oldName ? { ...e, category: newName } : e))
       );
@@ -1883,6 +1934,7 @@ export default function Home() {
   };
 
   const handleDeleteCategory = (categoryId: string) => {
+    recordLocalMutation('expenseCategories');
     const catToDelete = expenseCategories.find((c) => c.id === categoryId);
     if (!catToDelete) return;
 
@@ -1892,11 +1944,13 @@ export default function Home() {
 
   // Product Category management handlers
   const handleAddProductCategory = (newCat: ProductCategory) => {
+    recordLocalMutation('productCategories');
     setProductCategories((prev) => [...prev, newCat]);
     showToast(`✓ Yangi mahsulot kategoriyasi: "${newCat.name}"`);
   };
 
   const handleUpdateProductCategory = (categoryId: string, newName: string, newDesc?: string) => {
+    recordLocalMutation('productCategories');
     const oldCat = productCategories.find((c) => c.id === categoryId);
     const oldName = oldCat?.name;
 
@@ -1906,6 +1960,7 @@ export default function Home() {
 
     // Cascade rename to all existing products in this category
     if (oldName && oldName !== newName) {
+      recordLocalMutation('products');
       setProducts((prev) =>
         prev.map((p) => (p.category === oldName ? { ...p, category: newName } : p))
       );
@@ -1915,6 +1970,7 @@ export default function Home() {
   };
 
   const handleDeleteProductCategory = (categoryId: string) => {
+    recordLocalMutation('productCategories');
     const catToDelete = productCategories.find((c) => c.id === categoryId);
     if (!catToDelete) return;
 
@@ -1924,11 +1980,13 @@ export default function Home() {
 
   // Employee Management handlers
   const handleAddEmployee = (newEmp: Employee) => {
+    recordLocalMutation('employees');
     setEmployees((prev) => [newEmp, ...prev]);
     showToast(`✓ Xodim "${newEmp.fullName}" muvaffaqiyatli qo'shildi.`);
   };
 
   const handleUpdateEmployee = (updatedEmp: Employee) => {
+    recordLocalMutation('employees');
     setEmployees((prev) =>
       prev.map((e) => (e.id === updatedEmp.id ? updatedEmp : e))
     );
@@ -1936,6 +1994,7 @@ export default function Home() {
   };
 
   const handleDeleteEmployee = (empId: string) => {
+    recordLocalMutation('employees');
     const emp = employees.find((e) => e.id === empId);
     setEmployees((prev) => prev.filter((e) => e.id !== empId));
     showToast(`✓ "${emp?.fullName || 'Xodim'}" ro'yxatdan o'chirildi.`);
@@ -2023,24 +2082,63 @@ export default function Home() {
 
   // Service Ticket Handlers (Kafolat va Servis)
   const handleAddServiceTicket = (ticket: ServiceTicket) => {
-    setServiceTickets((prev) => [ticket, ...prev]);
+    recordLocalMutation('serviceTickets');
+    let nextList: ServiceTicket[] = [];
+    setServiceTickets((prev) => {
+      nextList = [ticket, ...prev];
+      return nextList;
+    });
+    const finalTickets = nextList.length > 0 ? nextList : [ticket, ...serviceTickets];
+    try {
+      localStorage.setItem('sc_service_tickets', JSON.stringify(finalTickets));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ serviceTickets: finalTickets });
     showToast(`"${ticket.ticketNumber}" raqamli yangi servis arizasi ochildi!`);
   };
 
   const handleUpdateServiceTicket = (updated: ServiceTicket) => {
-    setServiceTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    recordLocalMutation('serviceTickets');
+    let nextList: ServiceTicket[] = [];
+    setServiceTickets((prev) => {
+      nextList = prev.map((t) => (t.id === updated.id ? updated : t));
+      return nextList;
+    });
+    const finalTickets = nextList.length > 0 ? nextList : serviceTickets.map((t) => (t.id === updated.id ? updated : t));
+    try {
+      localStorage.setItem('sc_service_tickets', JSON.stringify(finalTickets));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ serviceTickets: finalTickets });
     showToast(`"${updated.ticketNumber}" arizasi yangilandi!`);
   };
 
   const handleDeleteServiceTicket = (ticketId: string) => {
-    setServiceTickets((prev) => prev.filter((t) => t.id !== ticketId));
-    showToast("Servis arizasi o'chirildi");
+    recordLocalMutation('serviceTickets');
+    const ticket = serviceTickets.find((t) => t.id === ticketId);
+    let nextList: ServiceTicket[] = [];
+    setServiceTickets((prev) => {
+      nextList = prev.filter((t) => t.id !== ticketId);
+      return nextList;
+    });
+    const finalTickets = nextList.length > 0 || serviceTickets.length === 1 ? nextList : serviceTickets.filter((t) => t.id !== ticketId);
+    try {
+      localStorage.setItem('sc_service_tickets', JSON.stringify(finalTickets));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ serviceTickets: finalTickets });
+    showToast(`✓ "${ticket?.ticketNumber || 'Servis arizasi'}" o'chirildi`);
   };
 
   const handleReplaceDevice = (ticketId: string, oldSerial: string, newSerial: string, productId: string) => {
-    // 1. Update ticket with replaced status and replacementSerialNumber
-    setServiceTickets((prev) =>
-      prev.map((t) =>
+    recordLocalMutation('serviceTickets');
+    recordLocalMutation('products');
+    let nextTickets: ServiceTicket[] = [];
+    setServiceTickets((prev) => {
+      nextTickets = prev.map((t) =>
         t.id === ticketId
           ? {
               ...t,
@@ -2049,12 +2147,13 @@ export default function Home() {
               solutionNotes: `Nosoz ${oldSerial} ombordagi yangi ${newSerial} qurilmasiga almashtirildi.`
             }
           : t
-      )
-    );
+      );
+      return nextTickets;
+    });
 
-    // 2. Decrement newSerial from warehouse product stock
-    setProducts((prev) =>
-      prev.map((p) => {
+    let nextProducts: Product[] = [];
+    setProducts((prev) => {
+      nextProducts = prev.map((p) => {
         if (p.id === productId || (p.serialNumbers && p.serialNumbers.includes(newSerial))) {
           const updatedSerials = (p.serialNumbers || []).filter((sn) => sn !== newSerial);
           return {
@@ -2064,9 +2163,21 @@ export default function Home() {
           };
         }
         return p;
-      })
-    );
+      });
+      return nextProducts;
+    });
 
+    const finalTickets = nextTickets.length > 0 ? nextTickets : serviceTickets;
+    const finalProducts = nextProducts.length > 0 ? nextProducts : products;
+
+    try {
+      localStorage.setItem('sc_service_tickets', JSON.stringify(finalTickets));
+      localStorage.setItem('sc_products', JSON.stringify(finalProducts));
+    } catch (e) {
+      console.error(e);
+    }
+
+    pushDataToCloud({ serviceTickets: finalTickets, products: finalProducts });
     showToast(`Qurilma muvaffaqiyatli almashtirildi! Yangi S/N: ${newSerial}`);
   };
 
