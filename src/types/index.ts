@@ -747,6 +747,67 @@ export interface CrmObjectInstalledItem {
   quantity: number;
 }
 
+export type FloorPlanPinType = 
+  | 'camera_bullet' 
+  | 'camera_dome' 
+  | 'camera_ptz' 
+  | 'intercom_outdoor' 
+  | 'intercom_monitor' 
+  | 'nvr_server' 
+  | 'switch_poe' 
+  | 'wifi_ap' 
+  | 'motion_sensor' 
+  | 'smoke_sensor' 
+  | 'smart_lock' 
+  | 'power_box' 
+  | 'other';
+
+export interface FloorPlanPinPhoto {
+  id: string;
+  url: string;
+  stage: 'cabling_rough' | 'device_finished' | 'cabling' | 'device' | 'issue';
+  caption?: string;
+  takenAt?: string;
+}
+
+export interface FloorPlanPin {
+  id: string;
+  pinType: FloorPlanPinType;
+  label: string;                  // e.g. "1-Kamera (Darvoza)"
+  roomName: string;               // e.g. "Asosiy kirish / Darvoza"
+  xPercent: number;               // 0 to 100% position on plan
+  yPercent: number;               // 0 to 100% position on plan
+  rotationAngle?: number;         // 0 - 360 deg (viewing direction)
+  coverageAngle?: number;         // 60, 90, 120, 360 deg
+  
+  // Cable info (1-bosqich chernovoy)
+  cableType?: string;             // e.g. "UTP Cat6 Mis Outdoor"
+  cableLengthMeters?: number;     // e.g. 25
+  cableRouteNotes?: string;       // e.g. "Gipsokarton shift orqasidan, 2.4m balandlikda qoldirilgan"
+  
+  // Device & installation info (2-bosqich chistovoy)
+  plannedProduct?: string;        // e.g. "Hikvision DS-2CD1043G0-I 4MP"
+  serialNumber?: string;          // e.g. "HK-4MP-982101"
+  installedDate?: string;
+  status: 'planned' | 'cabled' | 'installed' | 'tested' | 'issue';
+  
+  // Photos before/after plastering (suvoqdan oldin va keyin)
+  photos?: FloorPlanPinPhoto[];
+  
+  notes?: string;
+}
+
+export interface ObjectFloorPlan {
+  id: string;
+  title: string;                  // e.g. "1-Qavat Chizmasi", "Hovli va Fasad loyihasi"
+  floorLevel?: number;            // 1, 2, -1 (Podval)
+  planImageUrl: string;           // Base64 or URL of floor plan image
+  widthPx?: number;
+  heightPx?: number;
+  pins: FloorPlanPin[];
+  notes?: string;
+}
+
 export interface CrmObjectPassport {
   id: string;
   passportNumber: string;           // e.g. "OBY-1001"
@@ -773,6 +834,14 @@ export interface CrmObjectPassport {
   installedByTechnicianName?: string;
   installedByTechnicianPhone?: string;
   handoverReportId?: string;        // Bog'langan topshirish akti
+  
+  // 2-Bosqichli montaj va 2D Sxema loyihalari
+  installationStage?: 'cabling_phase' | 'devices_phase' | 'fully_completed' | 'maintenance';
+  cablingCompletedDate?: string;
+  cablingTechnicianName?: string;
+  floorPlans?: ObjectFloorPlan[];
+  qrToken?: string;
+  
   notes?: string;
   createdAt: string;
 }

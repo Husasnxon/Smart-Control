@@ -1290,8 +1290,70 @@ export const INITIAL_CRM_OBJECTS: CrmObjectPassport[] = [
     installationDate: '2026-08-15',
     warrantyMonths: 24,
     warrantyExpiresAt: '2028-08-15',
+    cablingCompletedDate: '2026-06-20',
+    cablingTechnicianName: 'Sardorbek Aliyev',
     installedByTechnicianName: 'Dilshod Karimov',
     installedByTechnicianPhone: '+998 90 345 67 89',
+    installationStage: 'fully_completed',
+    qrToken: 'qr-obj-1001',
+    floorPlans: [
+      {
+        id: 'plan-1',
+        title: '1-Qavat Bosh Bino & Fasad',
+        floorLevel: 1,
+        planImageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&auto=format&fit=crop&q=80',
+        pins: [
+          {
+            id: 'pin-101',
+            pinType: 'camera_bullet',
+            label: 'Kamera #1 (Darvoza)',
+            roomName: 'Bosh kirish darvozasi',
+            xPercent: 28,
+            yPercent: 35,
+            rotationAngle: 120,
+            coverageAngle: 90,
+            cableType: 'UTP Cat6 Mis Tashqi (Outdoor)',
+            cableLengthMeters: 45,
+            cableRouteNotes: 'Darvoza ustunidan gofrada, zaxira 2.2m qoldirilgan',
+            plannedProduct: 'Hikvision DS-2CD1043G0-I 4MP',
+            serialNumber: 'HK-4MP-982101',
+            status: 'installed'
+          },
+          {
+            id: 'pin-102',
+            pinType: 'camera_dome',
+            label: 'Kamera #2 (Kassa)',
+            roomName: '1-qavat Reception & Kassa',
+            xPercent: 65,
+            yPercent: 48,
+            rotationAngle: 210,
+            coverageAngle: 90,
+            cableType: 'UTP Cat6 Mis Ichki',
+            cableLengthMeters: 20,
+            cableRouteNotes: 'Gipsokarton shift orqasidan, 1.5m zaxira',
+            plannedProduct: 'Dahua 2MP Ichki Dome IP Kamera',
+            serialNumber: 'DH-2MP-84011',
+            status: 'installed'
+          },
+          {
+            id: 'pin-103',
+            pinType: 'nvr_server',
+            label: 'NVR & Server Shchiti',
+            roomName: 'Server / Qorovulxona',
+            xPercent: 82,
+            yPercent: 25,
+            rotationAngle: 0,
+            coverageAngle: 0,
+            cableType: 'PoE Switch & 220V UPS',
+            cableLengthMeters: 10,
+            cableRouteNotes: '19-dyuymli server shkafida montaj qilingan',
+            plannedProduct: 'Hikvision DS-7608NI-Q1 8CH',
+            serialNumber: 'NVR-7608-5521',
+            status: 'installed'
+          }
+        ]
+      }
+    ],
     notes: 'Kamera tizimi to\'liq ishga tushirildi. Direktor telefoni (Hik-Connect) orqali masofadan ulandi.',
     createdAt: '2026-08-15 16:30'
   },
@@ -1301,7 +1363,7 @@ export const INITIAL_CRM_OBJECTS: CrmObjectPassport[] = [
     customerId: 'cust-2',
     customerName: 'Samirbek Nurmatov',
     customerPhone: '+998 93 456 78 90',
-    objectName: 'Shaxsiy Kottedj & Hovli',
+    objectName: 'Shaxsiy Kottedj & Hovli (2-Bosqich kutilmoqda)',
     objectType: 'xonadon',
     address: 'Namangan sh., Bobur bog\'i yaqinida 18-uy',
     mapLocationUrl: 'https://maps.google.com/?q=40.9983,71.6726',
@@ -1311,19 +1373,77 @@ export const INITIAL_CRM_OBJECTS: CrmObjectPassport[] = [
     dvrCloudId: 'DMSS: SN-8891244',
     dvrAdminLogin: 'admin',
     dvrAdminPassword: 'Samir!2026Pass',
-    installedCamerasCount: 2,
+    installedCamerasCount: 4,
     hddCapacity: '2 TB Seagate SkyHawk',
     powerSupply: '12V 10A Blok Pitaniya',
     installedItems: [
-      { productName: 'Hikvision 4MP IP Tashqi Kamera', serialNumber: 'HK-4MP-982103', locationInFacility: 'Ko\'cha tomon & Darvoza', quantity: 1 },
-      { productName: 'Hikvision 4MP IP Tashqi Kamera', serialNumber: 'HK-4MP-982104', locationInFacility: 'Ichki hovli & Garaj', quantity: 1 }
+      { productName: 'Hikvision 4MP IP Tashqi Kamera', serialNumber: 'HK-4MP-982103', locationInFacility: 'Ko\'cha tomon & Darvoza', quantity: 1 }
     ],
     installationDate: '2026-09-10',
     warrantyMonths: 12,
     warrantyExpiresAt: '2027-09-10',
-    installedByTechnicianName: 'Sardorbek Aliyev',
+    cablingCompletedDate: '2026-08-28',
+    cablingTechnicianName: 'Sardorbek Aliyev',
+    installedByTechnicianName: 'Dilshod Karimov',
     installedByTechnicianPhone: '+998 91 234 56 78',
-    notes: 'Mijoz iltimosiga ko\'ra kechasi harakat sezilganda oq chiroq yonadigan rejim yoqildi.',
+    installationStage: 'cabling_phase',
+    qrToken: 'qr-obj-1002',
+    floorPlans: [
+      {
+        id: 'plan-2',
+        title: 'Hovli & Kottedj Fasad Sxemasi',
+        floorLevel: 1,
+        planImageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&auto=format&fit=crop&q=80',
+        pins: [
+          {
+            id: 'pin-201',
+            pinType: 'camera_bullet',
+            label: 'Kamera #1 (Ko\'cha fasad)',
+            roomName: 'Tashqi darvoza o\'ng ustun',
+            xPercent: 32,
+            yPercent: 40,
+            rotationAngle: 75,
+            coverageAngle: 90,
+            cableType: 'UTP Cat6 Mis Tashqi (Outdoor)',
+            cableLengthMeters: 35,
+            cableRouteNotes: 'Gofra trubada yer tagidan 0.7m chuqurlikda tortilgan, 2m zaxira',
+            plannedProduct: 'Hikvision 4MP IP Tashqi Kamera',
+            status: 'cabled'
+          },
+          {
+            id: 'pin-202',
+            pinType: 'camera_bullet',
+            label: 'Kamera #2 (Ichki hovli & basseyn)',
+            roomName: 'Hovli orqa burchak',
+            xPercent: 72,
+            yPercent: 62,
+            rotationAngle: 240,
+            coverageAngle: 90,
+            cableType: 'UTP Cat6 Mis Tashqi (Outdoor)',
+            cableLengthMeters: 50,
+            cableRouteNotes: 'Suvoq ostida kabel kanali orqali 3m balandlikda qoldirilgan',
+            plannedProduct: 'Hikvision 4MP IP Tashqi Kamera',
+            status: 'cabled'
+          },
+          {
+            id: 'pin-203',
+            pinType: 'intercom_outdoor',
+            label: 'Domofon Chaqiruv Paneli',
+            roomName: 'Kichik eshik (Wicket door)',
+            xPercent: 18,
+            yPercent: 55,
+            rotationAngle: 90,
+            coverageAngle: 110,
+            cableType: 'UTP Cat6 + ShVVP 2x0.75 Quvvat',
+            cableLengthMeters: 25,
+            cableRouteNotes: 'Elektr magnit qulf simlari bilan birga eshik ramkasi ichida',
+            plannedProduct: 'Hikvision DS-KV6113 IP Domofon Paneli',
+            status: 'cabled'
+          }
+        ]
+      }
+    ],
+    notes: 'Kabel montaji yakunlangan. Suvoq va fasad ishlari tugagach, kameralar va domofon montaji amalga oshiriladi.',
     createdAt: '2026-09-10 14:15'
   }
 ];

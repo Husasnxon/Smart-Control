@@ -58,10 +58,14 @@ import {
   TrendingUp,
   Award,
   FileSpreadsheet,
-  Save
+  Save,
+  QrCode,
+  Compass
 } from 'lucide-react';
 import { getTelegramSettings, sendTelegramMessage } from '../utils/telegram';
 import { AiCrmAssistantModal } from './AiCrmAssistantModal';
+import { InteractiveFloorPlanEditor } from './InteractiveFloorPlanEditor';
+import { ObjectQrPassportModal } from './ObjectQrPassportModal';
 
 interface CrmScreenProps {
   leads: CrmLead[];
@@ -194,6 +198,8 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<CrmLead | null>(null);
   const [selectedPassportForDetail, setSelectedPassportForDetail] = useState<CrmObjectPassport | null>(null);
+  const [selectedPassportForFloorPlan, setSelectedPassportForFloorPlan] = useState<CrmObjectPassport | null>(null);
+  const [selectedPassportForQr, setSelectedPassportForQr] = useState<CrmObjectPassport | null>(null);
   const [printingPassport, setPrintingPassport] = useState<CrmObjectPassport | null>(null);
 
   // Integrated Lead Smeta Creator Modal State
@@ -1010,6 +1016,11 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 const isWarrantyActive = diffDays > 0;
 
+                const stage = obj.installationStage || 'cabling_phase';
+                const totalPinsCount = (obj.floorPlans || []).flatMap(p => p.pins || []).length;
+                const cabledCount = (obj.floorPlans || []).flatMap(p => p.pins || []).filter(p => p.status === 'cabled').length;
+                const installedCount = (obj.floorPlans || []).flatMap(p => p.pins || []).filter(p => p.status === 'installed' || p.status === 'tested').length;
+
                 return (
                   <div
                     key={obj.id}
@@ -1017,18 +1028,33 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   >
                     <div>
                       {/* Top Header */}
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-800 gap-2">
                         <span className="text-[11px] font-mono font-bold text-teal-400 bg-teal-950/80 px-2 py-0.5 rounded border border-teal-500/30">
                           {obj.passportNumber}
                         </span>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
-                            isWarrantyActive 
-                              ? diffDays < 30 ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                              : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                          }`}>
-                            {isWarrantyActive ? `Kafolat: ${diffDays} kun qoldi` : 'Kafolat muddati tugagan'}
-                          </span>
+                        
+                        {/* 2-Stage Installation Badge */}
+                        <div className="flex items-center gap-1.5">
+                          {stage === 'cabling_phase' && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-500/10 text-sky-400 border border-sky-500/30 flex items-center gap-1">
+                              <span>🔌</span> 1-Kabel Bosqichi
+                            </span>
+                          )}
+                          {stage === 'devices_phase' && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-500/10 text-purple-400 border border-purple-500/30 flex items-center gap-1">
+                              <span>📹</span> 2-Qurilmalar Bosqichi
+                            </span>
+                          )}
+                          {stage === 'fully_completed' && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                              <span>✅</span> To'liq Topshirildi
+                            </span>
+                          )}
+                          {stage === 'maintenance' && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                              <span>🛠️</span> Servis & Kafolat
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -1073,14 +1099,36 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                         </p>
                       </div>
 
+                      {/* 2D Schema & Montaj Progress Summary */}
+                      <div className="mt-3 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                            <Compass className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-200">2D Loyiha: </span>
+                            <span className="text-slate-400">
+                              {totalPinsCount > 0 ? `${totalPinsCount} ta nuqta (${obj.floorPlans?.length || 1} qavat)` : "Chizma yuklanmagan"}
+                            </span>
+                          </div>
+                        </div>
+                        {totalPinsCount > 0 && (
+                          <div className="flex items-center gap-1 text-[10px] font-mono font-bold">
+                            <span className="text-sky-400">{cabledCount}🔌</span>
+                            <span className="text-slate-600">/</span>
+                            <span className="text-emerald-400">{installedCount}📹</span>
+                          </div>
+                        )}
+                      </div>
+
                       {/* CCTV Hardware Details Box */}
-                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs mt-3">
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs mt-2">
                         <div className="flex items-center justify-between text-slate-300 font-medium">
                           <span className="flex items-center gap-1.5 text-slate-400">
                             <Video className="w-3.5 h-3.5 text-cyan-400" />
                             Kameralar:
                           </span>
-                          <span className="font-bold text-white">{obj.installedCamerasCount} ta nuqta</span>
+                          <span className="font-bold text-white">{totalPinsCount || obj.installedCamerasCount} ta nuqta</span>
                         </div>
 
                         {obj.dvrModel && (
@@ -1094,16 +1142,6 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                           <div className="flex items-center justify-between text-slate-300">
                             <span className="text-slate-400 text-[11px]">Cloud ID:</span>
                             <span className="font-mono text-xs text-sky-400 font-bold">{obj.dvrCloudId}</span>
-                          </div>
-                        )}
-
-                        {obj.hddCapacity && (
-                          <div className="flex items-center justify-between text-slate-300">
-                            <span className="text-slate-400 text-[11px] flex items-center gap-1">
-                              <HardDrive className="w-3 h-3 text-purple-400" />
-                              Xotira (HDD):
-                            </span>
-                            <span className="text-purple-300 font-semibold text-[11px]">{obj.hddCapacity}</span>
                           </div>
                         )}
 
@@ -1138,40 +1176,45 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                           </div>
                         )}
                       </div>
-
-                      {/* Installed Items Preview */}
-                      {obj.installedItems && obj.installedItems.length > 0 && (
-                        <div className="space-y-1 text-[11px] mt-2">
-                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">O'rnatilgan uskunalar (S/N):</p>
-                          <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
-                            {obj.installedItems.map((item, idx) => (
-                              <div key={idx} className="flex items-center justify-between text-slate-300 bg-slate-950/60 px-2 py-1 rounded border border-slate-800/60">
-                                <span className="truncate max-w-[150px]">{item.productName}</span>
-                                {item.serialNumber && (
-                                  <span className="font-mono text-[10px] text-teal-400 font-semibold">{item.serialNumber}</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
 
-                    {/* Card Actions */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
-                      <button
-                        onClick={() => setSelectedPassportForDetail(obj)}
-                        className="flex-1 py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition text-center"
-                      >
-                        Batafsil / Tahrirlash
-                      </button>
-                      <button
-                        onClick={() => setPrintingPassport(obj)}
-                        className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
-                        title="Pasportni chop etish"
-                      >
-                        <Printer className="w-4 h-4" />
-                      </button>
+                    {/* Card Action Buttons */}
+                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setSelectedPassportForFloorPlan(obj)}
+                          className="py-2 px-3 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                          title="2D Chizma, xonalar va kabel rasmlari"
+                        >
+                          <Compass className="w-3.5 h-3.5" />
+                          <span>2D Sxema</span>
+                        </button>
+
+                        <button
+                          onClick={() => setSelectedPassportForQr(obj)}
+                          className="py-2 px-3 rounded-xl bg-teal-600/20 hover:bg-teal-600/30 text-teal-300 border border-teal-500/30 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                          title="QR Texnik Pasport & Termo-Stiker"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>QR Stiker</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          onClick={() => setSelectedPassportForDetail(obj)}
+                          className="flex-1 py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition text-center"
+                        >
+                          Pasportni Tahrirlash
+                        </button>
+                        <button
+                          onClick={() => setPrintingPassport(obj)}
+                          className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                          title="Pasportni chop etish"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -2580,6 +2623,331 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: OBJECT PASSPORT FULL DETAIL & EDIT MODAL */}
+      {/* ========================================================================= */}
+      {selectedPassportForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-2xl w-full shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <span>Obyekt Pasportini Tahrirlash</span>
+                    <span className="font-mono text-xs text-teal-400 font-bold bg-teal-950 px-2 py-0.5 rounded border border-teal-500/30">
+                      {selectedPassportForDetail.passportNumber}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">{selectedPassportForDetail.objectName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedPassportForDetail(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const objectName = (form.elements.namedItem('objectName') as HTMLInputElement).value;
+                const customerName = (form.elements.namedItem('customerName') as HTMLInputElement).value;
+                const customerPhone = (form.elements.namedItem('customerPhone') as HTMLInputElement).value;
+                const address = (form.elements.namedItem('address') as HTMLInputElement).value;
+                const objectType = (form.elements.namedItem('objectType') as HTMLSelectElement).value as CrmObjectType;
+                const installationStage = (form.elements.namedItem('installationStage') as HTMLSelectElement).value as any;
+                const mapLocationUrl = (form.elements.namedItem('mapLocationUrl') as HTMLInputElement).value;
+                const dvrModel = (form.elements.namedItem('dvrModel') as HTMLInputElement).value;
+                const dvrSerialNumber = (form.elements.namedItem('dvrSerialNumber') as HTMLInputElement).value;
+                const dvrCloudId = (form.elements.namedItem('dvrCloudId') as HTMLInputElement).value;
+                const dvrAdminLogin = (form.elements.namedItem('dvrAdminLogin') as HTMLInputElement).value;
+                const dvrAdminPassword = (form.elements.namedItem('dvrAdminPassword') as HTMLInputElement).value;
+                const hddCapacity = (form.elements.namedItem('hddCapacity') as HTMLInputElement).value;
+                const warrantyMonths = Number((form.elements.namedItem('warrantyMonths') as HTMLInputElement).value) || 12;
+                const cablingTechnicianName = (form.elements.namedItem('cablingTechnicianName') as HTMLInputElement).value;
+                const installedByTechnicianName = (form.elements.namedItem('installedByTechnicianName') as HTMLInputElement).value;
+                const notes = (form.elements.namedItem('notes') as HTMLTextAreaElement).value;
+
+                const updatedPassport: CrmObjectPassport = {
+                  ...selectedPassportForDetail,
+                  objectName,
+                  customerName,
+                  customerPhone,
+                  address,
+                  objectType,
+                  installationStage,
+                  mapLocationUrl: mapLocationUrl || undefined,
+                  dvrModel: dvrModel || undefined,
+                  dvrSerialNumber: dvrSerialNumber || undefined,
+                  dvrCloudId: dvrCloudId || undefined,
+                  dvrAdminLogin: dvrAdminLogin || 'admin',
+                  dvrAdminPassword: dvrAdminPassword || undefined,
+                  hddCapacity: hddCapacity || undefined,
+                  warrantyMonths,
+                  cablingTechnicianName: cablingTechnicianName || undefined,
+                  installedByTechnicianName: installedByTechnicianName || undefined,
+                  notes: notes || undefined
+                };
+
+                onUpdateObjectPassport(updatedPassport);
+                setSelectedPassportForDetail(null);
+              }}
+              className="space-y-4 text-xs"
+            >
+              {/* Stage selector */}
+              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5">
+                <label className="block text-slate-300 font-bold">Obyekt Bosqichi (Montaj Holati):</label>
+                <select
+                  name="installationStage"
+                  defaultValue={selectedPassportForDetail.installationStage || 'cabling_phase'}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white font-bold focus:border-teal-500 focus:outline-none"
+                >
+                  <option value="cabling_phase">🔌 1-Bosqich: Kabel montaji (Chernovoy davr)</option>
+                  <option value="devices_phase">📹 2-Bosqich: Qurilmalar montaji (Chistovoy davr)</option>
+                  <option value="fully_completed">✅ To'liq montaj topshirilgan & Faol</option>
+                  <option value="maintenance">🛠️ Servis & Rejali profilaktika</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Obyekt Nomi *</label>
+                  <input
+                    name="objectName"
+                    required
+                    defaultValue={selectedPassportForDetail.objectName}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Obyekt Turi</label>
+                  <select
+                    name="objectType"
+                    defaultValue={selectedPassportForDetail.objectType}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none"
+                  >
+                    <option value="dokon">Do'kon / Savdo</option>
+                    <option value="xonadon">Hovli / Xonadon</option>
+                    <option value="ofis">Ofis / Biznes</option>
+                    <option value="ombor_zavod">Omborxona / Zavod</option>
+                    <option value="boshqa">Boshqa</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Mijoz Ismi *</label>
+                  <input
+                    name="customerName"
+                    required
+                    defaultValue={selectedPassportForDetail.customerName}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Telefon *</label>
+                  <input
+                    name="customerPhone"
+                    required
+                    defaultValue={selectedPassportForDetail.customerPhone}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">To'liq Manzil</label>
+                <input
+                  name="address"
+                  required
+                  defaultValue={selectedPassportForDetail.address}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Xarita / Lokatsiya URL</label>
+                <input
+                  name="mapLocationUrl"
+                  defaultValue={selectedPassportForDetail.mapLocationUrl || ''}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none"
+                />
+              </div>
+
+              {/* DVR Credentials & Info */}
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <p className="font-bold text-teal-400">DVR / NVR Registrator Sozlamalari</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">Registrator Modeli</label>
+                    <input
+                      name="dvrModel"
+                      defaultValue={selectedPassportForDetail.dvrModel || ''}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">Registrator S/N</label>
+                    <input
+                      name="dvrSerialNumber"
+                      defaultValue={selectedPassportForDetail.dvrSerialNumber || ''}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white focus:border-teal-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-slate-400 mb-1">Cloud ID</label>
+                    <input
+                      name="dvrCloudId"
+                      defaultValue={selectedPassportForDetail.dvrCloudId || ''}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white focus:border-teal-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">Admin Login</label>
+                    <input
+                      name="dvrAdminLogin"
+                      defaultValue={selectedPassportForDetail.dvrAdminLogin || 'admin'}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white focus:border-teal-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">Admin Parol</label>
+                    <input
+                      name="dvrAdminPassword"
+                      defaultValue={selectedPassportForDetail.dvrAdminPassword || ''}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white focus:border-teal-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">Xotira (HDD)</label>
+                    <input
+                      name="hddCapacity"
+                      defaultValue={selectedPassportForDetail.hddCapacity || ''}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">Kafolat (oy)</label>
+                    <input
+                      name="warrantyMonths"
+                      type="number"
+                      defaultValue={selectedPassportForDetail.warrantyMonths || 24}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white focus:border-teal-500 focus:outline-none font-bold"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Technicians */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">1-Bosqich (Kabel montaj ustasi)</label>
+                  <input
+                    name="cablingTechnicianName"
+                    defaultValue={selectedPassportForDetail.cablingTechnicianName || ''}
+                    placeholder="Masalan: Sardor Aliyev"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">2-Bosqich (Qurilma sozlovchi usta)</label>
+                  <input
+                    name="installedByTechnicianName"
+                    defaultValue={selectedPassportForDetail.installedByTechnicianName || ''}
+                    placeholder="Masalan: Dilshod Karimov"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Texnik Izoh</label>
+                <textarea
+                  name="notes"
+                  rows={2}
+                  defaultValue={selectedPassportForDetail.notes || ''}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                {onDeleteObjectPassport && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm("Ushbu obyekt pasportini va uning barcha 2D sxemalarini o'chirishni tasdiqlaysizmi?")) {
+                        onDeleteObjectPassport(selectedPassportForDetail.id);
+                        setSelectedPassportForDetail(null);
+                      }
+                    }}
+                    className="px-3 py-2 rounded-xl bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 font-bold border border-rose-800/40"
+                  >
+                    O'chirish
+                  </button>
+                )}
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPassportForDetail(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-semibold"
+                  >
+                    Bekor qilish
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow-lg shadow-teal-600/20"
+                  >
+                    O'zgarishlarni Saqlash
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 7: 2D FLOOR PLAN AND BLUEPRINT EDITOR */}
+      {/* ========================================================================= */}
+      {selectedPassportForFloorPlan && (
+        <InteractiveFloorPlanEditor
+          objectPassport={selectedPassportForFloorPlan}
+          onSaveObjectPassport={(updated) => {
+            onUpdateObjectPassport(updated);
+            setSelectedPassportForFloorPlan(null);
+          }}
+          onClose={() => setSelectedPassportForFloorPlan(null)}
+        />
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 8: QR TECHNICAL PASSPORT & THERMAL STICKER */}
+      {/* ========================================================================= */}
+      {selectedPassportForQr && (
+        <ObjectQrPassportModal
+          objectPassport={selectedPassportForQr}
+          onSaveObjectPassport={(updated) => {
+            onUpdateObjectPassport(updated);
+            setSelectedPassportForQr(null);
+          }}
+          onClose={() => setSelectedPassportForQr(null)}
+        />
       )}
 
       {/* AI CRM & Smeta Assistant Modal */}
