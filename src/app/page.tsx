@@ -1687,13 +1687,118 @@ export default function Home() {
     showToast(`✓ Mijozga +${amount.toLocaleString()} so'm cashback qo'shildi!`);
   };
 
-  // Add Expense or Income (Prixod & Rasxod)
+  // Add Expense or Income (Prixod & Rasxod) with Automatic Counterparty Debt Deduction
   const handleAddExpense = (newExp: Expense) => {
     setExpenses((prev) => [newExp, ...prev]);
+
     if (newExp.type === 'income') {
-      showToast(`✓ Pul kirimi (Prixod) kiritildi: ${newExp.amount.toLocaleString()} so'm (${newExp.category})`);
+      // 1. Check if payment belongs to a customer and reduce customer's debt
+      const targetCustomer = customers.find(c => 
+        (newExp.customerId && c.id === newExp.customerId) ||
+        (newExp.customerName && (c.fullName.toLowerCase() === newExp.customerName.toLowerCase() || c.fullName.toLowerCase().includes(newExp.customerName.toLowerCase()) || newExp.customerName.toLowerCase().includes(c.fullName.toLowerCase()))) ||
+        (newExp.paidBy && (c.fullName.toLowerCase() === newExp.paidBy.toLowerCase() || c.fullName.toLowerCase().includes(newExp.paidBy.toLowerCase()) || newExp.paidBy.toLowerCase().includes(c.fullName.toLowerCase())))
+      );
+
+      if (targetCustomer) {
+        const oldDebt = targetCustomer.debtBalance || 0;
+        const newDebtUZS = Math.max(0, oldDebt - newExp.amount);
+        const newDebtUSD = Number((newDebtUZS / exchangeRate).toFixed(2));
+
+        // Update customer debt balance
+        setCustomers((prev) =>
+          prev.map((c) =>
+            c.id === targetCustomer.id
+              ? {
+                  ...c,
+                  debtBalance: newDebtUZS,
+                  debtBalanceUSD: newDebtUSD
+                }
+              : c
+          )
+        );
+
+        // Record customer debt payment entry
+        if (oldDebt > 0) {
+          const debtPaymentRecord: CustomerDebtPayment = {
+            id: `cdp-${Date.now()}`,
+            paymentNumber: `QP-${Math.floor(1000 + Math.random() * 9000)}`,
+            createdAt: getNowFormatted(),
+            customerId: targetCustomer.id,
+            customerName: targetCustomer.fullName,
+            customerPhone: targetCustomer.phone,
+            amountUZS: newExp.amount,
+            amountUSD: newExp.amountUSD || Number((newExp.amount / exchangeRate).toFixed(2)),
+            currencyPaid: (newExp.currency as 'UZS' | 'USD') || 'UZS',
+            paymentMethod: newExp.paymentSource === 'Kassa (Naqd)' ? 'cash' : (newExp.paymentSource === 'Valyuta (Naqd USD)' ? 'cashUSD' : 'card'),
+            exchangeRate: exchangeRate,
+            previousDebtUZS: oldDebt,
+            remainingDebtUZS: newDebtUZS,
+            receiptNumber: newExp.linkedDocNumber,
+            notes: newExp.notes || `Pul kirimi orqali qarz to'lovi`,
+            cashierName: newExp.createdBy || 'Farrux A.'
+          };
+          setCustomerDebtPayments((prev) => [debtPaymentRecord, ...prev]);
+        }
+
+        if (oldDebt > 0) {
+          showToast(`✓ "${targetCustomer.fullName}"ning qarzidan ${newExp.amount.toLocaleString()} so'm yechildi (Qoldiq qarz: ${newDebtUZS.toLocaleString()} so'm)`);
+        } else {
+          showToast(`✓ "${targetCustomer.fullName}"dan pul kirimi kiritildi: ${newExp.amount.toLocaleString()} so'm`);
+        }
+      } else {
+        showToast(`✓ Pul kirimi (Prixod) kiritildi: ${newExp.amount.toLocaleString()} so'm (${newExp.category})`);
+      }
     } else {
-      showToast(`✓ Xarajat (Chiqim) kiritildi: ${newExp.amount.toLocaleString()} so'm (${newExp.category})`);
+      // 2. Check if expense was paid to a supplier and reduce supplier's outstanding invoice debts
+      if (newExp.paidTo) {
+        let remainingDeduction = newExp.amount;
+        let supplierDebtReduced = false;
+
+        setPurchases((prev) =>
+          prev.map((p) => {
+            // Match specific invoice or match supplier name
+            const isSpecificInvoice = newExp.linkedDocId ? p.id === newExp.linkedDocId : (newExp.linkedDocNumber ? p.invoiceNumber === newExp.linkedDocNumber : false);
+            const isSupplierMatch = p.supplierName && (
+              p.supplierName.toLowerCase().includes(newExp.paidTo!.toLowerCase()) ||
+              newExp.paidTo!.toLowerCase().includes(p.supplierName.toLowerCase())
+            );
+
+            if ((isSpecificInvoice || isSupplierMatch) && remainingDeduction > 0) {
+              const currentDebt = p.debtAmount !== undefined && p.debtAmount > 0 
+                ? p.debtAmount 
+                : (p.paymentStatus === 'debt' ? p.totalAmount : Math.max(0, p.totalAmount - (p.paidAmount || 0)));
+
+              if (currentDebt > 0) {
+                const deductAmount = isSpecificInvoice ? Math.min(currentDebt, newExp.amount) : Math.min(currentDebt, remainingDeduction);
+                remainingDeduction -= deductAmount;
+                supplierDebtReduced = true;
+
+                const newDebt = Math.max(0, currentDebt - deductAmount);
+                const newPaid = (p.paidAmount || 0) + deductAmount;
+                const newDebtUSD = Number((newDebt / (p.exchangeRate || exchangeRate)).toFixed(2));
+                const status = newDebt === 0 ? ('paid' as const) : ('partial' as const);
+
+                return {
+                  ...p,
+                  paidAmount: newPaid,
+                  debtAmount: newDebt,
+                  debtAmountUSD: newDebtUSD,
+                  paymentStatus: status
+                };
+              }
+            }
+            return p;
+          })
+        );
+
+        if (supplierDebtReduced) {
+          showToast(`✓ "${newExp.paidTo}" ta'minotchisiga ${newExp.amount.toLocaleString()} so'm to'landi va qarzimiz kamaytirildi!`);
+        } else {
+          showToast(`✓ Xarajat (Chiqim) kiritildi: ${newExp.amount.toLocaleString()} so'm (${newExp.category})`);
+        }
+      } else {
+        showToast(`✓ Xarajat (Chiqim) kiritildi: ${newExp.amount.toLocaleString()} so'm (${newExp.category})`);
+      }
     }
   };
 
