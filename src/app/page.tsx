@@ -308,7 +308,7 @@ export default function Home() {
   // Helper to push central snapshot to server
   const pushDataToCloud = async (overrideData?: any) => {
     try {
-      const payload = overrideData || {
+      const payload = {
         products,
         productCategories,
         customers,
@@ -325,7 +325,8 @@ export default function Home() {
         advances,
         handovers,
         exchangeRate,
-        baseCurrency
+        baseCurrency,
+        ...(overrideData || {})
       };
       const res = await fetch('/api/sync', {
         method: 'POST',
@@ -1604,30 +1605,70 @@ export default function Home() {
 
   // Add Product
   const handleAddProduct = (newProd: Product) => {
-    setProducts((prev) => [newProd, ...prev]);
+    let nextList: Product[] = [];
+    setProducts((prev) => {
+      nextList = [newProd, ...prev];
+      return nextList;
+    });
+    const finalProducts = nextList.length > 0 ? nextList : [newProd, ...products];
+    try {
+      localStorage.setItem('sc_products', JSON.stringify(finalProducts));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ products: finalProducts });
     showToast(`✓ "${newProd.name}" omborga muvaffaqiyatli qo'shildi.`);
   };
 
   // Update Stock
   const handleUpdateStock = (productId: string, newStock: number) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, stockQuantity: newStock } : p))
-    );
+    let nextList: Product[] = [];
+    setProducts((prev) => {
+      nextList = prev.map((p) => (p.id === productId ? { ...p, stockQuantity: newStock } : p));
+      return nextList;
+    });
+    const finalProducts = nextList.length > 0 ? nextList : products.map((p) => (p.id === productId ? { ...p, stockQuantity: newStock } : p));
+    try {
+      localStorage.setItem('sc_products', JSON.stringify(finalProducts));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ products: finalProducts });
     showToast("✓ Ombordagi qoldiq yangilandi.");
   };
 
   // Update Product (Redakt qilish)
   const handleUpdateProduct = (updatedProduct: Product) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
-    );
+    let nextList: Product[] = [];
+    setProducts((prev) => {
+      nextList = prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
+      return nextList;
+    });
+    const finalProducts = nextList.length > 0 ? nextList : products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
+    try {
+      localStorage.setItem('sc_products', JSON.stringify(finalProducts));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ products: finalProducts });
     showToast(`✓ "${updatedProduct.name}" tahrirlandi.`);
   };
 
   // Delete Product (O'chirish)
   const handleDeleteProduct = (productId: string) => {
     const prod = products.find((p) => p.id === productId);
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    let nextList: Product[] = [];
+    setProducts((prev) => {
+      nextList = prev.filter((p) => p.id !== productId);
+      return nextList;
+    });
+    const finalProducts = nextList.length > 0 || products.length === 1 ? nextList : products.filter((p) => p.id !== productId);
+    try {
+      localStorage.setItem('sc_products', JSON.stringify(finalProducts));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ products: finalProducts });
     showToast(`✓ "${prod?.name || 'Tovar'}" ombordan o'chirildi.`);
   };
 
@@ -1641,6 +1682,12 @@ export default function Home() {
       return [invoice, ...prev];
     });
     setProducts(updatedProducts);
+    try {
+      localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ products: updatedProducts });
     showToast(`✓ Kirim nakladnoyi #${invoice.invoiceNumber} saqlandi va ombor qoldig'i yangilandi!`);
   };
 

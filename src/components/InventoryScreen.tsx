@@ -252,7 +252,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
 
   const handleCreateProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName || !newRetailPrice) return;
+    if (!newName.trim()) return;
 
     let parsedSerials: string[] = [];
     let finalStock = newStock;
@@ -349,7 +349,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
 
   const handleSaveEditedProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingProduct || !editName || !editRetailPrice) return;
+    if (!editingProduct || !editName.trim()) return;
 
     let parsedSerials: string[] = [];
     let finalStock = editStock;
