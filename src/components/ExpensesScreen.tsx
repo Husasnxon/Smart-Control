@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Expense, 
   ExpenseCategory, 
@@ -12,9 +12,11 @@ import {
   ShipmentOrder, 
   CustomerOrder, 
   Customer,
+  PurchaseInvoice,
   ActiveTab 
 } from '../types';
 import { formatDualMoney, formatMoney, formatUSDNumber, formatNumberWithSpaces, getNowFormatted } from '../utils/formatters';
+import { DEFAULT_SUPPLIERS } from '../data/mockData';
 import { EmployeesScreen } from './EmployeesScreen';
 import { 
   DollarSign, 
@@ -25,7 +27,7 @@ import {
   ArrowUpRight,
   ArrowLeftRight,
   TrendingDown, 
-  TrendingUp,
+  TrendingUp, 
   Wallet, 
   CreditCard, 
   Banknote,
@@ -74,6 +76,7 @@ interface ExpensesScreenProps {
   shipments?: ShipmentOrder[];
   customerOrders?: CustomerOrder[];
   customers?: Customer[];
+  purchases?: PurchaseInvoice[];
   onAddEmployee?: (emp: Employee) => void;
   onUpdateEmployee?: (emp: Employee) => void;
   onDeleteEmployee?: (empId: string) => void;
@@ -101,6 +104,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   shipments = [],
   customerOrders = [],
   customers = [],
+  purchases = [],
   onAddEmployee,
   onUpdateEmployee,
   onDeleteEmployee,
@@ -123,6 +127,20 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   const [isCategoryManageModalOpen, setIsCategoryManageModalOpen] = useState(false);
   const [selectedVoucherExpense, setSelectedVoucherExpense] = useState<Expense | null>(null);
 
+  // Keyboard Escape listener to close modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        setIsAddIncomeModalOpen(false);
+        setIsAddExpenseModalOpen(false);
+        setIsCategoryManageModalOpen(false);
+        setSelectedVoucherExpense(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // New Income form state
   const [incomeAmount, setIncomeAmount] = useState<number>(0);
   const [incomeCurrency, setIncomeCurrency] = useState<Currency>('UZS');
@@ -136,6 +154,12 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
 
   // New Expense form state
+  const [expenseLinkMode, setExpenseLinkMode] = useState<'supplier' | 'general'>('supplier');
+  const [selectedSupplierName, setSelectedSupplierName] = useState<string>('');
+  const [supplierSearchQuery, setSupplierSearchQuery] = useState<string>('');
+  const [expenseSupplierLinkType, setExpenseSupplierLinkType] = useState<'purchase' | 'direct'>('purchase');
+  const [selectedPurchaseId, setSelectedPurchaseId] = useState<string>('');
+  const [purchaseSearchQuery, setPurchaseSearchQuery] = useState<string>('');
   const [expenseAmount, setExpenseAmount] = useState<number>(0);
   const [expenseCurrency, setExpenseCurrency] = useState<Currency>('UZS');
   const [expenseCategory, setExpenseCategory] = useState<string>(
@@ -218,6 +242,128 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
     }
     return list;
   }, [customerOrders, selectedCustomerId, customers]);
+
+  // List of all suppliers for expense modal
+  const allSuppliersList = useMemo(() => {
+    const list: string[] = [];
+    DEFAULT_SUPPLIERS.forEach(s => {
+      if (!list.includes(s)) list.push(s);
+    });
+    (purchases || []).forEach(p => {
+      if (p.supplierName && !list.includes(p.supplierName)) {
+        list.push(p.supplierName);
+      }
+    });
+    return list;
+  }, [purchases]);
+
+  // Filtered suppliers for expense search
+  const filteredSuppliersForExpense = useMemo(() => {
+    if (!supplierSearchQuery.trim()) return allSuppliersList;
+    const q = supplierSearchQuery.toLowerCase();
+    return allSuppliersList.filter(s => s.toLowerCase().includes(q));
+  }, [allSuppliersList, supplierSearchQuery]);
+
+  // Selected supplier stats (total debt / haqqi, total purchases)
+  const selectedSupplierStats = useMemo(() => {
+    if (!selectedSupplierName) return { totalDebtUZS: 0, totalDebtUSD: 0, totalPurchasesUZS: 0, invoicesCount: 0 };
+    const supplierInvs = (purchases || []).filter(p => 
+      p.supplierName?.toLowerCase().includes(selectedSupplierName.toLowerCase()) ||
+      selectedSupplierName.toLowerCase().includes(p.supplierName?.toLowerCase())
+    );
+    const totalPurchasesUZS = supplierInvs.reduce((sum, p) => sum + p.totalAmount, 0);
+    const totalDebtUZS = supplierInvs.reduce((sum, p) => {
+      if (p.debtAmount !== undefined && p.debtAmount > 0) return sum + p.debtAmount;
+      if (p.paymentStatus === 'debt') return sum + p.totalAmount;
+      if (p.paymentStatus === 'partial') return sum + Math.max(0, p.totalAmount - (p.paidAmount || 0));
+      return sum;
+    }, 0);
+    const totalDebtUSD = Number((totalDebtUZS / exchangeRate).toFixed(2));
+    return {
+      totalDebtUZS,
+      totalDebtUSD,
+      totalPurchasesUZS,
+      invoicesCount: supplierInvs.length
+    };
+  }, [purchases, selectedSupplierName, exchangeRate]);
+
+  // Selected supplier purchases list (Priyomkalar)
+  const selectedSupplierPurchasesList = useMemo(() => {
+    if (!selectedSupplierName) return [];
+    let list = (purchases || []).filter(p => 
+      p.supplierName?.toLowerCase().includes(selectedSupplierName.toLowerCase()) ||
+      selectedSupplierName.toLowerCase().includes(p.supplierName?.toLowerCase())
+    );
+    if (purchaseSearchQuery.trim()) {
+      const q = purchaseSearchQuery.toLowerCase();
+      list = list.filter(p => 
+        p.invoiceNumber.toLowerCase().includes(q) || 
+        p.supplierInvoiceNumber?.toLowerCase().includes(q) ||
+        p.notes?.toLowerCase().includes(q) ||
+        p.items.some(item => item.productName.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [purchases, selectedSupplierName, purchaseSearchQuery]);
+
+  const handleSelectSupplier = (supName: string) => {
+    setSelectedSupplierName(supName);
+    setExpensePaidTo(supName);
+    setSupplierSearchQuery('');
+
+    // Check if this supplier has invoices
+    const supInvs = (purchases || []).filter(p => 
+      p.supplierName?.toLowerCase().includes(supName.toLowerCase()) ||
+      supName.toLowerCase().includes(p.supplierName?.toLowerCase())
+    );
+
+    const debtInv = supInvs.find(p => (p.debtAmount && p.debtAmount > 0) || p.paymentStatus === 'debt' || p.paymentStatus === 'partial');
+
+    if (debtInv) {
+      setExpenseSupplierLinkType('purchase');
+      handleSelectPurchaseForExpense(debtInv.id, supName);
+    } else if (supInvs.length > 0) {
+      setExpenseSupplierLinkType('purchase');
+      handleSelectPurchaseForExpense(supInvs[0].id, supName);
+    } else {
+      setExpenseSupplierLinkType('direct');
+      setSelectedPurchaseId('');
+      setExpenseCategory('Ta\'minotchiga to\'lov');
+      setExpenseNotes(`${supName} ta'minotchisiga to'lov`);
+    }
+  };
+
+  const handleClearSupplier = () => {
+    setSelectedSupplierName('');
+    setExpensePaidTo('');
+    setSelectedPurchaseId('');
+    setExpenseAmount(0);
+    setExpenseNotes('');
+    setExpenseSupplierLinkType('direct');
+  };
+
+  const handleSelectPurchaseForExpense = (purchId: string, currentSupName?: string) => {
+    setSelectedPurchaseId(purchId);
+    const purch = (purchases || []).find(p => p.id === purchId);
+    if (purch) {
+      const sup = purch.supplierName || currentSupName || selectedSupplierName;
+      setExpensePaidTo(sup);
+      setExpenseCategory('Ta\'minotchiga to\'lov');
+      setExpenseNotes(`${purch.invoiceNumber} priyomkasi bo'yicha to'lov (${sup})`);
+      
+      const unpaidUZS = purch.debtAmount !== undefined && purch.debtAmount > 0 
+        ? purch.debtAmount 
+        : (purch.paymentStatus === 'debt' ? purch.totalAmount : (purch.totalAmount - (purch.paidAmount || 0) > 0 ? purch.totalAmount - (purch.paidAmount || 0) : purch.totalAmount));
+      
+      if (purch.currency === 'USD' && purch.debtAmountUSD) {
+        setExpenseAmount(purch.debtAmountUSD * exchangeRate);
+        setExpenseCurrency('UZS');
+      } else {
+        setExpenseAmount(unpaidUZS || purch.totalAmount);
+        setExpenseCurrency(purch.currency || 'UZS');
+      }
+    }
+  };
 
   const handleSelectCustomer = (cust: Customer) => {
     setSelectedCustomerId(cust.id);
@@ -453,6 +599,25 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
     e.preventDefault();
     if (!expenseAmount || expenseAmount <= 0) return;
 
+    let linkedDocType: Expense['linkedDocType'] = undefined;
+    let linkedDocId: string | undefined = undefined;
+    let linkedDocNumber: string | undefined = undefined;
+    let targetPaidTo = expensePaidTo;
+
+    if (expenseLinkMode === 'supplier') {
+      if (expenseSupplierLinkType === 'purchase' && selectedPurchaseId) {
+        const purch = (purchases || []).find(p => p.id === selectedPurchaseId);
+        if (purch) {
+          linkedDocType = 'other';
+          linkedDocId = purch.id;
+          linkedDocNumber = purch.invoiceNumber;
+          targetPaidTo = purch.supplierName || targetPaidTo;
+        }
+      } else if (selectedSupplierName) {
+        targetPaidTo = selectedSupplierName;
+      }
+    }
+
     const calculatedAmount = expenseCurrency === 'USD' ? expenseAmount * exchangeRate : expenseAmount;
     const calculatedAmountUSD = expenseCurrency === 'USD' ? expenseAmount : Number((expenseAmount / exchangeRate).toFixed(2));
 
@@ -464,10 +629,13 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
       amountUSD: calculatedAmountUSD,
       currency: expenseCurrency,
       paymentSource: expensePaymentSource,
-      paidTo: expensePaidTo || 'Noma\'lum',
+      paidTo: targetPaidTo || 'Noma\'lum',
       notes: expenseNotes || 'Izohsiz chiqim',
       createdAt: getNowFormatted(),
-      createdBy: 'Farrux A. (Kassir)'
+      createdBy: 'Farrux A. (Kassir)',
+      linkedDocType,
+      linkedDocId,
+      linkedDocNumber
     };
 
     onAddExpense(newExp);
@@ -475,6 +643,9 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
     setExpenseAmount(0);
     setExpensePaidTo('');
     setExpenseNotes('');
+    setSelectedSupplierName('');
+    setSelectedPurchaseId('');
+    setExpenseSupplierLinkType('purchase');
   };
 
   // Handle adding category
@@ -1022,42 +1193,70 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                     </div>
 
                     {selectedCustomerObj ? (
-                      /* Selected Customer Banner */
-                      <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 animate-in fade-in duration-150">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
-                            {selectedCustomerObj.fullName.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
-                                {selectedCustomerObj.fullName}
-                              </span>
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
-                                {selectedCustomerObj.tier || 'Mijoz'}
-                              </span>
+                      /* Selected Customer Banner with PROMINENT DEBT STATUS */
+                      <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2.5 animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+                              {selectedCustomerObj.fullName.slice(0, 2).toUpperCase()}
                             </div>
-                            <div className="text-[11px] text-slate-500 flex items-center gap-3 mt-0.5">
-                              <span>📞 {selectedCustomerObj.phone}</span>
-                              {selectedCustomerObj.debtBalance && selectedCustomerObj.debtBalance > 0 ? (
-                                <span className="font-bold text-rose-600 dark:text-rose-400">
-                                  Nasiya qarzi: {formatNumberWithSpaces(selectedCustomerObj.debtBalance)} so&apos;m
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                                  {selectedCustomerObj.fullName}
                                 </span>
-                              ) : (
-                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Qarzi yo&apos;q</span>
-                              )}
+                                <span className="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                  {selectedCustomerObj.tier || 'Mijoz'}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 flex items-center gap-3 mt-0.5">
+                                <span>📞 {selectedCustomerObj.phone}</span>
+                                {selectedCustomerObj.address && (
+                                  <span className="truncate hidden sm:inline">&bull; 📍 {selectedCustomerObj.address}</span>
+                                )}
+                              </div>
                             </div>
                           </div>
+
+                          <button
+                            type="button"
+                            onClick={handleClearCustomer}
+                            className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-rose-500 transition shrink-0"
+                            title="Mijozni bekor qilish"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={handleClearCustomer}
-                          className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-rose-500 transition shrink-0"
-                          title="Mijozni bekor qilish"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        {/* PROMINENT CUSTOMER DEBT / BALANCE CARD */}
+                        <div className={`p-2.5 rounded-xl flex items-center justify-between gap-2 text-xs font-bold ${
+                          selectedCustomerObj.debtBalance && selectedCustomerObj.debtBalance > 0
+                            ? 'bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300'
+                            : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            {selectedCustomerObj.debtBalance && selectedCustomerObj.debtBalance > 0 ? (
+                              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            )}
+                            <span>
+                              {selectedCustomerObj.debtBalance && selectedCustomerObj.debtBalance > 0
+                                ? "Mijozning nasiya qarzi (Bizning haqimiz):"
+                                : "Mijozning qarzdorligi yo'q (Hisob toza)"}
+                            </span>
+                          </div>
+                          {selectedCustomerObj.debtBalance && selectedCustomerObj.debtBalance > 0 && (
+                            <div className="text-right shrink-0">
+                              <span className="font-mono font-black text-sm">
+                                {formatMoney(selectedCustomerObj.debtBalance, baseCurrency, exchangeRate)}
+                              </span>
+                              <span className="text-[10px] text-rose-500 font-mono block">
+                                (${formatUSDNumber(selectedCustomerObj.debtBalanceUSD || selectedCustomerObj.debtBalance / exchangeRate)})
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       /* Customer Search Input & List */
@@ -1425,137 +1624,510 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
           )}
 
           {/* ========================================================================= */}
-          {/* MODAL 2: ADD EXPENSE (RASXOD) MODAL */}
+          {/* MODAL 2: ADD EXPENSE (RASXOD) MODAL WITH SUPPLIER & PRIYOMKA INTEGRATION */}
           {/* ========================================================================= */}
           {isAddExpenseModalOpen && (
-            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+                {/* Modal Header */}
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <TrendingDown className="w-5 h-5 text-rose-500" />
-                    Yangi Xarajat (Chiqim / Rasxod) Kiritish
-                  </h3>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 font-bold shadow-sm">
+                      <ArrowDownRight className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 dark:text-white">
+                        Yangi Chiqim (Xarajat / Rasxod) Kiritish
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Ta&apos;minotchi qarzini yopish, priyomkaga to&apos;lov yoki oddiy xarajat
+                      </p>
+                    </div>
+                  </div>
                   <button
-                    onClick={() => setIsAddExpenseModalOpen(false)}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    onClick={() => {
+                      setIsAddExpenseModalOpen(false);
+                      handleClearSupplier();
+                    }}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <form onSubmit={handleCreateExpense} className="space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="col-span-2">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Xarajat Summasi *</label>
-                      <input
-                        type="number"
-                        required
-                        min="1"
-                        placeholder="Masalan: 120 000"
-                        value={expenseAmount || ''}
-                        onChange={(e) => setExpenseAmount(Number(e.target.value))}
-                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold font-mono text-rose-600 dark:text-rose-400 focus:ring-2 focus:ring-rose-500/40"
+                {/* Primary Mode Switcher: Ta'minotchiga to'lov vs Boshqa xarajat */}
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpenseLinkMode('supplier');
+                      setExpenseCategory('Ta\'minotchiga to\'lov');
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 ${
+                      expenseLinkMode === 'supplier'
+                        ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-md'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    <Building className="w-4 h-4" />
+                    <span>🏢 Ta&apos;minotchi to&apos;lovi</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpenseLinkMode('general');
+                      handleClearSupplier();
+                      setExpenseCategory(expenseCategories[0]?.name || 'Mayda xo\'jalik');
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 ${
+                      expenseLinkMode === 'general'
+                        ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-md'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    <Wallet className="w-4 h-4" />
+                    <span>💼 Boshqa xarajat (OPEX)</span>
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreateExpense} className="space-y-4">
+                  {/* ======================================================== */}
+                  {/* FLOW 1: SUPPLIER PAYMENT (TA'MINOTCHIGA TO'LOV) */}
+                  {/* ======================================================== */}
+                  {expenseLinkMode === 'supplier' && (
+                    <>
+                      {/* STEP 1: SELECT SUPPLIER */}
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                            <Building className="w-4 h-4 text-rose-500" />
+                            1. Ta&apos;minotchini Tanlang *
+                          </label>
+                          {selectedSupplierName && (
+                            <button
+                              type="button"
+                              onClick={handleClearSupplier}
+                              className="text-[11px] font-bold text-rose-500 hover:underline flex items-center gap-1"
+                            >
+                              <X className="w-3.5 h-3.5" /> Boshqa ta&apos;minotchini tanlash
+                            </button>
+                          )}
+                        </div>
+
+                        {selectedSupplierName ? (
+                          /* Selected Supplier Banner with LIVE DEBT BALANCE */
+                          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 space-y-2 animate-in fade-in duration-150">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+                                  {selectedSupplierName.slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                                      {selectedSupplierName}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded text-[9px] font-black bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                      Ta&apos;minotchi
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                    <span>📦 Jami priyomkalar: {selectedSupplierStats.invoicesCount} ta</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={handleClearSupplier}
+                                className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-rose-500 transition shrink-0"
+                                title="Bekor qilish"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {/* PROMINENT SUPPLIER DEBT / BALANCE CARD */}
+                            <div className={`p-2.5 rounded-xl flex items-center justify-between gap-2 text-xs font-bold ${
+                              selectedSupplierStats.totalDebtUZS > 0
+                                ? 'bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300'
+                                : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                {selectedSupplierStats.totalDebtUZS > 0 ? (
+                                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                                ) : (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                )}
+                                <span>
+                                  {selectedSupplierStats.totalDebtUZS > 0
+                                    ? "Bizning qarzimiz (Ularning haqqi):"
+                                    : "Bizning qarzimiz yo'q (To'liq hisob-kitob qilingan)"}
+                                </span>
+                              </div>
+                              {selectedSupplierStats.totalDebtUZS > 0 && (
+                                <div className="text-right shrink-0">
+                                  <span className="font-mono font-black text-sm">
+                                    {formatMoney(selectedSupplierStats.totalDebtUZS, baseCurrency, exchangeRate)}
+                                  </span>
+                                  <span className="text-[10px] text-rose-500 font-mono block">
+                                    (${formatUSDNumber(selectedSupplierStats.totalDebtUSD)})
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          /* Supplier Search Input & List */
+                          <div className="space-y-2">
+                            <div className="relative">
+                              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="text"
+                                placeholder="Ta'minotchi korxona nomi bo'yicha qidirish (masalan: Hikvision, Dahua, Malohat)..."
+                                value={supplierSearchQuery}
+                                onChange={(e) => setSupplierSearchQuery(e.target.value)}
+                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/40"
+                              />
+                            </div>
+
+                            {/* Filtered Suppliers List with Debt Badges */}
+                            <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                              {filteredSuppliersForExpense.map((sName) => {
+                                const supInvs = (purchases || []).filter(p => 
+                                  p.supplierName?.toLowerCase().includes(sName.toLowerCase()) ||
+                                  sName.toLowerCase().includes(p.supplierName?.toLowerCase())
+                                );
+                                const debtVal = supInvs.reduce((sum, p) => {
+                                  if (p.debtAmount !== undefined && p.debtAmount > 0) return sum + p.debtAmount;
+                                  if (p.paymentStatus === 'debt') return sum + p.totalAmount;
+                                  if (p.paymentStatus === 'partial') return sum + Math.max(0, p.totalAmount - (p.paidAmount || 0));
+                                  return sum;
+                                }, 0);
+
+                                return (
+                                  <button
+                                    key={sName}
+                                    type="button"
+                                    onClick={() => handleSelectSupplier(sName)}
+                                    className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-slate-200 dark:border-slate-800 hover:border-rose-500/40 flex items-center justify-between text-left transition group"
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className="w-7 h-7 rounded-lg bg-slate-200 dark:bg-slate-800 group-hover:bg-rose-600 group-hover:text-white flex items-center justify-center font-bold text-xs text-slate-700 dark:text-slate-300 transition shrink-0">
+                                        <Building className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <span className="font-bold text-xs text-slate-900 dark:text-white block truncate">
+                                          {sName}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 block truncate">
+                                          {supInvs.length > 0 ? `${supInvs.length} ta priyomka nakladnoy` : "Yangi ta'minotchi"}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div className="text-right shrink-0">
+                                      {debtVal > 0 ? (
+                                        <span className="text-[10px] font-mono font-bold text-rose-600 dark:text-rose-400 block">
+                                          Qarz: {formatMoney(debtVal, baseCurrency, exchangeRate)}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-emerald-500 font-semibold block">
+                                          Hisob toza &rarr;
+                                        </span>
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* STEP 2: LINK TO SPECIFIC PRIYOMKA (OR DIRECT SUPPLIER PAYMENT) */}
+                      {selectedSupplierName && (
+                        <div className="p-3.5 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/80 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <label className="text-xs font-black uppercase tracking-wider text-rose-900 dark:text-rose-200 flex items-center gap-1.5">
+                              <Package className="w-4 h-4 text-rose-500 shrink-0" />
+                              <span>2. Priyomka (Kirim cheki)ga bog&apos;lash</span>
+                            </label>
+                            <span className="text-[10px] bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200 font-bold px-2 py-0.5 rounded-full shrink-0">
+                              {selectedSupplierPurchasesList.length} ta priyomka
+                            </span>
+                          </div>
+
+                          {/* Link Mode Switcher */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <button
+                              type="button"
+                              onClick={() => setExpenseSupplierLinkType('purchase')}
+                              className={`py-1.5 px-3 rounded-xl font-bold border transition flex items-center justify-center gap-1.5 ${
+                                expenseSupplierLinkType === 'purchase'
+                                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                              }`}
+                            >
+                              <Package className="w-3.5 h-3.5" />
+                              <span>📦 Priyomkaga bog&apos;lash</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpenseSupplierLinkType('direct');
+                                setSelectedPurchaseId('');
+                                setExpenseCategory('Ta\'minotchiga to\'lov');
+                                setExpenseNotes(`${selectedSupplierName} ga umumiy to'lov / avans`);
+                              }}
+                              className={`py-1.5 px-3 rounded-xl font-bold border transition flex items-center justify-center gap-1.5 ${
+                                expenseSupplierLinkType === 'direct'
+                                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                              }`}
+                            >
+                              <span>⛔ Priyomkasiz to&apos;lov</span>
+                            </button>
+                          </div>
+
+                          {/* Purchases Picker */}
+                          {expenseSupplierLinkType === 'purchase' && (
+                            <div className="space-y-2">
+                              <div className="relative">
+                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                  type="text"
+                                  placeholder="Priyomka raqami bo'yicha qidirish (masalan: PR-1001)..."
+                                  value={purchaseSearchQuery}
+                                  onChange={(e) => setPurchaseSearchQuery(e.target.value)}
+                                  className="w-full bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
+                                />
+                              </div>
+
+                              {selectedSupplierPurchasesList.length > 0 ? (
+                                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                                  {selectedSupplierPurchasesList.map((p) => {
+                                    const isSelected = selectedPurchaseId === p.id;
+                                    const unpaidAmount = p.debtAmount !== undefined && p.debtAmount > 0 
+                                      ? p.debtAmount 
+                                      : (p.paymentStatus === 'debt' ? p.totalAmount : 0);
+
+                                    return (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => handleSelectPurchaseForExpense(p.id)}
+                                        className={`w-full p-2.5 rounded-xl border text-left transition flex items-center justify-between ${
+                                          isSelected
+                                            ? 'bg-rose-600 text-white border-rose-600 shadow-md'
+                                            : 'bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <div className={`p-1.5 rounded-lg shrink-0 ${isSelected ? 'bg-rose-700 text-white' : 'bg-rose-500/10 text-rose-600'}`}>
+                                            <Package className="w-4 h-4" />
+                                          </div>
+                                          <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-mono font-black text-xs">
+                                                {p.invoiceNumber}
+                                              </span>
+                                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                                isSelected 
+                                                  ? 'bg-rose-800 text-white' 
+                                                  : p.paymentStatus === 'debt' 
+                                                  ? 'bg-rose-100 text-rose-700' 
+                                                  : p.paymentStatus === 'partial' 
+                                                  ? 'bg-amber-100 text-amber-700' 
+                                                  : 'bg-emerald-100 text-emerald-700'
+                                              }`}>
+                                                {p.paymentStatus === 'debt' ? 'Nasiya' : p.paymentStatus === 'partial' ? 'Qisman' : 'To\'langan'}
+                                              </span>
+                                            </div>
+                                            <span className={`text-[10px] block truncate ${isSelected ? 'text-rose-100' : 'text-slate-400'}`}>
+                                              {p.supplierInvoiceNumber ? `SF: ${p.supplierInvoiceNumber} &bull; ` : ''}{p.createdAt}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <div className="text-right shrink-0">
+                                          <div className={`font-mono font-black text-xs ${isSelected ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
+                                            {formatMoney(p.totalAmount, baseCurrency, exchangeRate)}
+                                          </div>
+                                          {unpaidAmount > 0 && (
+                                            <div className={`text-[10px] font-mono font-bold ${isSelected ? 'text-rose-100' : 'text-rose-600 dark:text-rose-400'}`}>
+                                              Qarz: {formatMoney(unpaidAmount, baseCurrency, exchangeRate)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="p-3 text-center text-xs text-slate-500 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                                  Priyomkalar topilmadi. Priyomkasiz to&apos;lov orqali to&apos;g&apos;ridan-to&apos;g&apos;ri chiqim qilishingiz mumkin.
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* ======================================================== */}
+                  {/* AMOUNT & PAYMENT DETAILS (CHIQIM SUMMASI VA MANBA) */}
+                  {/* ======================================================== */}
+                  <div className="space-y-3 pt-1">
+                    {/* Amount & Currency */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-2">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Chiqim Summasi *</label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          placeholder="Masalan: 4 500 000"
+                          value={expenseAmount || ''}
+                          onChange={(e) => setExpenseAmount(Number(e.target.value))}
+                          className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold font-mono text-rose-600 dark:text-rose-400 focus:ring-2 focus:ring-rose-500/40"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Valyuta</label>
+                        <select
+                          value={expenseCurrency}
+                          onChange={(e) => setExpenseCurrency(e.target.value as Currency)}
+                          className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-bold"
+                        >
+                          <option value="UZS">UZS (So&apos;m)</option>
+                          <option value="USD">USD ($)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Category */}
+                    {expenseLinkMode === 'supplier' ? (
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 dark:text-slate-400">Toifa:</span>
+                          <span className="font-bold text-rose-700 dark:text-rose-300">
+                            🔴 {expenseCategory}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-rose-600/80 font-medium">Avtomatik belgilandi</span>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Xarajat Toifasi</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddExpenseModalOpen(false);
+                              setIsCategoryManageModalOpen(true);
+                              setNewCatType('expense');
+                            }}
+                            className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:underline"
+                          >
+                            + Yangi toifa
+                          </button>
+                        </div>
+                        <select
+                          value={expenseCategory}
+                          onChange={(e) => setExpenseCategory(e.target.value)}
+                          className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium"
+                        >
+                          {expenseCategories.map((c) => (
+                            <option key={c.id} value={c.name}>
+                              🔴 {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Payment Source */}
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Qayerdan to&apos;landi? (Manba)</label>
+                      <div className="grid grid-cols-3 gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setExpensePaymentSource('Kassa (Naqd)')}
+                          className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition ${
+                            expensePaymentSource === 'Kassa (Naqd)'
+                              ? 'bg-amber-500/15 border-amber-500 text-amber-700 dark:text-amber-400'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-500'
+                          }`}
+                        >
+                          <Banknote className="w-3.5 h-3.5" />
+                          Kassa (Naqd)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setExpensePaymentSource('Hisob raqam / Karta')}
+                          className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition ${
+                            expensePaymentSource === 'Hisob raqam / Karta'
+                              ? 'bg-blue-500/15 border-blue-500 text-blue-700 dark:text-blue-400'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-500'
+                          }`}
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          Bank / Karta
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setExpensePaymentSource('Valyuta (Naqd USD)')}
+                          className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition ${
+                            expensePaymentSource === 'Valyuta (Naqd USD)'
+                              ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-400'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-500'
+                          }`}
+                        >
+                          <DollarSign className="w-3.5 h-3.5" />
+                          Valyuta (USD)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Paid To (Only show manual input when general expense) */}
+                    {expenseLinkMode === 'general' && (
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kimga to&apos;landi? (Qabul qiluvchi)</label>
+                        <input
+                          type="text"
+                          placeholder="Masalan: Kuryer Rustam, Sarkor Telecom, Chilonzor SM..."
+                          value={expensePaidTo}
+                          onChange={(e) => setExpensePaidTo(e.target.value)}
+                          className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Izoh va Sababi</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Qisqacha izoh..."
+                        value={expenseNotes}
+                        onChange={(e) => setExpenseNotes(e.target.value)}
+                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
                       />
                     </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Valyuta</label>
-                      <select
-                        value={expenseCurrency}
-                        onChange={(e) => setExpenseCurrency(e.target.value as Currency)}
-                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-bold"
-                      >
-                        <option value="UZS">UZS (So&apos;m)</option>
-                        <option value="USD">USD ($)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Xarajat Toifasi</label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddExpenseModalOpen(false);
-                          setIsCategoryManageModalOpen(true);
-                          setNewCatType('expense');
-                        }}
-                        className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:underline"
-                      >
-                        + Yangi toifa
-                      </button>
-                    </div>
-                    <select
-                      value={expenseCategory}
-                      onChange={(e) => setExpenseCategory(e.target.value)}
-                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium"
-                    >
-                      {expenseCategories.map((c) => (
-                        <option key={c.id} value={c.name}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Qayerdan to&apos;landi? (Manba)</label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      <button
-                        type="button"
-                        onClick={() => setExpensePaymentSource('Kassa (Naqd)')}
-                        className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                          expensePaymentSource === 'Kassa (Naqd)'
-                            ? 'bg-amber-500/10 border-amber-500 text-amber-700 dark:text-amber-400'
-                            : 'border-slate-200 dark:border-slate-700 text-slate-500'
-                        }`}
-                      >
-                        <Banknote className="w-3.5 h-3.5" />
-                        Kassa (Naqd)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setExpensePaymentSource('Hisob raqam / Karta')}
-                        className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                          expensePaymentSource === 'Hisob raqam / Karta'
-                            ? 'bg-blue-500/10 border-blue-500 text-blue-700 dark:text-blue-400'
-                            : 'border-slate-200 dark:border-slate-700 text-slate-500'
-                        }`}
-                      >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        Hisob raqam / Karta
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kimga to&apos;landi? (Qabul qiluvchi)</label>
-                    <input
-                      type="text"
-                      placeholder="Masalan: Kuryer Rustam, Sarkor Telecom..."
-                      value={expensePaidTo}
-                      onChange={(e) => setExpensePaidTo(e.target.value)}
-                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Izoh va Sababi</label>
-                    <textarea
-                      rows={2}
-                      placeholder="Qisqacha izoh..."
-                      value={expenseNotes}
-                      onChange={(e) => setExpenseNotes(e.target.value)}
-                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
-                    />
                   </div>
 
                   <button
                     type="submit"
-                    className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 font-bold text-xs text-white transition mt-3 shadow-lg shadow-rose-600/20 active:scale-95"
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 font-bold text-xs text-white transition mt-3 shadow-lg shadow-rose-600/25 flex items-center justify-center gap-2 active:scale-95"
                   >
-                    Xarajatni Chiqim Qilish
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Xarajatni Chiqim Qilish va Tasdiqlash</span>
                   </button>
                 </form>
               </div>

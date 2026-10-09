@@ -628,6 +628,20 @@ export default function Home() {
     }, 3500);
   };
 
+  // Global Escape key listener to close modals
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        setIsSwitchUserModalOpen(false);
+        setIsZReportOpen(false);
+        setIsGlobalApprovalModalOpen(false);
+        setIsMobileNavOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
   // Login handler
   const handleLoginSuccess = (emp: Employee) => {
     setCurrentUser(emp);
@@ -2405,6 +2419,7 @@ export default function Home() {
               shipments={shipments}
               customerOrders={customerOrders}
               customers={customers}
+              purchases={purchases}
               onAddEmployee={handleAddEmployee}
               onUpdateEmployee={handleUpdateEmployee}
               onDeleteEmployee={handleDeleteEmployee}
@@ -2459,6 +2474,7 @@ export default function Home() {
               shipments={shipments}
               customerOrders={customerOrders}
               customers={customers}
+              purchases={purchases}
               onAddEmployee={handleAddEmployee}
               onUpdateEmployee={handleUpdateEmployee}
               onDeleteEmployee={handleDeleteEmployee}
