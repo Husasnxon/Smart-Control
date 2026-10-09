@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CustomerOrder, 
   ShipmentOrder, 
@@ -142,6 +142,21 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   const [shipmentPaymentMethod, setShipmentPaymentMethod] = useState<'cash' | 'card' | 'debt' | 'usd'>('cash');
   const [assignedTechnicians, setAssignedTechnicians] = useState<AssignedTechnician[]>([]);
   const [shipmentProductSearch, setShipmentProductSearch] = useState('');
+
+  // Global Escape key listener to close any open modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOrderModalOpen(false);
+        setIsShipmentModalOpen(false);
+        setIsHandoverModalOpen(false);
+        setQuotationOrder(null);
+        setIsAddCustomerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Open Order Modal for New or Edit
   const handleOpenNewOrder = () => {
@@ -1549,124 +1564,101 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
               </div>
             </div>
 
-            {/* Document Header Fields (Form) */}
+            {/* Document Header Fields (Streamlined & Clean) */}
             <div className="p-5 overflow-y-auto space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-                {/* Organizatsiya */}
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                    * Организация:
-                  </label>
-                  <input
-                    type="text"
-                    value={formOrganization}
-                    onChange={(e) => setFormOrganization(e.target.value)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-
-                {/* Kontragent (Customer) */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                      * Контрагент (Mijoz):
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddCustomerOpen(true)}
-                      className="text-[10px] text-sky-600 hover:underline font-bold flex items-center gap-0.5"
+              <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Kontragent (Customer) */}
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                        * Mijoz / Buyurtmachi:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddCustomerOpen(true)}
+                        className="text-[10px] text-sky-600 hover:underline font-bold flex items-center gap-0.5"
+                      >
+                        <Plus className="w-3 h-3" /> Yangi mijoz
+                      </button>
+                    </div>
+                    <select
+                      value={formCustomerId}
+                      onChange={(e) => {
+                        setFormCustomerId(e.target.value);
+                        const c = customers.find((cust) => cust.id === e.target.value);
+                        if (c) {
+                          setFormDeliveryAddress(c.phone ? `Tel: ${c.phone}` : '');
+                        }
+                      }}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
                     >
-                      <Plus className="w-3 h-3" /> Yangi
-                    </button>
+                      <option value="">-- Standart Xaridor --</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.fullName} ({c.phone}) - {c.tier}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <select
-                    value={formCustomerId}
-                    onChange={(e) => {
-                      setFormCustomerId(e.target.value);
-                      const c = customers.find((cust) => cust.id === e.target.value);
-                      if (c) {
-                        setFormDeliveryAddress(c.phone ? `Tel: ${c.phone}` : '');
-                      }
-                    }}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
-                  >
-                    <option value="">-- Standart Xaridor --</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.fullName} ({c.phone}) - {c.tier}
-                      </option>
-                    ))}
-                  </select>
+
+                  {/* Valyuta */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      * Hujjat valyutasi:
+                    </label>
+                    <select
+                      value={formCurrency}
+                      onChange={(e) => handleCurrencyChange(e.target.value as 'UZS' | 'USD')}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="UZS">So&apos;m (UZS)</option>
+                      <option value="USD">Dollar ($ USD)</option>
+                    </select>
+                  </div>
                 </div>
 
-                {/* Sklad */}
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                    * Склад (Ombor):
-                  </label>
-                  <input
-                    type="text"
-                    value={formWarehouse}
-                    onChange={(e) => setFormWarehouse(e.target.value)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                  {/* Loyiha nomi / Izoh */}
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 block mb-1">
+                      Loyiha nomi / Shartnoma:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Masalan: 4 ta kamera montaj..."
+                      value={formProjectName}
+                      onChange={(e) => setFormProjectName(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
 
-                {/* Valyuta */}
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                    * Валюта документа:
-                  </label>
-                  <select
-                    value={formCurrency}
-                    onChange={(e) => handleCurrencyChange(e.target.value as 'UZS' | 'USD')}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
-                  >
-                    <option value="UZS">So&apos;m (UZS)</option>
-                    <option value="USD">Dollar ($ USD)</option>
-                  </select>
-                </div>
-
-                {/* Adres dostavki / Loyiha manzili */}
-                <div className="sm:col-span-2">
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                    Адрес доставки / O&apos;rnatish manzili:
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Masalan: Namangan sh., Nodira ko'chasi 14-uy..."
-                    value={formDeliveryAddress}
-                    onChange={(e) => setFormDeliveryAddress(e.target.value)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-
-                {/* Loyiha nomi */}
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                    Проект / Shartnoma:
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Masalan: 4 ta kamera montaj..."
-                    value={formProjectName}
-                    onChange={(e) => setFormProjectName(e.target.value)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-
-                {/* Izoh */}
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                    Комментарий (Izoh):
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Qo'shimcha kelishuvlar..."
-                    value={formComment}
-                    onChange={(e) => setFormComment(e.target.value)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
-                  />
+                  {/* O'rnatish manzili */}
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 block mb-1">
+                      O&apos;rnatish manzili:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Masalan: Namangan sh., Nodira ko'chasi 14-uy..."
+                      value={formDeliveryAddress}
+                      onChange={(e) => setFormDeliveryAddress(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                  {/* Izoh */}
+                  <div className="sm:col-span-2">
+                    <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 block mb-1">
+                      Qo&apos;shimcha Izoh:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Qo'shimcha kelishuvlar..."
+                      value={formComment}
+                      onChange={(e) => setFormComment(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
                 </div>
               </div>
 

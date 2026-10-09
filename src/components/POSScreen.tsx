@@ -37,7 +37,8 @@ import {
   ChevronUp,
   Lock,
   Bell,
-  BellRing
+  BellRing,
+  Zap
 } from 'lucide-react';
 import { PaymentModal } from './PaymentModal';
 import { ReceiptModal } from './ReceiptModal';
@@ -595,17 +596,36 @@ export const POSScreen: React.FC<POSScreenProps> = ({
     }
   };
 
-  // Keyboard shortcut listener (F4 for payment)
+  // Quick 1-Click Instant Cash Sale (Fast checkout without opening detailed split modal)
+  const handleQuickCashSale = () => {
+    if (cart.length === 0) return;
+    const payment: PaymentDetails = {
+      cash: totalAmount,
+      card: 0,
+      debt: 0,
+      cashbackUsed: 0,
+      total: totalAmount,
+      totalUSD: totalAmountUSD,
+      exchangeRate: exchangeRate,
+      currencyPaid: 'UZS'
+    };
+    handleConfirmPayment(payment, 0);
+  };
+
+  // Keyboard shortcut listener (F2 for quick cash, F4 for detailed payment)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F4' && cart.length > 0) {
+      if (e.key === 'F2' && cart.length > 0) {
+        e.preventDefault();
+        handleQuickCashSale();
+      } else if (e.key === 'F4' && cart.length > 0) {
         e.preventDefault();
         setIsPaymentModalOpen(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart]);
+  }, [cart, totalAmount]);
 
   return (
     <div className="flex-1 flex overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -1368,17 +1388,28 @@ export const POSScreen: React.FC<POSScreenProps> = ({
             </div>
           </div>
 
-          {/* Big Checkout Button (Always visible on screen) */}
-          <button
-            onClick={() => setIsPaymentModalOpen(true)}
-            disabled={cart.length === 0}
-            className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white font-black text-sm tracking-wide shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition active:scale-[0.99]"
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>
-              TO&apos;LOV (F4) &bull; {isUSDBase ? `$${totalAmountUSD}` : `${formatNumberWithSpaces(totalAmount)} so'm`}
-            </span>
-          </button>
+          {/* Dual Checkout Action Buttons: 1-Click Fast Cash (F2) + Detailed Payment Modal (F4) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              onClick={handleQuickCashSale}
+              disabled={cart.length === 0}
+              className="py-3 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:hover:from-emerald-600 disabled:hover:to-teal-600 text-white font-black text-xs tracking-wide shadow-md shadow-emerald-600/25 flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+              title="Bir zumda naqd to'lov bilan chek yopish (F2)"
+            >
+              <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
+              <span>⚡ Tezkor Naqd (F2)</span>
+            </button>
+
+            <button
+              onClick={() => setIsPaymentModalOpen(true)}
+              disabled={cart.length === 0}
+              className="py-3 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-cyan-300 border border-slate-700 font-bold text-xs tracking-wide shadow-md flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+              title="Nasiya, Karta, O'tkazma yoki Aralash to'lov (F4)"
+            >
+              <CreditCard className="w-4 h-4 text-cyan-400" />
+              <span>Batafsil To&apos;lov (F4)</span>
+            </button>
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Product, ProductCategory, Currency, PurchaseInvoice, PurchasePaymentRecord, Employee } from '../types';
 import { formatMoney, formatDualMoney, formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { NewPurchaseModal } from './NewPurchaseModal';
@@ -195,6 +195,25 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       (p.serialNumbers && p.serialNumbers.some((sn) => sn.toLowerCase().includes(searchQuery.toLowerCase())));
     return matchCat && matchSearch;
   });
+
+  // Global Escape key listener to close any open modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsAddModalOpen(false);
+        setEditingProduct(null);
+        setViewingSerialProduct(null);
+        setQuickStockProduct(null);
+        setIsCategoryManageModalOpen(false);
+        setIsExcelImportModalOpen(false);
+        setViewingPurchaseInvoice(null);
+        setIsNewPurchaseModalOpen(false);
+        setIsSupplierPaymentModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const parseSerials = (text: string): string[] => {
     return text
