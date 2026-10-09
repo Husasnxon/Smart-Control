@@ -154,6 +154,121 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatNameValue, setEditCatNameValue] = useState('');
 
+  // Search & Filtering inside Add Income Modal
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [shipmentSearchQuery, setShipmentSearchQuery] = useState('');
+  const [isCustomerSelectorOpen, setIsCustomerSelectorOpen] = useState(false);
+
+  // Filtered customers for income modal
+  const filteredCustomersForIncome = useMemo(() => {
+    if (!customerSearchQuery.trim()) return customers;
+    const q = customerSearchQuery.toLowerCase();
+    return customers.filter(c => 
+      c.fullName.toLowerCase().includes(q) || 
+      c.phone.toLowerCase().includes(q)
+    );
+  }, [customers, customerSearchQuery]);
+
+  const selectedCustomerObj = useMemo(() => {
+    return customers.find(c => c.id === selectedCustomerId) || null;
+  }, [customers, selectedCustomerId]);
+
+  // Customer shipments
+  const customerShipments = useMemo(() => {
+    let list = shipments;
+    if (selectedCustomerId) {
+      const cust = customers.find(c => c.id === selectedCustomerId);
+      if (cust) {
+        list = shipments.filter(s => 
+          s.customerId === cust.id || 
+          (s.customerName && cust.fullName && (
+            s.customerName.toLowerCase().includes(cust.fullName.toLowerCase()) || 
+            cust.fullName.toLowerCase().includes(s.customerName.toLowerCase())
+          ))
+        );
+      }
+    }
+
+    if (shipmentSearchQuery.trim()) {
+      const q = shipmentSearchQuery.toLowerCase();
+      list = list.filter(s => 
+        s.shipmentNumber.toLowerCase().includes(q) || 
+        s.customerName?.toLowerCase().includes(q) ||
+        s.comment?.toLowerCase().includes(q)
+      );
+    }
+
+    return list;
+  }, [shipments, selectedCustomerId, customers, shipmentSearchQuery]);
+
+  // Customer Orders (Smetalar)
+  const customerOrdersList = useMemo(() => {
+    let list = customerOrders;
+    if (selectedCustomerId) {
+      const cust = customers.find(c => c.id === selectedCustomerId);
+      if (cust) {
+        list = customerOrders.filter(o => 
+          o.customerId === cust.id || 
+          (o.customerName && cust.fullName && (
+            o.customerName.toLowerCase().includes(cust.fullName.toLowerCase()) || 
+            cust.fullName.toLowerCase().includes(o.customerName.toLowerCase())
+          ))
+        );
+      }
+    }
+    return list;
+  }, [customerOrders, selectedCustomerId, customers]);
+
+  const handleSelectCustomer = (cust: Customer) => {
+    setSelectedCustomerId(cust.id);
+    setIncomePaidBy(cust.fullName);
+    setIsCustomerSelectorOpen(false);
+    setCustomerSearchQuery('');
+    
+    // Check if customer has shipments
+    const custShips = shipments.filter(s => 
+      s.customerId === cust.id || 
+      (s.customerName && cust.fullName && (
+        s.customerName.toLowerCase().includes(cust.fullName.toLowerCase()) || 
+        cust.fullName.toLowerCase().includes(s.customerName.toLowerCase())
+      ))
+    );
+
+    if (custShips.length > 0) {
+      setIncomeLinkType('shipment');
+      handleSelectShipmentForIncome(custShips[0].id);
+    } else {
+      const custOrders = customerOrders.filter(o => 
+        o.customerId === cust.id || 
+        (o.customerName && cust.fullName && (
+          o.customerName.toLowerCase().includes(cust.fullName.toLowerCase()) || 
+          cust.fullName.toLowerCase().includes(o.customerName.toLowerCase())
+        ))
+      );
+      if (custOrders.length > 0) {
+        setIncomeLinkType('order');
+        handleSelectOrderForIncome(custOrders[0].id);
+      } else {
+        setIncomeLinkType('none');
+        setIncomeNotes(`${cust.fullName} to'lovi`);
+        if (cust.debtBalance && cust.debtBalance > 0) {
+          setIncomeAmount(cust.debtBalance);
+          setIncomeCategory('Mijozdan Nasiya to\'lovi');
+        }
+      }
+    }
+  };
+
+  const handleClearCustomer = () => {
+    setSelectedCustomerId('');
+    setIncomePaidBy('');
+    setSelectedShipmentId('');
+    setSelectedOrderId('');
+    setIncomeAmount(0);
+    setIncomeNotes('');
+    setIncomeLinkType('none');
+  };
+
   // Auto-match shipment selection
   const handleSelectShipmentForIncome = (shipmentId: string) => {
     setSelectedShipmentId(shipmentId);
@@ -161,6 +276,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
     if (ship) {
       setIncomePaidBy(ship.customerName || '');
       setIncomeNotes(`${ship.shipmentNumber} otgruzkasi bo'yicha sotilgan mahsulotlar to'lovi`);
+      setIncomeCategory('Otgruzka / Sotuv to\'lovi');
       if (ship.currency === 'USD' && ship.totalAmountUSD) {
         setIncomeAmount(ship.totalAmountUSD * exchangeRate);
         setIncomeCurrency('UZS');
@@ -178,6 +294,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
     if (ord) {
       setIncomePaidBy(ord.customerName || '');
       setIncomeNotes(`${ord.orderNumber} smetasi bo'yicha hisob-kitob to'lovi`);
+      setIncomeCategory('Otgruzka / Sotuv to\'lovi');
       setIncomeAmount(ord.totalAmount || 0);
     }
   };
@@ -189,6 +306,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
     if (cust) {
       setIncomePaidBy(cust.fullName || '');
       setIncomeNotes(`Mijoz nasiyasi bo'yicha qarz to'lovi (${cust.fullName})`);
+      setIncomeCategory('Mijozdan Nasiya to\'lovi');
       setIncomeAmount(cust.debtBalance || 0);
     }
   };
@@ -853,110 +971,296 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
           </div>
 
           {/* ========================================================================= */}
-          {/* MODAL 1: ADD INCOME (PRIXOD) MODAL WITH SHIPMENT LINKING */}
+          {/* MODAL 1: ADD INCOME (PRIXOD) MODAL WITH CUSTOMER FIRST & SHIPMENT SEARCH */}
           {/* ========================================================================= */}
           {isAddIncomeModalOpen && (
-            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+                {/* Modal Header */}
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500 font-bold">
-                      <ArrowUpRight className="w-4 h-4" />
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 font-bold shadow-sm">
+                      <ArrowUpRight className="w-5 h-5" />
                     </div>
                     <div>
                       <h3 className="text-base font-black text-slate-900 dark:text-white">
                         Yangi Pul Kirimi (Prixod / Tushum)
                       </h3>
                       <p className="text-[11px] text-slate-400">
-                        Sotilgan mahsulot cheki (otgruzka) yoki mustaqil kirim kiritish
+                        Avval mijozni tanlang, so&apos;ngra shu mijozning otgruzkasiga to&apos;lovni bog&apos;lang
                       </p>
                     </div>
                   </div>
                   <button
-                    onClick={() => setIsAddIncomeModalOpen(false)}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                    onClick={() => {
+                      setIsAddIncomeModalOpen(false);
+                      handleClearCustomer();
+                    }}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <form onSubmit={handleCreateIncome} className="space-y-3.5">
-                  {/* Document Linking Option */}
-                  <div className="p-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 space-y-2">
-                    <label className="text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Package className="w-3.5 h-3.5 text-emerald-500" />
-                        Sotilgan mahsulot cheki (Otgruzka)ga bog&apos;lash
-                      </span>
-                    </label>
+                <form onSubmit={handleCreateIncome} className="space-y-4">
+                  {/* STEP 1: SELECT CUSTOMER (MIJOZNI TANLASH) */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-emerald-500" />
+                        1. Mijozni Tanlang *
+                      </label>
+                      {selectedCustomerObj && (
+                        <button
+                          type="button"
+                          onClick={handleClearCustomer}
+                          className="text-[11px] font-bold text-rose-500 hover:underline flex items-center gap-1"
+                        >
+                          <X className="w-3.5 h-3.5" /> Boshqa mijozni tanlash
+                        </button>
+                      )}
+                    </div>
 
-                    {/* Radio Select for Document Type */}
+                    {selectedCustomerObj ? (
+                      /* Selected Customer Banner */
+                      <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 animate-in fade-in duration-150">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                            {selectedCustomerObj.fullName.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                                {selectedCustomerObj.fullName}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+                                {selectedCustomerObj.tier || 'Mijoz'}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-3 mt-0.5">
+                              <span>📞 {selectedCustomerObj.phone}</span>
+                              {selectedCustomerObj.debtBalance && selectedCustomerObj.debtBalance > 0 ? (
+                                <span className="font-bold text-rose-600 dark:text-rose-400">
+                                  Nasiya qarzi: {formatNumberWithSpaces(selectedCustomerObj.debtBalance)} so&apos;m
+                                </span>
+                              ) : (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Qarzi yo&apos;q</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleClearCustomer}
+                          className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-rose-500 transition shrink-0"
+                          title="Mijozni bekor qilish"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      /* Customer Search Input & List */
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Mijoz ismi yoki telefon raqami bo'yicha qidirish (masalan: Grand, Samirbek)..."
+                            value={customerSearchQuery}
+                            onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                          />
+                        </div>
+
+                        {/* Filtered Customer Chips / List */}
+                        <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                          {filteredCustomersForIncome.slice(0, 6).map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => handleSelectCustomer(c)}
+                              className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/40 flex items-center justify-between text-left transition group"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-800 group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center font-bold text-[10px] text-slate-700 dark:text-slate-300 transition">
+                                  {c.fullName.slice(0, 1)}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="font-bold text-xs text-slate-900 dark:text-white block truncate">
+                                    {c.fullName}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 block truncate">
+                                    📞 {c.phone}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                {c.debtBalance && c.debtBalance > 0 ? (
+                                  <span className="text-[10px] font-bold text-rose-500 block">
+                                    Qarz: {formatNumberWithSpaces(c.debtBalance)} so&apos;m
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-emerald-500 font-semibold block">
+                                    Tanlash &rarr;
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+
+                          {filteredCustomersForIncome.length === 0 && (
+                            <div className="p-3 text-center text-xs text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                              Mijoz topilmadi. Ismni quyida erkin kiritishingiz mumkin.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* STEP 2: SELECT LINKED SHIPMENT / ORDER / DEBT */}
+                  <div className="p-3.5 rounded-2xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black uppercase tracking-wider text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                        <Package className="w-4 h-4 text-emerald-500" />
+                        2. Shu mijozning Otgruzkasi / Chekiga bog&apos;lash
+                      </label>
+                      <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">
+                        {customerShipments.length} ta otgruzka mavjud
+                      </span>
+                    </div>
+
+                    {/* Mode Tabs */}
                     <div className="grid grid-cols-3 gap-1.5 text-[11px]">
                       <button
                         type="button"
                         onClick={() => setIncomeLinkType('shipment')}
-                        className={`py-1.5 px-2 rounded-lg font-bold border transition ${
+                        className={`py-1.5 px-2 rounded-xl font-bold border transition flex items-center justify-center gap-1.5 ${
                           incomeLinkType === 'shipment'
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                             : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                         }`}
                       >
-                        📦 Otgruzka
+                        <Package className="w-3.5 h-3.5" />
+                        <span>Otgruzka ({customerShipments.length})</span>
                       </button>
+
                       <button
                         type="button"
                         onClick={() => setIncomeLinkType('order')}
-                        className={`py-1.5 px-2 rounded-lg font-bold border transition ${
+                        className={`py-1.5 px-2 rounded-xl font-bold border transition flex items-center justify-center gap-1.5 ${
                           incomeLinkType === 'order'
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                             : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                         }`}
                       >
-                        📄 Smeta / Zakaz
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        <span>Smeta ({customerOrdersList.length})</span>
                       </button>
+
                       <button
                         type="button"
-                        onClick={() => setIncomeLinkType('none')}
-                        className={`py-1.5 px-2 rounded-lg font-bold border transition ${
+                        onClick={() => {
+                          setIncomeLinkType('none');
+                          setSelectedShipmentId('');
+                          setSelectedOrderId('');
+                        }}
+                        className={`py-1.5 px-2 rounded-xl font-bold border transition flex items-center justify-center gap-1.5 ${
                           incomeLinkType === 'none'
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                             : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                         }`}
                       >
-                        ⛔ Bog&apos;lanmagan
+                        <span>⛔ Erkin to&apos;lov</span>
                       </button>
                     </div>
 
-                    {/* Shipment Dropdown Picker */}
+                    {/* Shipment Picker with Live Search */}
                     {incomeLinkType === 'shipment' && (
-                      <div className="mt-2 space-y-1">
-                        <span className="text-[10px] text-slate-400 font-semibold block">Mavjud Otgruzkalardan tanlang:</span>
-                        <select
-                          value={selectedShipmentId}
-                          onChange={(e) => handleSelectShipmentForIncome(e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium"
-                        >
-                          <option value="">-- Otgruzkani tanlang --</option>
-                          {shipments.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.shipmentNumber} &bull; {s.customerName} &bull; {formatMoney(s.totalAmount, baseCurrency, exchangeRate)} ({s.status})
-                            </option>
-                          ))}
-                        </select>
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Otgruzka raqami bo'yicha qidirish (masalan: OTG-2001)..."
+                            value={shipmentSearchQuery}
+                            onChange={(e) => setShipmentSearchQuery(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
+                          />
+                        </div>
+
+                        {customerShipments.length > 0 ? (
+                          <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                            {customerShipments.map((s) => {
+                              const isSelected = selectedShipmentId === s.id;
+                              return (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onClick={() => handleSelectShipmentForIncome(s.id)}
+                                  className={`w-full p-2.5 rounded-xl border text-left transition flex items-center justify-between ${
+                                    isSelected
+                                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                                      : 'bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className={`p-1.5 rounded-lg shrink-0 ${isSelected ? 'bg-emerald-700 text-white' : 'bg-teal-500/10 text-teal-600'}`}>
+                                      <Package className="w-4 h-4" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono font-black text-xs">
+                                          {s.shipmentNumber}
+                                        </span>
+                                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                          isSelected ? 'bg-emerald-800 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                        }`}>
+                                          {s.status === 'shipped' ? 'Yuklangan' : 'Kutilmoqda'}
+                                        </span>
+                                      </div>
+                                      <span className={`text-[10px] block truncate ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+                                        {s.customerName} &bull; {s.shippedAt || s.createdAt}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="text-right shrink-0">
+                                    <div className={`font-mono font-black text-xs ${isSelected ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                      {formatMoney(s.totalAmount, baseCurrency, exchangeRate)}
+                                    </div>
+                                    {s.totalAmountUSD && (
+                                      <div className={`text-[10px] font-mono ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+                                        ${formatUSDNumber(s.totalAmountUSD)}
+                                      </div>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-3 text-center text-xs text-slate-500 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                            {selectedCustomerObj
+                              ? `"${selectedCustomerObj.fullName}" uchun otgruzka topilmadi. Quyida summani kiritib erkin kirim qilishingiz mumkin.`
+                              : "Otgruzkalar topilmadi. Avval yuqoridan mijozni tanlang."}
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {/* Order Dropdown Picker */}
+                    {/* Order Picker */}
                     {incomeLinkType === 'order' && (
-                      <div className="mt-2 space-y-1">
-                        <span className="text-[10px] text-slate-400 font-semibold block">Hisob-kitob Smetasini tanlang:</span>
+                      <div className="space-y-1.5">
                         <select
                           value={selectedOrderId}
                           onChange={(e) => handleSelectOrderForIncome(e.target.value)}
                           className="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium"
                         >
                           <option value="">-- Smetani tanlang --</option>
-                          {customerOrders.map((o) => (
+                          {customerOrdersList.map((o) => (
                             <option key={o.id} value={o.id}>
                               {o.orderNumber} &bull; {o.customerName} &bull; {formatMoney(o.totalAmount, baseCurrency, exchangeRate)}
                             </option>
@@ -966,129 +1270,132 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                     )}
                   </div>
 
-                  {/* Amount & Currency */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="col-span-2">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kirim Summasi *</label>
-                      <input
-                        type="number"
-                        required
-                        min="1"
-                        placeholder="Masalan: 1 500 000"
-                        value={incomeAmount || ''}
-                        onChange={(e) => setIncomeAmount(Number(e.target.value))}
-                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400 focus:ring-2 focus:ring-emerald-500/40"
-                      />
+                  {/* STEP 3: AMOUNT, CATEGORY & PAYMENT DETAILS */}
+                  <div className="space-y-3 pt-1">
+                    {/* Amount & Currency */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-2">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kirim Summasi *</label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          placeholder="Masalan: 1 500 000"
+                          value={incomeAmount || ''}
+                          onChange={(e) => setIncomeAmount(Number(e.target.value))}
+                          className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400 focus:ring-2 focus:ring-emerald-500/40"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Valyuta</label>
+                        <select
+                          value={incomeCurrency}
+                          onChange={(e) => setIncomeCurrency(e.target.value as Currency)}
+                          className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-bold"
+                        >
+                          <option value="UZS">UZS (So&apos;m)</option>
+                          <option value="USD">USD ($)</option>
+                        </select>
+                      </div>
                     </div>
+
+                    {/* Category */}
                     <div>
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Valyuta</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kirim Toifasi</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAddIncomeModalOpen(false);
+                            setIsCategoryManageModalOpen(true);
+                            setNewCatType('income');
+                          }}
+                          className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                        >
+                          + Yangi toifa
+                        </button>
+                      </div>
                       <select
-                        value={incomeCurrency}
-                        onChange={(e) => setIncomeCurrency(e.target.value as Currency)}
-                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-bold"
+                        value={incomeCategory}
+                        onChange={(e) => setIncomeCategory(e.target.value)}
+                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium"
                       >
-                        <option value="UZS">UZS (So&apos;m)</option>
-                        <option value="USD">USD ($)</option>
+                        {incomeCategories.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            🟢 {c.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
-                  </div>
 
-                  {/* Category */}
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kirim Toifasi</label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddIncomeModalOpen(false);
-                          setIsCategoryManageModalOpen(true);
-                          setNewCatType('income');
-                        }}
-                        className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
-                      >
-                        + Yangi toifa
-                      </button>
+                    {/* Payment Source */}
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Qayerga qabul qilindi? (Manba)</label>
+                      <div className="grid grid-cols-3 gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setIncomePaymentSource('Kassa (Naqd)')}
+                          className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition ${
+                            incomePaymentSource === 'Kassa (Naqd)'
+                              ? 'bg-amber-500/15 border-amber-500 text-amber-700 dark:text-amber-400'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-500'
+                          }`}
+                        >
+                          <Banknote className="w-3.5 h-3.5" />
+                          Kassa (Naqd)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setIncomePaymentSource('Hisob raqam / Karta')}
+                          className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition ${
+                            incomePaymentSource === 'Hisob raqam / Karta'
+                              ? 'bg-blue-500/15 border-blue-500 text-blue-700 dark:text-blue-400'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-500'
+                          }`}
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          Bank / Karta
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setIncomePaymentSource('Valyuta (Naqd USD)')}
+                          className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition ${
+                            incomePaymentSource === 'Valyuta (Naqd USD)'
+                              ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-400'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-500'
+                          }`}
+                        >
+                          <DollarSign className="w-3.5 h-3.5" />
+                          Valyuta (USD)
+                        </button>
+                      </div>
                     </div>
-                    <select
-                      value={incomeCategory}
-                      onChange={(e) => setIncomeCategory(e.target.value)}
-                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium"
-                    >
-                      {incomeCategories.map((c) => (
-                        <option key={c.id} value={c.name}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
 
-                  {/* Payment Source */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Qayerga qabul qilindi? (Manba)</label>
-                    <div className="grid grid-cols-3 gap-2 mt-1">
-                      <button
-                        type="button"
-                        onClick={() => setIncomePaymentSource('Kassa (Naqd)')}
-                        className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition ${
-                          incomePaymentSource === 'Kassa (Naqd)'
-                            ? 'bg-amber-500/15 border-amber-500 text-amber-700 dark:text-amber-400'
-                            : 'border-slate-200 dark:border-slate-700 text-slate-500'
-                        }`}
-                      >
-                        <Banknote className="w-3.5 h-3.5" />
-                        Kassa (Naqd)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setIncomePaymentSource('Hisob raqam / Karta')}
-                        className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition ${
-                          incomePaymentSource === 'Hisob raqam / Karta'
-                            ? 'bg-blue-500/15 border-blue-500 text-blue-700 dark:text-blue-400'
-                            : 'border-slate-200 dark:border-slate-700 text-slate-500'
-                        }`}
-                      >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        Bank / Karta
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setIncomePaymentSource('Valyuta (Naqd USD)')}
-                        className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition ${
-                          incomePaymentSource === 'Valyuta (Naqd USD)'
-                            ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-400'
-                            : 'border-slate-200 dark:border-slate-700 text-slate-500'
-                        }`}
-                      >
-                        <DollarSign className="w-3.5 h-3.5" />
-                        Valyuta (USD)
-                      </button>
+                    {/* Paid By (Mijoz / Kontragent) */}
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kimdan qabul qilindi? (Mijoz / Kontragent)</label>
+                      <input
+                        type="text"
+                        placeholder="Masalan: Grand Qurilish MCHJ, Farrux aka..."
+                        value={incomePaidBy}
+                        onChange={(e) => setIncomePaidBy(e.target.value)}
+                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                      />
                     </div>
-                  </div>
 
-                  {/* Paid By */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kimdan qabul qilindi? (Mijoz / Kontragent)</label>
-                    <input
-                      type="text"
-                      placeholder="Masalan: Grand Qurilish MCHJ, Farrux aka..."
-                      value={incomePaidBy}
-                      onChange={(e) => setIncomePaidBy(e.target.value)}
-                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  {/* Notes */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Izoh va Maqsad</label>
-                    <textarea
-                      rows={2}
-                      placeholder="Qisqacha izoh yoki to'lov maqsadi..."
-                      value={incomeNotes}
-                      onChange={(e) => setIncomeNotes(e.target.value)}
-                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
-                    />
+                    {/* Notes */}
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Izoh va Maqsad</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Qisqacha izoh yoki to'lov maqsadi..."
+                        value={incomeNotes}
+                        onChange={(e) => setIncomeNotes(e.target.value)}
+                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
                   </div>
 
                   <button
