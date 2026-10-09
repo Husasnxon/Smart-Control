@@ -20,7 +20,8 @@ import {
   UserCheck,
   X,
   BarChart3,
-  Kanban
+  Kanban,
+  ArrowLeftRight
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -73,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'inventory' as ActiveTab, label: 'Ombor & Mahsulotlar', icon: Package, color: 'text-cyan-500' },
     { id: 'warranty' as ActiveTab, label: 'Kafolat & Servis', icon: ShieldCheck, badge: activeServiceCount ? `${activeServiceCount}` : 'S/N', color: 'text-teal-400' },
     { id: 'customers' as ActiveTab, label: 'Mijozlar & Nasiyalar', icon: Users, badge: debtorsCount && debtorsCount > 0 ? `${debtorsCount} qarz` : undefined, color: 'text-amber-500' },
-    { id: 'expenses' as ActiveTab, label: 'Moliya & Xarajatlar', icon: TrendingDown, badge: 'Xodimlar', color: 'text-rose-500' },
+    { id: 'expenses' as ActiveTab, label: 'Moliya & Pul Oqimi', icon: ArrowLeftRight, badge: 'Prixod/Rasxod', color: 'text-rose-400' },
     { id: 'ai_advisor' as ActiveTab, label: 'AI Tahlilchi & Zakaz', icon: Sparkles, badge: 'Smart', color: 'text-indigo-500' },
     { id: 'technician_portal' as ActiveTab, label: 'Usta Kabineti (Mobil)', icon: HardHat, badge: 'Obyektlar', color: 'text-purple-400' },
     { id: 'settings' as ActiveTab, label: 'Telegram & Sozlamalar', icon: Bot, badge: 'Bot', color: 'text-sky-400' },

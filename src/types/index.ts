@@ -346,17 +346,28 @@ export interface ExpenseCategory {
   description?: string;
   color?: string;
   isDefault?: boolean;
+  type?: 'expense' | 'income' | 'both';
 }
 
 export interface Expense {
   id: string;
+  type?: 'expense' | 'income'; // 'expense' (Chiqim / Расход) or 'income' (Kirim / Приход / Tushum) - default 'expense'
   category: string;
-  amount: number;
-  paymentSource: 'Kassa (Naqd)' | 'Hisob raqam / Karta';
-  paidTo: string;
+  amount: number; // in UZS or base amount
+  amountUSD?: number;
+  currency?: 'UZS' | 'USD';
+  paymentSource: 'Kassa (Naqd)' | 'Hisob raqam / Karta' | 'Valyuta (Naqd USD)';
+  paidTo?: string; // Kimga to'landi (Chiqimda)
+  paidBy?: string; // Kimdan qabul qilindi (Kirimda)
   notes: string;
   createdAt: string;
   createdBy: string;
+  // Bog'langan hujjatlar (Otgruzka / Chek / Smeta / Qarz)
+  linkedDocType?: 'shipment' | 'order' | 'receipt' | 'customer_debt' | 'other';
+  linkedDocId?: string;
+  linkedDocNumber?: string; // Masalan: "OTG-2001", "ZK-1001", "CHK-1001"
+  customerId?: string;
+  customerName?: string;
 }
 
 export interface OrderItem {

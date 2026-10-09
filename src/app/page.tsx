@@ -1673,10 +1673,19 @@ export default function Home() {
     showToast(`✓ Mijozga +${amount.toLocaleString()} so'm cashback qo'shildi!`);
   };
 
-  // Add Expense
+  // Add Expense or Income (Prixod & Rasxod)
   const handleAddExpense = (newExp: Expense) => {
     setExpenses((prev) => [newExp, ...prev]);
-    showToast(`✓ Xarajat kiritildi: ${newExp.amount.toLocaleString()} so'm (${newExp.category})`);
+    if (newExp.type === 'income') {
+      showToast(`✓ Pul kirimi (Prixod) kiritildi: ${newExp.amount.toLocaleString()} so'm (${newExp.category})`);
+    } else {
+      showToast(`✓ Xarajat (Chiqim) kiritildi: ${newExp.amount.toLocaleString()} so'm (${newExp.category})`);
+    }
+  };
+
+  const handleDeleteExpense = (expenseId: string) => {
+    setExpenses((prev) => prev.filter((e) => e.id !== expenseId));
+    showToast(`✓ Moliya yozuvi o'chirildi!`);
   };
 
   // Category management handlers
@@ -2385,6 +2394,7 @@ export default function Home() {
               onAddCategory={handleAddCategory}
               onUpdateCategory={handleUpdateCategory}
               onDeleteCategory={handleDeleteCategory}
+              onDeleteExpense={handleDeleteExpense}
               todaySalesTotal={todaySalesTotal}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
@@ -2392,12 +2402,16 @@ export default function Home() {
               payrolls={payrolls}
               advances={advances}
               receipts={receipts}
+              shipments={shipments}
+              customerOrders={customerOrders}
+              customers={customers}
               onAddEmployee={handleAddEmployee}
               onUpdateEmployee={handleUpdateEmployee}
               onDeleteEmployee={handleDeleteEmployee}
               onAddPayroll={handleAddPayroll}
               onAddAdvance={handleAddAdvance}
-              initialSubTab="expenses"
+              onNavigateToTab={(tab) => setActiveTab(tab)}
+              initialSubTab="all"
             />
           )}
 
@@ -2434,6 +2448,7 @@ export default function Home() {
               onAddCategory={handleAddCategory}
               onUpdateCategory={handleUpdateCategory}
               onDeleteCategory={handleDeleteCategory}
+              onDeleteExpense={handleDeleteExpense}
               todaySalesTotal={todaySalesTotal}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
@@ -2441,11 +2456,15 @@ export default function Home() {
               payrolls={payrolls}
               advances={advances}
               receipts={receipts}
+              shipments={shipments}
+              customerOrders={customerOrders}
+              customers={customers}
               onAddEmployee={handleAddEmployee}
               onUpdateEmployee={handleUpdateEmployee}
               onDeleteEmployee={handleDeleteEmployee}
               onAddPayroll={handleAddPayroll}
               onAddAdvance={handleAddAdvance}
+              onNavigateToTab={(tab) => setActiveTab(tab)}
               initialSubTab="employees"
             />
           )}

@@ -692,8 +692,57 @@ export const INITIAL_EMPLOYEES: Employee[] = [
 ];
 
 export const INITIAL_EXPENSES: Expense[] = [
+  // Pul Kirimlari (Prixod / Tushum)
+  {
+    id: 'inc-1',
+    type: 'income',
+    category: 'Otgruzka / Sotuv to\'lovi',
+    amount: 14500000,
+    amountUSD: 1128,
+    currency: 'UZS',
+    paymentSource: 'Hisob raqam / Karta',
+    paidBy: 'Grand Qurilish MCHJ',
+    notes: 'OTG-2001 otgruzkasi bo\'yicha 4 ta kamera, NVR va montaj to\'liq to\'lovi',
+    createdAt: 'Bugun, 08:30',
+    createdBy: 'Farrux A. (Kassir)',
+    linkedDocType: 'shipment',
+    linkedDocNumber: 'OTG-2001',
+    customerName: 'Grand Qurilish MCHJ'
+  },
+  {
+    id: 'inc-2',
+    type: 'income',
+    category: 'Mijozdan Nasiya to\'lovi',
+    amount: 3200000,
+    amountUSD: 249,
+    currency: 'UZS',
+    paymentSource: 'Kassa (Naqd)',
+    paidBy: 'Samirbek Nurmatov',
+    notes: 'Kottedj obyektidagi videokuzatuv tizimi yakuniy to\'lovi (OTG-2002)',
+    createdAt: 'Bugun, 09:15',
+    createdBy: 'Farrux A. (Kassir)',
+    linkedDocType: 'shipment',
+    linkedDocNumber: 'OTG-2002',
+    customerName: 'Samirbek Nurmatov'
+  },
+  {
+    id: 'inc-3',
+    type: 'income',
+    category: 'Xizmat & Montaj tushumi',
+    amount: 800000,
+    amountUSD: 62,
+    currency: 'UZS',
+    paymentSource: 'Kassa (Naqd)',
+    paidBy: 'Farrux Zokirov',
+    notes: 'Do\'kon kamerasini masofadan telefonga ulash va sozlash xizmati',
+    createdAt: 'Kecha, 15:00',
+    createdBy: 'Farrux A. (Kassir)',
+    customerName: 'Farrux Zokirov'
+  },
+  // Pul Chiqimlari (Rasxod / Xarajat)
   {
     id: 'exp-1',
+    type: 'expense',
     category: 'Ijara',
     amount: 3500000,
     paymentSource: 'Hisob raqam / Karta',
@@ -704,6 +753,7 @@ export const INITIAL_EXPENSES: Expense[] = [
   },
   {
     id: 'exp-2',
+    type: 'expense',
     category: 'Oylik / Ish haqi',
     amount: 1200000,
     paymentSource: 'Kassa (Naqd)',
@@ -714,6 +764,7 @@ export const INITIAL_EXPENSES: Expense[] = [
   },
   {
     id: 'exp-3',
+    type: 'expense',
     category: 'Transport & Yetkazish',
     amount: 85000,
     paymentSource: 'Kassa (Naqd)',
@@ -724,6 +775,7 @@ export const INITIAL_EXPENSES: Expense[] = [
   },
   {
     id: 'exp-4',
+    type: 'expense',
     category: 'Mayda xo\'jalik',
     amount: 140000,
     paymentSource: 'Kassa (Naqd)',
@@ -735,14 +787,22 @@ export const INITIAL_EXPENSES: Expense[] = [
 ];
 
 export const INITIAL_EXPENSE_CATEGORIES: ExpenseCategory[] = [
-  { id: 'cat-1', name: 'Ijara', description: "Do'kon, ustaxona yoki ombor ijarasi", color: '#EF4444', isDefault: true },
-  { id: 'cat-2', name: 'Oylik / Ish haqi', description: "Xodimlar va montaj ustalari ish haqi", color: '#8B5CF6', isDefault: true },
-  { id: 'cat-3', name: 'Transport & Yetkazish', description: "Obyektlarga borish, benzin, yetkazish", color: '#F59E0B', isDefault: true },
-  { id: 'cat-4', name: 'Asboblar & Uskunalar', description: "Drel, perferator, kabel sinagich, narvon, testerlar", color: '#3B82F6', isDefault: true },
-  { id: 'cat-5', name: 'Kommunal & Internet', description: "Elektr, optik internet, aloqa xarajatlari", color: '#06B6D4', isDefault: true },
-  { id: 'cat-6', name: 'Reklama & Marketing', description: "Instagram/Telegram kanallarida montaj va kamera reklamasi", color: '#EC4899', isDefault: true },
-  { id: 'cat-7', name: 'Mayda xo\'jalik', description: "Izolenta, kassa chek qog'ozi, choy va kanselyariya", color: '#10B981', isDefault: true },
-  { id: 'cat-8', name: 'Boshqa', description: "Kutilmagan yoki rejalashtirilmagan chiqimlar", color: '#64748B', isDefault: true }
+  // Kirim Toifalari (Income)
+  { id: 'cat-inc-1', name: 'Otgruzka / Sotuv to\'lovi', description: "Sotilgan tovarlar va otgruzkalar bo'yicha to'lovlar", color: '#10B981', isDefault: true, type: 'income' },
+  { id: 'cat-inc-2', name: 'Mijozdan Nasiya to\'lovi', description: "Qarzdorlik va nasiya to'lovlari qaytarilishi", color: '#059669', isDefault: true, type: 'income' },
+  { id: 'cat-inc-3', name: 'Xizmat & Montaj tushumi', description: "Usta montaji, sozlash va servis xizmatlari tushumi", color: '#3B82F6', isDefault: true, type: 'income' },
+  { id: 'cat-inc-4', name: 'Muassis / Boshlang\'ich sarmoya', description: "Ta'sischilar mablag'i yoki kassa to'ldirish", color: '#8B5CF6', isDefault: true, type: 'income' },
+  { id: 'cat-inc-5', name: 'Boshqa kirimlar', description: "Keshbek, komissiya yoki boshqa tushumlar", color: '#6366F1', isDefault: true, type: 'income' },
+
+  // Chiqim Toifalari (Expense)
+  { id: 'cat-1', name: 'Ijara', description: "Do'kon, ustaxona yoki ombor ijarasi", color: '#EF4444', isDefault: true, type: 'expense' },
+  { id: 'cat-2', name: 'Oylik / Ish haqi', description: "Xodimlar va montaj ustalari ish haqi", color: '#8B5CF6', isDefault: true, type: 'expense' },
+  { id: 'cat-3', name: 'Transport & Yetkazish', description: "Obyektlarga borish, benzin, yetkazish", color: '#F59E0B', isDefault: true, type: 'expense' },
+  { id: 'cat-4', name: 'Asboblar & Uskunalar', description: "Drel, perferator, kabel sinagich, narvon, testerlar", color: '#3B82F6', isDefault: true, type: 'expense' },
+  { id: 'cat-5', name: 'Kommunal & Internet', description: "Elektr, optik internet, aloqa xarajatlari", color: '#06B6D4', isDefault: true, type: 'expense' },
+  { id: 'cat-6', name: 'Reklama & Marketing', description: "Instagram/Telegram kanallarida montaj va kamera reklamasi", color: '#EC4899', isDefault: true, type: 'expense' },
+  { id: 'cat-7', name: 'Mayda xo\'jalik', description: "Izolenta, kassa chek qog'ozi, choy va kanselyariya", color: '#10B981', isDefault: true, type: 'expense' },
+  { id: 'cat-8', name: 'Boshqa chiqimlar', description: "Kutilmagan yoki rejalashtirilmagan chiqimlar", color: '#64748B', isDefault: true, type: 'expense' }
 ];
 
 export const INITIAL_CUSTOMER_ORDERS: CustomerOrder[] = [];
