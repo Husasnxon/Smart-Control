@@ -805,9 +805,113 @@ export const INITIAL_EXPENSE_CATEGORIES: ExpenseCategory[] = [
   { id: 'cat-8', name: 'Boshqa chiqimlar', description: "Kutilmagan yoki rejalashtirilmagan chiqimlar", color: '#64748B', isDefault: true, type: 'expense' }
 ];
 
-export const INITIAL_CUSTOMER_ORDERS: CustomerOrder[] = [];
+export const INITIAL_CUSTOMER_ORDERS: CustomerOrder[] = [
+  {
+    id: 'ord-1001',
+    orderNumber: 'ZK-1001',
+    createdAt: '2026-10-07 11:00',
+    organization: 'SMART CONTROL',
+    customerId: 'cust-1',
+    customerName: 'Javohir Toshmatov (Grand Qurilish)',
+    customerPhone: '+998 90 123 45 67',
+    warehouseName: 'Asosiy Ombor',
+    deliveryAddress: 'Toshkent sh., Bunyodkor shoh ko\'chasi 42-uy',
+    projectName: 'Grand Qurilish Bosh Ofisi & Omborxona',
+    currency: 'UZS',
+    exchangeRate: 12850,
+    items: [
+      { productId: 'prod-1', productName: 'Hikvision DS-2CD1043G0-I 4MP IP Tashqi Kamera', quantity: 4, unit: 'dona', unitPrice: 440000, discountPercent: 0, totalPrice: 1760000, hasSerialNumber: true },
+      { productId: 'prod-3', productName: 'Hikvision DS-7608NI-Q1 8-Kanalli 4K NVR Registrator', quantity: 1, unit: 'dona', unitPrice: 950000, discountPercent: 0, totalPrice: 950000, hasSerialNumber: true }
+    ],
+    subtotal: 2710000,
+    discountTotal: 0,
+    totalAmount: 2710000,
+    totalAmountUSD: 210.89,
+    status: 'shipped',
+    shipmentId: 'ship-2001'
+  },
+  {
+    id: 'ord-1002',
+    orderNumber: 'ZK-1002',
+    createdAt: '2026-10-06 14:30',
+    organization: 'SMART CONTROL',
+    customerId: 'cust-2',
+    customerName: 'Samirbek Nurmatov',
+    customerPhone: '+998 93 456 78 90',
+    warehouseName: 'Asosiy Ombor',
+    deliveryAddress: 'Namangan sh., Bobur bog\'i yaqinida 18-uy',
+    projectName: 'Shaxsiy Kottedj & Hovli',
+    currency: 'UZS',
+    exchangeRate: 12850,
+    items: [
+      { productId: 'prod-1', productName: 'Hikvision DS-2CD1043G0-I 4MP IP Tashqi Kamera', quantity: 2, unit: 'dona', unitPrice: 440000, discountPercent: 0, totalPrice: 880000, hasSerialNumber: true }
+    ],
+    subtotal: 880000,
+    discountTotal: 0,
+    totalAmount: 880000,
+    totalAmountUSD: 68.48,
+    status: 'shipped',
+    shipmentId: 'ship-2002'
+  }
+];
 
-export const INITIAL_SHIPMENTS: ShipmentOrder[] = [];
+export const INITIAL_SHIPMENTS: ShipmentOrder[] = [
+  {
+    id: 'ship-2001',
+    shipmentNumber: 'OTG-2001',
+    orderId: 'ord-1001',
+    orderNumber: 'ZK-1001',
+    createdAt: '2026-10-07 14:00',
+    shippedAt: '2026-10-07 15:30',
+    organization: 'SMART CONTROL',
+    customerId: 'cust-1',
+    customerName: 'Javohir Toshmatov (Grand Qurilish)',
+    customerPhone: '+998 90 123 45 67',
+    warehouseName: 'Asosiy Ombor',
+    deliveryAddress: 'Toshkent sh., Bunyodkor shoh ko\'chasi 42-uy',
+    projectName: 'Grand Qurilish Bosh Ofisi & Omborxona',
+    comment: 'Grand Qurilish bosh ofisi uchun 4 ta kamera va NVR registrator otgruzka qilindi',
+    currency: 'UZS',
+    exchangeRate: 12850,
+    items: [
+      { productId: 'prod-1', productName: 'Hikvision DS-2CD1043G0-I 4MP IP Tashqi Kamera', quantity: 4, unit: 'dona', unitPrice: 440000, discountPercent: 0, totalPrice: 1760000, hasSerialNumber: true, selectedSerialNumbers: ['HK-4MP-982101', 'HK-4MP-982102', 'HK-4MP-982103', 'HK-4MP-982104'] },
+      { productId: 'prod-3', productName: 'Hikvision DS-7608NI-Q1 8-Kanalli 4K NVR Registrator', quantity: 1, unit: 'dona', unitPrice: 950000, discountPercent: 0, totalPrice: 950000, hasSerialNumber: true, selectedSerialNumbers: ['NVR-7608-5521'] }
+    ],
+    subtotal: 2710000,
+    discountTotal: 0,
+    totalAmount: 2710000,
+    totalAmountUSD: 210.89,
+    status: 'shipped',
+    paymentMethod: 'card'
+  },
+  {
+    id: 'ship-2002',
+    shipmentNumber: 'OTG-2002',
+    orderId: 'ord-1002',
+    orderNumber: 'ZK-1002',
+    createdAt: '2026-10-06 16:00',
+    shippedAt: '2026-10-06 17:00',
+    organization: 'SMART CONTROL',
+    customerId: 'cust-2',
+    customerName: 'Samirbek Nurmatov',
+    customerPhone: '+998 93 456 78 90',
+    warehouseName: 'Asosiy Ombor',
+    deliveryAddress: 'Namangan sh., Bobur bog\'i yaqinida 18-uy',
+    projectName: 'Shaxsiy Kottedj & Hovli',
+    comment: 'Kottedj videokuzatuvi uchun 2 ta kamera otgruzka qilindi',
+    currency: 'UZS',
+    exchangeRate: 12850,
+    items: [
+      { productId: 'prod-1', productName: 'Hikvision DS-2CD1043G0-I 4MP IP Tashqi Kamera', quantity: 2, unit: 'dona', unitPrice: 440000, discountPercent: 0, totalPrice: 880000, hasSerialNumber: true, selectedSerialNumbers: ['HK-4MP-982101', 'HK-4MP-982102'] }
+    ],
+    subtotal: 880000,
+    discountTotal: 0,
+    totalAmount: 880000,
+    totalAmountUSD: 68.48,
+    status: 'shipped',
+    paymentMethod: 'cash'
+  }
+];
 
 export const DEFAULT_SUPPLIERS = [
   'Hikvision Official Diler (Toshkent)',

@@ -1122,12 +1122,12 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
 
                   {/* STEP 2: SELECT LINKED SHIPMENT / ORDER / DEBT */}
                   <div className="p-3.5 rounded-2xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/80 space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <label className="text-xs font-black uppercase tracking-wider text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                        <Package className="w-4 h-4 text-emerald-500" />
-                        2. Shu mijozning Otgruzkasi / Chekiga bog&apos;lash
+                        <Package className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span>2. Mijozning Otgruzkasi / Chekiga bog&apos;lash</span>
                       </label>
-                      <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">
+                      <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold px-2 py-0.5 rounded-full shrink-0">
                         {customerShipments.length} ta otgruzka mavjud
                       </span>
                     </div>
@@ -1299,38 +1299,50 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                       </div>
                     </div>
 
-                    {/* Category */}
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kirim Toifasi</label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsAddIncomeModalOpen(false);
-                            setIsCategoryManageModalOpen(true);
-                            setNewCatType('income');
-                          }}
-                          className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
-                        >
-                          + Yangi toifa
-                        </button>
+                    {/* Auto Category Info or Category Selector */}
+                    {incomeLinkType !== 'none' ? (
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 dark:text-slate-400">Toifa:</span>
+                          <span className="font-bold text-emerald-700 dark:text-emerald-300">
+                            🟢 {incomeCategory}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-emerald-600/80 font-medium">Avtomatik toifalandi</span>
                       </div>
-                      <select
-                        value={incomeCategory}
-                        onChange={(e) => setIncomeCategory(e.target.value)}
-                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium"
-                      >
-                        {incomeCategories.map((c) => (
-                          <option key={c.id} value={c.name}>
-                            🟢 {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kirim Toifasi</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddIncomeModalOpen(false);
+                              setIsCategoryManageModalOpen(true);
+                              setNewCatType('income');
+                            }}
+                            className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                          >
+                            + Yangi toifa
+                          </button>
+                        </div>
+                        <select
+                          value={incomeCategory}
+                          onChange={(e) => setIncomeCategory(e.target.value)}
+                          className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium"
+                        >
+                          {incomeCategories.map((c) => (
+                            <option key={c.id} value={c.name}>
+                              🟢 {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
                     {/* Payment Source */}
                     <div>
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Qayerga qabul qilindi? (Manba)</label>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Qayerga qabul qilindi? (Kassa / Bank)</label>
                       <div className="grid grid-cols-3 gap-2 mt-1">
                         <button
                           type="button"
@@ -1373,24 +1385,26 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                       </div>
                     </div>
 
-                    {/* Paid By (Mijoz / Kontragent) */}
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kimdan qabul qilindi? (Mijoz / Kontragent)</label>
-                      <input
-                        type="text"
-                        placeholder="Masalan: Grand Qurilish MCHJ, Farrux aka..."
-                        value={incomePaidBy}
-                        onChange={(e) => setIncomePaidBy(e.target.value)}
-                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
-                      />
-                    </div>
+                    {/* Paid By (Only show manual input when no customer is selected) */}
+                    {!selectedCustomerObj && (
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">To&apos;lovchi ismi / Kompaniya (ixtiyoriy)</label>
+                        <input
+                          type="text"
+                          placeholder="Masalan: Erkin to'lovchi yoki Tashkilot..."
+                          value={incomePaidBy}
+                          onChange={(e) => setIncomePaidBy(e.target.value)}
+                          className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    )}
 
                     {/* Notes */}
                     <div>
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Izoh va Maqsad</label>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Izoh</label>
                       <textarea
                         rows={2}
-                        placeholder="Qisqacha izoh yoki to'lov maqsadi..."
+                        placeholder="Qisqacha izoh..."
                         value={incomeNotes}
                         onChange={(e) => setIncomeNotes(e.target.value)}
                         className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
