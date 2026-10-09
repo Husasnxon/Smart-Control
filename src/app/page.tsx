@@ -307,7 +307,35 @@ export default function Home() {
       if (savedLeads) setCrmLeads(JSON.parse(savedLeads));
 
       const savedObjects = localStorage.getItem('sc_crm_objects');
-      if (savedObjects) setCrmObjectPassports(JSON.parse(savedObjects));
+      if (savedObjects) {
+        try {
+          const parsed = JSON.parse(savedObjects);
+          if (Array.isArray(parsed)) {
+            // Merge initial floorPlans into mock objects if missing
+            const merged = parsed.map((obj: CrmObjectPassport) => {
+              const initObj = INITIAL_CRM_OBJECTS.find(io => io.id === obj.id);
+              if (initObj && (!obj.floorPlans || obj.floorPlans.length === 0)) {
+                return {
+                  ...obj,
+                  floorPlans: initObj.floorPlans,
+                  installationStage: obj.installationStage || initObj.installationStage,
+                  cablingCompletedDate: obj.cablingCompletedDate || initObj.cablingCompletedDate,
+                  cablingTechnicianName: obj.cablingTechnicianName || initObj.cablingTechnicianName
+                };
+              }
+              return obj;
+            });
+            setCrmObjectPassports(merged);
+            localStorage.setItem('sc_crm_objects', JSON.stringify(merged));
+          } else {
+            setCrmObjectPassports(INITIAL_CRM_OBJECTS);
+          }
+        } catch (e) {
+          setCrmObjectPassports(INITIAL_CRM_OBJECTS);
+        }
+      } else {
+        setCrmObjectPassports(INITIAL_CRM_OBJECTS);
+      }
 
       const savedReminders = localStorage.getItem('sc_crm_reminders');
       if (savedReminders) setCrmReminders(JSON.parse(savedReminders));

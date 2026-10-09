@@ -507,16 +507,16 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 onClick={() => setActiveSubTab('passports')}
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold transition ${
                   activeSubTab === 'passports'
-                    ? 'bg-teal-600 text-white shadow-sm'
+                    ? 'bg-gradient-to-r from-teal-600 to-sky-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Obyektlar Pasporti
+                <Compass className="w-3.5 h-3.5 text-sky-300" />
+                <span>Obyektlar & 2D Sxema</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                  activeSubTab === 'passports' ? 'bg-teal-900 text-teal-200' : 'bg-slate-800 text-slate-400'
+                  activeSubTab === 'passports' ? 'bg-black/40 text-sky-200' : 'bg-slate-800 text-slate-400'
                 }`}>
-                  {filteredPassports.length}
+                  {filteredPassports.length} ta
                 </span>
               </button>
 
