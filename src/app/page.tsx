@@ -2316,6 +2316,8 @@ export default function Home() {
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
               onConvertToOrder={handleConvertLeadToOrder}
+              onSaveOrder={handleSaveOrder}
+              onNavigateToOrders={() => setActiveTab('orders')}
             />
           )}
 

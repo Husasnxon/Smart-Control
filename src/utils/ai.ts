@@ -144,7 +144,7 @@ export const localHeuristicCrmParser = (
     `📹 Kameralar soni: ${cameraCount} ta nuqta\n` +
     `💰 Taxminiy qiymati: $${budgetUSD}\n` +
     `🛡️ Rasmiy kafolat: 24 oy\n` +
-    `👷 Usta ko'rigi (zamer): Bepul\n\n` +
+    `👷 Usta ko'rigi (O'lchash-hisoblash): Bepul\n\n` +
     `Savollaringiz bo'lsa, javob berishdan mamnunmiz!`;
 
   return {
@@ -158,7 +158,7 @@ export const localHeuristicCrmParser = (
     siteVisitDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
     siteVisitTime: '14:00',
     notes: text,
-    nextActionNote: 'Zamerga borish va smeta hisoblash',
+    nextActionNote: 'O\'lchash-hisoblashga borish va smeta hisoblash',
     recommendedItems,
     commercialProposalText
   };
@@ -215,7 +215,7 @@ Return ONLY valid JSON (no markdown formatting, no backticks, no code fence) mat
   "siteVisitDate": "YYYY-MM-DD",
   "siteVisitTime": "HH:MM",
   "notes": "string summary of request",
-  "nextActionNote": "string (e.g. Zamerga borish / Smeta yuborish)",
+  "nextActionNote": "string (e.g. O'lchash-hisoblashga borish / Smeta yuborish)",
   "recommendedItems": [
     {
       "productId": "string matching available product id if possible",

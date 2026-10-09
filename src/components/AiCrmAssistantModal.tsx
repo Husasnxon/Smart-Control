@@ -164,7 +164,7 @@ export const AiCrmAssistantModal: React.FC<AiCrmAssistantModalProps> = ({
     if (parsedResult.siteVisitDate && onSaveReminder) {
       const newRem: CrmReminder = {
         id: `rem-${Date.now()}`,
-        title: `${parsedResult.clientName} - Zamer / Smeta ko'rigi`,
+        title: `${parsedResult.clientName} - O'lchash-hisoblash / Smeta ko'rigi`,
         customerName: parsedResult.clientName,
         customerPhone: parsedResult.phone,
         type: 'visit',
@@ -223,7 +223,7 @@ export const AiCrmAssistantModal: React.FC<AiCrmAssistantModalProps> = ({
             <textarea
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Masalan: Shoxrux aka, 90 123 45 67, Kosonsoy ko'chasi 45-uy. Hovlisiga 6 ta rangli kamera qo'ymoqchi, 350 dollar byudjeti bor, Dilshod usta ertaga soat 2 da zamerga borishi kerak..."
+              placeholder="Masalan: Shoxrux aka, 90 123 45 67, Kosonsoy ko'chasi 45-uy. Hovlisiga 6 ta rangli kamera qo'ymoqchi, 350 dollar byudjeti bor, Dilshod usta ertaga soat 2 da o'lchash-hisoblashga borishi kerak..."
               rows={3}
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 resize-none pr-12"
             />

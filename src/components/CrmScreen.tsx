@@ -11,6 +11,8 @@ import {
   Employee,
   Customer,
   CustomerOrder,
+  OrderItem,
+  Product,
   Currency
 } from '../types';
 import { formatDualMoney, formatMoney, formatUSDNumber, formatNumberWithSpaces } from '../utils/formatters';
@@ -55,11 +57,11 @@ import {
   Square,
   TrendingUp,
   Award,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Save
 } from 'lucide-react';
 import { getTelegramSettings, sendTelegramMessage } from '../utils/telegram';
 import { AiCrmAssistantModal } from './AiCrmAssistantModal';
-import { Product } from '../types';
 
 interface CrmScreenProps {
   leads: CrmLead[];
@@ -81,6 +83,8 @@ interface CrmScreenProps {
   baseCurrency?: Currency;
   exchangeRate?: number;
   onConvertToOrder?: (lead: CrmLead) => void;
+  onSaveOrder?: (order: CustomerOrder) => void;
+  onNavigateToOrders?: () => void;
 }
 
 const STAGE_CONFIG: Record<CrmLeadStage, { title: string; color: string; bg: string; border: string; badgeBg: string }> = {
@@ -92,7 +96,7 @@ const STAGE_CONFIG: Record<CrmLeadStage, { title: string; color: string; bg: str
     badgeBg: 'bg-sky-500/10 text-sky-400 border-sky-500/30'
   },
   site_visit: { 
-    title: '2. Zamer / O\'lchashda', 
+    title: '2. O\'lchash-hisoblash', 
     color: 'text-amber-400', 
     bg: 'bg-amber-950/20', 
     border: 'border-amber-500/30',
@@ -165,7 +169,9 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   products = [],
   baseCurrency = 'UZS',
   exchangeRate = 12850,
-  onConvertToOrder
+  onConvertToOrder,
+  onSaveOrder,
+  onNavigateToOrders
 }) => {
   // Navigation sub-tabs
   const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'passports' | 'reminders' | 'analytics'>('pipeline');
@@ -177,6 +183,10 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   const [selectedSourceFilter, setSelectedSourceFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
 
+  // Drag & Drop state
+  const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<CrmLeadStage | null>(null);
+
   // Modals state
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
   const [isAddPassportModalOpen, setIsAddPassportModalOpen] = useState(false);
@@ -185,6 +195,14 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<CrmLead | null>(null);
   const [selectedPassportForDetail, setSelectedPassportForDetail] = useState<CrmObjectPassport | null>(null);
   const [printingPassport, setPrintingPassport] = useState<CrmObjectPassport | null>(null);
+
+  // Integrated Lead Smeta Creator Modal State
+  const [selectedLeadForEstimate, setSelectedLeadForEstimate] = useState<CrmLead | null>(null);
+  const [estimateItems, setEstimateItems] = useState<OrderItem[]>([]);
+  const [estimateCurrency, setEstimateCurrency] = useState<'UZS' | 'USD'>('USD');
+  const [estimateTechId, setEstimateTechId] = useState<string>('');
+  const [estimateDiscountPercent, setEstimateDiscountPercent] = useState<number>(0);
+  const [estimateProductSearch, setEstimateProductSearch] = useState<string>('');
 
   // Password visibility map
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
@@ -274,6 +292,173 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
       updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' ')
     };
     onUpdateLead(updated);
+  };
+
+  // Open Integrated Estimate Modal for a Lead
+  const handleOpenEstimateModal = (lead: CrmLead) => {
+    setSelectedLeadForEstimate(lead);
+    setEstimateTechId(lead.assignedTechnicianId || '');
+    setEstimateCurrency('USD');
+    setEstimateDiscountPercent(0);
+    setEstimateProductSearch('');
+
+    const existingOrder = customerOrders.find(o => o.id === lead.linkedOrderId || (o.orderNumber && lead.linkedOrderNumber && o.orderNumber === lead.linkedOrderNumber));
+    if (existingOrder && existingOrder.items.length > 0) {
+      setEstimateItems([...existingOrder.items]);
+      setEstimateCurrency(existingOrder.currency || 'USD');
+      setEstimateTechId(existingOrder.technicianId || lead.assignedTechnicianId || '');
+      return;
+    }
+
+    const camCount = lead.cameraCountEstimated || 4;
+    const initialItems: OrderItem[] = [];
+
+    const camProd = (products || []).find(p => p.category.toLowerCase().includes('kamera') && !p.isService) || products?.[0];
+    if (camProd) {
+      const unitPriceUSD = camProd.retailPriceUSD || Math.round(camProd.retailPrice / exchangeRate);
+      initialItems.push({
+        productId: camProd.id,
+        productName: camProd.name,
+        category: camProd.category,
+        sku: camProd.sku,
+        quantity: camCount,
+        unit: camProd.unit || 'dona',
+        unitPrice: Math.round(unitPriceUSD * exchangeRate),
+        unitPriceUSD: unitPriceUSD,
+        discountPercent: 0,
+        totalPrice: Math.round(unitPriceUSD * exchangeRate * camCount),
+        hasSerialNumber: camProd.hasSerialNumber || false,
+        isService: false
+      });
+    }
+
+    const nvrProd = (products || []).find(p => p.category.toLowerCase().includes('registrator') || p.name.toLowerCase().includes('nvr') || p.name.toLowerCase().includes('dvr'));
+    if (nvrProd) {
+      const unitPriceUSD = nvrProd.retailPriceUSD || Math.round(nvrProd.retailPrice / exchangeRate);
+      initialItems.push({
+        productId: nvrProd.id,
+        productName: nvrProd.name,
+        category: nvrProd.category,
+        sku: nvrProd.sku,
+        quantity: 1,
+        unit: nvrProd.unit || 'dona',
+        unitPrice: Math.round(unitPriceUSD * exchangeRate),
+        unitPriceUSD: unitPriceUSD,
+        discountPercent: 0,
+        totalPrice: Math.round(unitPriceUSD * exchangeRate),
+        hasSerialNumber: nvrProd.hasSerialNumber || false,
+        isService: false
+      });
+    }
+
+    const srvProd = (products || []).find(p => p.isService || p.category.toLowerCase().includes('montaj') || p.name.toLowerCase().includes('montaj'));
+    if (srvProd) {
+      const unitPriceUSD = srvProd.retailPriceUSD || Math.round(srvProd.retailPrice / exchangeRate);
+      initialItems.push({
+        productId: srvProd.id,
+        productName: srvProd.name,
+        category: srvProd.category,
+        sku: srvProd.sku,
+        quantity: camCount,
+        unit: srvProd.unit || 'xizmat',
+        unitPrice: Math.round(unitPriceUSD * exchangeRate),
+        unitPriceUSD: unitPriceUSD,
+        discountPercent: 0,
+        totalPrice: Math.round(unitPriceUSD * exchangeRate * camCount),
+        hasSerialNumber: false,
+        isService: true
+      });
+    }
+
+    setEstimateItems(initialItems);
+  };
+
+  // Save Estimate & Link to Lead
+  const handleSaveEstimateForLead = () => {
+    if (!selectedLeadForEstimate) return;
+    if (estimateItems.length === 0) {
+      alert("Iltimos, smetaga kamida bitta tovar yoki xizmat qo'shing!");
+      return;
+    }
+
+    const isUSD = estimateCurrency === 'USD';
+    const assignedEmp = employees.find(e => e.id === estimateTechId);
+
+    let subtotalUSD = 0;
+    let subtotalUZS = 0;
+
+    estimateItems.forEach(item => {
+      const itemPriceUSD = item.unitPriceUSD || Math.round(item.unitPrice / exchangeRate);
+      const itemPriceUZS = item.unitPrice || Math.round(itemPriceUSD * exchangeRate);
+      const itemDisc = item.discountPercent || 0;
+      
+      const lineTotalUSD = itemPriceUSD * (1 - itemDisc / 100) * item.quantity;
+      const lineTotalUZS = itemPriceUZS * (1 - itemDisc / 100) * item.quantity;
+
+      subtotalUSD += lineTotalUSD;
+      subtotalUZS += lineTotalUZS;
+    });
+
+    const totalDiscountUSD = subtotalUSD * (estimateDiscountPercent / 100);
+    const totalDiscountUZS = subtotalUZS * (estimateDiscountPercent / 100);
+
+    const finalTotalUSD = Number((subtotalUSD - totalDiscountUSD).toFixed(2));
+    const finalTotalUZS = Math.round(subtotalUZS - totalDiscountUZS);
+
+    const existingOrder = customerOrders.find(o => o.id === selectedLeadForEstimate.linkedOrderId || (o.orderNumber && selectedLeadForEstimate.linkedOrderNumber && o.orderNumber === selectedLeadForEstimate.linkedOrderNumber));
+
+    const orderNum = existingOrder ? existingOrder.orderNumber : `ZK-${1000 + customerOrders.length + 1}`;
+    const orderId = existingOrder ? existingOrder.id : `ord-${Date.now()}`;
+
+    const newOrder: CustomerOrder = {
+      id: orderId,
+      orderNumber: orderNum,
+      createdAt: existingOrder?.createdAt || new Date().toISOString().slice(0, 16).replace('T', ' '),
+      organization: 'WST Namangan',
+      warehouseName: 'Asosiy ombor',
+      customerId: selectedLeadForEstimate.id,
+      customerName: selectedLeadForEstimate.clientName,
+      customerPhone: selectedLeadForEstimate.phone,
+      deliveryAddress: selectedLeadForEstimate.address || '',
+      projectName: `${selectedLeadForEstimate.clientName} (${OBJECT_TYPE_LABELS[selectedLeadForEstimate.objectType]?.label || 'Obyekt'})`,
+      comment: `LID: ${selectedLeadForEstimate.leadNumber}. Manba: ${selectedLeadForEstimate.source}`,
+      currency: estimateCurrency,
+      exchangeRate: exchangeRate,
+      items: estimateItems,
+      subtotal: isUSD ? subtotalUSD : subtotalUZS,
+      discountTotal: isUSD ? totalDiscountUSD : totalDiscountUZS,
+      totalAmount: isUSD ? Math.round(finalTotalUSD * exchangeRate) : finalTotalUZS,
+      totalAmountUSD: isUSD ? finalTotalUSD : Number((finalTotalUZS / exchangeRate).toFixed(2)),
+      status: 'calculated',
+      technicianId: assignedEmp?.id,
+      technicianName: assignedEmp?.fullName,
+      technicians: assignedEmp ? [{
+        id: assignedEmp.id,
+        fullName: assignedEmp.fullName,
+        phone: assignedEmp.phone,
+        role: assignedEmp.role,
+        wageUSD: 0,
+        wageUZS: 0
+      }] : undefined,
+      createdBy: 'CRM Menejer'
+    };
+
+    onSaveOrder?.(newOrder);
+
+    const updatedLead: CrmLead = {
+      ...selectedLeadForEstimate,
+      linkedOrderId: newOrder.id,
+      linkedOrderNumber: newOrder.orderNumber,
+      budgetEstimatedUSD: newOrder.totalAmountUSD,
+      budgetEstimatedUZS: newOrder.totalAmount,
+      assignedTechnicianId: assignedEmp?.id || selectedLeadForEstimate.assignedTechnicianId,
+      assignedTechnicianName: assignedEmp?.fullName || selectedLeadForEstimate.assignedTechnicianName,
+      stage: selectedLeadForEstimate.stage === 'new_lead' || selectedLeadForEstimate.stage === 'site_visit' ? 'estimate_sent' : selectedLeadForEstimate.stage,
+      updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' ')
+    };
+    onUpdateLead(updatedLead);
+
+    setSelectedLeadForEstimate(null);
   };
 
   // -------------------------------------------------------------
@@ -480,7 +665,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               </div>
             </div>
 
-            {/* Kanban Board View */}
+            {/* Kanban Board View with Drag & Drop & Super Compact Cards */}
             {viewMode === 'kanban' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 min-h-[500px]">
                 {(['new_lead', 'site_visit', 'estimate_sent', 'installation', 'won', 'lost'] as CrmLeadStage[]).map((stageKey) => {
@@ -491,10 +676,33 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   return (
                     <div
                       key={stageKey}
-                      className={`flex flex-col rounded-2xl border ${stageConf.border} ${stageConf.bg} p-3 transition`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (dragOverStage !== stageKey) setDragOverStage(stageKey);
+                      }}
+                      onDragLeave={(e) => {
+                        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                        setDragOverStage(null);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const droppedLeadId = e.dataTransfer.getData('text/plain') || draggedLeadId;
+                        if (droppedLeadId) {
+                          const targetLead = leads.find(l => l.id === droppedLeadId);
+                          if (targetLead && targetLead.stage !== stageKey) {
+                            handleMoveStage(targetLead, stageKey);
+                          }
+                        }
+                        setDragOverStage(null);
+                        setDraggedLeadId(null);
+                      }}
+                      className={`flex flex-col rounded-2xl border ${stageConf.border} ${stageConf.bg} p-2.5 transition-all duration-200 ${
+                        dragOverStage === stageKey ? 'ring-2 ring-indigo-500 bg-indigo-950/40 shadow-xl shadow-indigo-500/20 scale-[1.01]' : ''
+                      }`}
                     >
                       {/* Column Header */}
-                      <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-800/80">
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/80">
                         <div>
                           <h3 className={`text-xs font-black ${stageConf.color} tracking-wide`}>
                             {stageConf.title}
@@ -508,8 +716,8 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                         </span>
                       </div>
 
-                      {/* Lead Cards List */}
-                      <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[70vh] pr-0.5">
+                      {/* Lead Cards List (Super Compact & Clean) */}
+                      <div className="flex-1 space-y-2 overflow-y-auto max-h-[72vh] pr-0.5">
                         {stageLeads.map((lead) => {
                           const srcInfo = SOURCE_LABELS[lead.source] || SOURCE_LABELS.other;
                           const objInfo = OBJECT_TYPE_LABELS[lead.objectType] || OBJECT_TYPE_LABELS.boshqa;
@@ -518,92 +726,106 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                           return (
                             <div
                               key={lead.id}
-                              className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 shadow-md hover:shadow-indigo-500/5 transition space-y-2 group"
+                              draggable={true}
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', lead.id);
+                                e.dataTransfer.effectAllowed = 'move';
+                                setDraggedLeadId(lead.id);
+                              }}
+                              onDragEnd={() => {
+                                setDraggedLeadId(null);
+                                setDragOverStage(null);
+                              }}
+                              className={`p-2.5 rounded-xl bg-slate-900/95 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-850 shadow-sm transition space-y-1.5 group cursor-grab active:cursor-grabbing ${
+                                draggedLeadId === lead.id ? 'opacity-40 scale-95 ring-2 ring-indigo-500' : ''
+                              }`}
                             >
                               {/* Top row: Number & Source */}
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[10px] font-mono font-black text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800/80">
                                   {lead.leadNumber}
                                 </span>
-                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${srcInfo.color}`}>
+                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border truncate max-w-[120px] ${srcInfo.color}`}>
                                   {srcInfo.label}
                                 </span>
                               </div>
 
-                              {/* Client Info */}
+                              {/* Client Info & Telegram quick button */}
                               <div>
-                                <h4 className="text-xs font-bold text-white group-hover:text-indigo-400 transition flex items-center gap-1.5">
-                                  <ObjIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                  <span className="truncate">{lead.clientName}</span>
-                                </h4>
-                                <div className="flex items-center justify-between mt-1 text-[11px] text-slate-300">
-                                  <a
-                                    href={`tel:${lead.phone.replace(/\s+/g, '')}`}
-                                    className="flex items-center gap-1 text-slate-400 hover:text-emerald-400 transition"
-                                  >
-                                    <Phone className="w-3 h-3 text-emerald-400" />
-                                    {lead.phone}
-                                  </a>
+                                <div className="flex items-center justify-between gap-1">
+                                  <h4 className="text-xs font-black text-white group-hover:text-indigo-300 transition flex items-center gap-1 truncate" title={lead.clientName}>
+                                    <ObjIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span className="truncate">{lead.clientName}</span>
+                                  </h4>
                                   {lead.phone && (
                                     <a
                                       href={`https://t.me/${lead.phone.replace(/[^0-9]/g, '')}`}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="p-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20"
+                                      className="p-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 shrink-0"
                                       title="Telegram orqali yozish"
+                                      onClick={(e) => e.stopPropagation()}
                                     >
                                       <Send className="w-2.5 h-2.5" />
                                     </a>
                                   )}
                                 </div>
+                                <div className="text-[11px] text-slate-300 mt-0.5">
+                                  <a
+                                    href={`tel:${lead.phone.replace(/\s+/g, '')}`}
+                                    className="flex items-center gap-1 text-slate-400 hover:text-emerald-400 transition"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Phone className="w-2.5 h-2.5 text-emerald-400" />
+                                    <span>{lead.phone}</span>
+                                  </a>
+                                </div>
                               </div>
 
-                              {/* Facility / Address */}
+                              {/* Facility / Address (only if present) */}
                               {lead.address && (
-                                <p className="text-[10px] text-slate-400 flex items-start gap-1 line-clamp-1">
-                                  <MapPin className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />
-                                  {lead.address}
+                                <p className="text-[10px] text-slate-400 flex items-center gap-1 truncate" title={lead.address}>
+                                  <MapPin className="w-2.5 h-2.5 text-rose-400 shrink-0" />
+                                  <span className="truncate">{lead.address}</span>
                                 </p>
                               )}
 
-                              {/* Specs & Budget */}
-                              <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800/80 flex items-center justify-between text-[11px]">
-                                <div>
-                                  <span className="text-[10px] text-slate-400">Kamera:</span>{' '}
-                                  <span className="font-bold text-slate-200">{lead.cameraCountEstimated || 0} ta</span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="font-extrabold text-amber-400">
-                                    ${formatUSDNumber(lead.budgetEstimatedUSD || 0)}
-                                  </span>
-                                </div>
+                              {/* Compact Specs & Budget Pill */}
+                              <div className="px-2 py-1 rounded-lg bg-slate-950/80 border border-slate-800/80 flex items-center justify-between text-[10px]">
+                                <span className="text-slate-400 font-medium">
+                                  Kamera: <b className="text-slate-200">{lead.cameraCountEstimated || 0} ta</b>
+                                </span>
+                                <span className="font-extrabold text-amber-400">
+                                  ${formatUSDNumber(lead.budgetEstimatedUSD || 0)}
+                                </span>
                               </div>
 
-                              {/* Assigned Technician */}
+                              {/* Assigned Technician & Visit Date (only if assigned) */}
                               {lead.assignedTechnicianName && (
-                                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800">
-                                  <span className="flex items-center gap-1">
-                                    <UserCheck className="w-3 h-3 text-purple-400" />
-                                    {lead.assignedTechnicianName}
+                                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-800/60">
+                                  <span className="flex items-center gap-1 text-purple-300 truncate max-w-[110px]">
+                                    <UserCheck className="w-2.5 h-2.5 text-purple-400 shrink-0" />
+                                    <span className="truncate">{lead.assignedTechnicianName.split(' ')[0]}</span>
                                   </span>
                                   {lead.siteVisitDate && (
-                                    <span className="text-amber-400 font-medium">
+                                    <span className="text-amber-400 font-bold text-[9px]">
                                       {lead.siteVisitDate.slice(5)} {lead.siteVisitTime || ''}
                                     </span>
                                   )}
                                 </div>
                               )}
 
-                              {/* Next Action reminder */}
+                              {/* Next Action reminder (only if present) */}
                               {lead.nextActionNote && (
-                                <div className="p-1.5 rounded bg-amber-500/5 border border-amber-500/20 text-[10px] text-amber-300">
-                                  <span className="font-semibold text-amber-400">Keyingi qadam:</span> {lead.nextActionNote}
+                                <div className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[9px] text-amber-300 truncate" title={lead.nextActionNote}>
+                                  <span className="font-bold text-amber-400">Qadam:</span> {lead.nextActionNote}
                                 </div>
                               )}
 
-                              {/* Action Footer: Move forward / convert */}
-                              <div className="flex items-center justify-between gap-1 pt-1">
+                              {/* Action Footer: Batafsil, Smeta, Stage dropdown */}
+                              <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800/50">
                                 <button
+                                  type="button"
                                   onClick={() => setSelectedLeadForDetail(lead)}
                                   className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold transition"
                                 >
@@ -611,25 +833,29 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                                 </button>
 
                                 <div className="flex items-center gap-1">
-                                  {/* Quick convert to estimate/order */}
-                                  {onConvertToOrder && (
-                                    <button
-                                      onClick={() => onConvertToOrder(lead)}
-                                      className="px-2 py-1 rounded bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white text-[10px] font-bold border border-indigo-500/30 transition"
-                                      title="Smeta hisoblashga o'tkazish"
-                                    >
-                                      Smeta
-                                    </button>
-                                  )}
+                                  {/* Quick Smeta creation & linking */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEstimateModal(lead)}
+                                    className={`px-2 py-1 rounded text-[10px] font-bold transition flex items-center gap-1 ${
+                                      lead.linkedOrderNumber
+                                        ? 'bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30'
+                                        : 'bg-indigo-600/30 text-indigo-300 hover:bg-indigo-600 hover:text-white border border-indigo-500/30'
+                                    }`}
+                                    title={lead.linkedOrderNumber ? `Smeta: #${lead.linkedOrderNumber}` : "Yangi smeta yaratish va hisob-kitobga qo'shish"}
+                                  >
+                                    <FileSpreadsheet className="w-2.5 h-2.5" />
+                                    <span>{lead.linkedOrderNumber ? lead.linkedOrderNumber : 'Smeta'}</span>
+                                  </button>
 
                                   {/* Stage switcher dropdown */}
                                   <select
                                     value={lead.stage}
                                     onChange={(e) => handleMoveStage(lead, e.target.value as CrmLeadStage)}
-                                    className="px-1.5 py-1 bg-slate-950 border border-slate-700 rounded text-[10px] text-slate-300 font-semibold focus:outline-none"
+                                    className="px-1 py-1 bg-slate-950 border border-slate-700 rounded text-[9px] text-slate-300 font-semibold focus:outline-none"
                                   >
                                     <option value="new_lead">1. Yangi</option>
-                                    <option value="site_visit">2. Zamer</option>
+                                    <option value="site_visit">2. O'lchash</option>
                                     <option value="estimate_sent">3. Smeta</option>
                                     <option value="installation">4. Montaj</option>
                                     <option value="won">5. Yopildi</option>
@@ -970,7 +1196,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
             <div className="flex items-center justify-between bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
               <div>
                 <h3 className="text-sm font-bold text-white">Rejalashtirilgan Qo'ng'iroqlar va Profilaktikalar</h3>
-                <p className="text-xs text-slate-400">Mijozlar bilan qayta bog'lanish, zamerlar va kafolatli profilaktikalar</p>
+                <p className="text-xs text-slate-400">Mijozlar bilan qayta bog'lanish, o'lchash-hisoblash va kafolatli profilaktikalar</p>
               </div>
               <button
                 onClick={() => setIsAddReminderModalOpen(true)}
@@ -1033,7 +1259,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                           rem.type === 'maintenance' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' :
                           'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                         }`}>
-                          {rem.type === 'call' ? 'Qo\'ng\'iroq' : rem.type === 'visit' ? 'Zamerga borish' : rem.type === 'maintenance' ? 'Profilaktika' : 'Qarz eslatish'}
+                          {rem.type === 'call' ? 'Qo\'ng\'iroq' : rem.type === 'visit' ? 'O\'lchash-hisoblash' : rem.type === 'maintenance' ? 'Profilaktika' : 'Qarz eslatish'}
                         </span>
                       </div>
 
@@ -1294,7 +1520,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-                <label className="block text-slate-300 font-bold">Zamer / Usta biriktirish</label>
+                <label className="block text-slate-300 font-bold">O'lchash-hisoblash / Usta biriktirish</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="sm:col-span-1">
                     <select
@@ -1706,7 +1932,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-amber-500 focus:outline-none"
                 >
                   <option value="call">Telefon orqali qo'ng'iroq qilish</option>
-                  <option value="visit">Zamer / Obyektga borish</option>
+                  <option value="visit">O'lchash-hisoblash / Obyektga borish</option>
                   <option value="maintenance">Rejali profilaktika / Servis</option>
                   <option value="debt_reminder">Nasiya / Qarz eslatish</option>
                 </select>
@@ -1885,6 +2111,472 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 <Printer className="w-4 h-4" />
                 Chop Etish (PDF)
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: INTEGRATED LEAD SMETA / ESTIMATE BUILDER */}
+      {/* ========================================================================= */}
+      {selectedLeadForEstimate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-4xl w-full shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <span>Smeta Tuzish & Bog'lash</span>
+                    <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-500/30">
+                      {selectedLeadForEstimate.leadNumber}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                    Mijoz: <b className="text-slate-200">{selectedLeadForEstimate.clientName}</b> ({selectedLeadForEstimate.phone}) • {OBJECT_TYPE_LABELS[selectedLeadForEstimate.objectType]?.label || 'Obyekt'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedLeadForEstimate(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Settings & Templates Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-950/70 p-3 rounded-2xl border border-slate-800 text-xs">
+              {/* Currency Selector */}
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Valyuta:</label>
+                <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEstimateCurrency('USD')}
+                    className={`flex-1 py-1 rounded-lg font-bold transition ${
+                      estimateCurrency === 'USD' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    $ AQSH Dollari
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEstimateCurrency('UZS')}
+                    className={`flex-1 py-1 rounded-lg font-bold transition ${
+                      estimateCurrency === 'UZS' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    So'm (UZS)
+                  </button>
+                </div>
+              </div>
+
+              {/* Technician Selector */}
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Mas'ul Usta / Muhandis:</label>
+                <select
+                  value={estimateTechId}
+                  onChange={(e) => setEstimateTechId(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-indigo-500 font-semibold"
+                >
+                  <option value="">Ustani tanlang...</option>
+                  {employees
+                    .filter(e => e.role.toLowerCase().includes('usta') || e.role.toLowerCase().includes('muhandis') || e.role.toLowerCase().includes('sozlovchi'))
+                    .map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.fullName}</option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Overall Discount */}
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Umumiy Chegirma (%):</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={estimateDiscountPercent}
+                    onChange={(e) => setEstimateDiscountPercent(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-white font-bold text-center focus:outline-none focus:border-indigo-500"
+                  />
+                  <span className="text-slate-400 font-bold">%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Package Presets */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-400 font-bold flex items-center gap-1 text-[11px]">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                Tezkor To'plamlar:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const camCount = selectedLeadForEstimate.cameraCountEstimated || 4;
+                  const cam = (products || []).find(p => p.category.toLowerCase().includes('kamera') && !p.isService) || products?.[0];
+                  const nvr = (products || []).find(p => p.category.toLowerCase().includes('registrator') || p.name.toLowerCase().includes('nvr'));
+                  const srv = (products || []).find(p => p.isService || p.category.toLowerCase().includes('montaj'));
+
+                  const newItems: OrderItem[] = [];
+                  if (cam) {
+                    const priceUSD = cam.retailPriceUSD || Math.round(cam.retailPrice / exchangeRate);
+                    newItems.push({
+                      productId: cam.id,
+                      productName: cam.name,
+                      quantity: camCount,
+                      unit: cam.unit || 'dona',
+                      unitPrice: Math.round(priceUSD * exchangeRate),
+                      unitPriceUSD: priceUSD,
+                      discountPercent: 0,
+                      totalPrice: Math.round(priceUSD * exchangeRate * camCount),
+                      hasSerialNumber: cam.hasSerialNumber || false,
+                      isService: false
+                    });
+                  }
+                  if (nvr) {
+                    const priceUSD = nvr.retailPriceUSD || Math.round(nvr.retailPrice / exchangeRate);
+                    newItems.push({
+                      productId: nvr.id,
+                      productName: nvr.name,
+                      quantity: 1,
+                      unit: nvr.unit || 'dona',
+                      unitPrice: Math.round(priceUSD * exchangeRate),
+                      unitPriceUSD: priceUSD,
+                      discountPercent: 0,
+                      totalPrice: Math.round(priceUSD * exchangeRate),
+                      hasSerialNumber: nvr.hasSerialNumber || false,
+                      isService: false
+                    });
+                  }
+                  if (srv) {
+                    const priceUSD = srv.retailPriceUSD || Math.round(srv.retailPrice / exchangeRate);
+                    newItems.push({
+                      productId: srv.id,
+                      productName: srv.name,
+                      quantity: camCount,
+                      unit: srv.unit || 'xizmat',
+                      unitPrice: Math.round(priceUSD * exchangeRate),
+                      unitPriceUSD: priceUSD,
+                      discountPercent: 0,
+                      totalPrice: Math.round(priceUSD * exchangeRate * camCount),
+                      hasSerialNumber: false,
+                      isService: true
+                    });
+                  }
+                  setEstimateItems(newItems);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold transition"
+              >
+                📹 Standart CCTV To'plam
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const srv = (products || []).find(p => p.isService || p.category.toLowerCase().includes('montaj'));
+                  if (srv) {
+                    const priceUSD = srv.retailPriceUSD || Math.round(srv.retailPrice / exchangeRate);
+                    setEstimateItems([{
+                      productId: srv.id,
+                      productName: srv.name,
+                      quantity: selectedLeadForEstimate.cameraCountEstimated || 4,
+                      unit: srv.unit || 'xizmat',
+                      unitPrice: Math.round(priceUSD * exchangeRate),
+                      unitPriceUSD: priceUSD,
+                      discountPercent: 0,
+                      totalPrice: Math.round(priceUSD * exchangeRate * (selectedLeadForEstimate.cameraCountEstimated || 4)),
+                      hasSerialNumber: false,
+                      isService: true
+                    }]);
+                  }
+                }}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/30 font-semibold transition"
+              >
+                ⚡ Faqat Montaj & Sozlash
+              </button>
+            </div>
+
+            {/* Add Product Search & Catalog Dropdown */}
+            <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2">
+              <label className="block text-xs font-bold text-slate-300">Ombordan Tovar yoki Xizmat Qo'shish:</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[240px]">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={estimateProductSearch}
+                    onChange={(e) => setEstimateProductSearch(e.target.value)}
+                    placeholder="Ombordan tovar yoki xizmat nomini qidiring..."
+                    className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Search Suggestions */}
+              {estimateProductSearch.trim().length > 0 && (
+                <div className="max-h-40 overflow-y-auto space-y-1 bg-slate-900 p-2 rounded-xl border border-slate-800">
+                  {(products || [])
+                    .filter(p => p.name.toLowerCase().includes(estimateProductSearch.toLowerCase()) || p.category.toLowerCase().includes(estimateProductSearch.toLowerCase()))
+                    .slice(0, 6)
+                    .map(prod => {
+                      const priceUSD = prod.retailPriceUSD || Math.round(prod.retailPrice / exchangeRate);
+                      return (
+                        <div
+                          key={prod.id}
+                          onClick={() => {
+                            const existsIdx = estimateItems.findIndex(it => it.productId === prod.id);
+                            if (existsIdx >= 0) {
+                              const updated = [...estimateItems];
+                              updated[existsIdx].quantity += 1;
+                              setEstimateItems(updated);
+                            } else {
+                              setEstimateItems([
+                                ...estimateItems,
+                                {
+                                  productId: prod.id,
+                                  productName: prod.name,
+                                  category: prod.category,
+                                  sku: prod.sku,
+                                  quantity: 1,
+                                  unit: prod.unit || 'dona',
+                                  unitPrice: prod.retailPrice,
+                                  unitPriceUSD: priceUSD,
+                                  discountPercent: 0,
+                                  totalPrice: prod.retailPrice,
+                                  hasSerialNumber: prod.hasSerialNumber || false,
+                                  isService: prod.isService || false
+                                }
+                              ]);
+                            }
+                            setEstimateProductSearch('');
+                          }}
+                          className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-800 cursor-pointer text-xs transition"
+                        >
+                          <div>
+                            <span className="font-bold text-white">{prod.name}</span>
+                            <span className="text-[10px] text-slate-400 ml-2">({prod.category})</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-extrabold text-amber-400">${priceUSD}</span>
+                            <span className="text-[10px] text-slate-400 ml-1.5 font-mono">({prod.retailPrice.toLocaleString()} so'm)</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* Selected Items Table */}
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden text-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-900 text-slate-400 font-bold uppercase text-[10px] border-b border-slate-800">
+                    <tr>
+                      <th className="px-3 py-2.5">#</th>
+                      <th className="px-3 py-2.5">Tovar / Xizmat Nomi</th>
+                      <th className="px-3 py-2.5 text-center">Soni</th>
+                      <th className="px-3 py-2.5 text-right">Narxi ({estimateCurrency === 'USD' ? '$' : 'so\'m'})</th>
+                      <th className="px-3 py-2.5 text-center">Chegirma</th>
+                      <th className="px-3 py-2.5 text-right">Jami</th>
+                      <th className="px-3 py-2.5 text-center">O'chirish</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/80">
+                    {estimateItems.map((item, idx) => {
+                      const itemPriceUSD = item.unitPriceUSD || Math.round(item.unitPrice / exchangeRate);
+                      const itemPriceUZS = item.unitPrice || Math.round(itemPriceUSD * exchangeRate);
+                      const unitPriceDisplay = estimateCurrency === 'USD' ? itemPriceUSD : itemPriceUZS;
+                      const lineTotalUSD = itemPriceUSD * (1 - (item.discountPercent || 0) / 100) * item.quantity;
+                      const lineTotalUZS = itemPriceUZS * (1 - (item.discountPercent || 0) / 100) * item.quantity;
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-900/60 transition">
+                          <td className="px-3 py-2 font-mono text-slate-500">{idx + 1}</td>
+                          <td className="px-3 py-2">
+                            <span className="font-bold text-white">{item.productName}</span>
+                            {item.isService && (
+                              <span className="ml-1.5 px-1.5 py-0.2 rounded text-[9px] bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">
+                                Xizmat
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <div className="inline-flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...estimateItems];
+                                  if (updated[idx].quantity > 1) {
+                                    updated[idx].quantity -= 1;
+                                    setEstimateItems(updated);
+                                  }
+                                }}
+                                className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 font-bold"
+                              >
+                                -
+                              </button>
+                              <span className="px-2 font-mono font-bold text-white">{item.quantity}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...estimateItems];
+                                  updated[idx].quantity += 1;
+                                  setEstimateItems(updated);
+                                }}
+                                className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 font-bold"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number"
+                              min="0"
+                              value={unitPriceDisplay}
+                              onChange={(e) => {
+                                const val = Number(e.target.value) || 0;
+                                const updated = [...estimateItems];
+                                if (estimateCurrency === 'USD') {
+                                  updated[idx].unitPriceUSD = val;
+                                  updated[idx].unitPrice = Math.round(val * exchangeRate);
+                                } else {
+                                  updated[idx].unitPrice = val;
+                                  updated[idx].unitPriceUSD = Number((val / exchangeRate).toFixed(2));
+                                }
+                                setEstimateItems(updated);
+                              }}
+                              className="w-24 px-2 py-1 bg-slate-900 border border-slate-800 rounded-lg text-right font-bold text-white focus:outline-none focus:border-indigo-500"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={item.discountPercent || 0}
+                              onChange={(e) => {
+                                const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                                const updated = [...estimateItems];
+                                updated[idx].discountPercent = val;
+                                setEstimateItems(updated);
+                              }}
+                              className="w-14 px-1.5 py-1 bg-slate-900 border border-slate-800 rounded-lg text-center font-bold text-slate-300 focus:outline-none focus:border-indigo-500"
+                            />
+                            <span className="text-slate-400 ml-0.5">%</span>
+                          </td>
+                          <td className="px-3 py-2 text-right font-extrabold text-amber-400">
+                            {estimateCurrency === 'USD' ? `$${formatUSDNumber(lineTotalUSD)}` : `${Math.round(lineTotalUZS).toLocaleString()} so'm`}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEstimateItems(estimateItems.filter((_, i) => i !== idx));
+                              }}
+                              className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {estimateItems.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="py-6 text-center text-slate-400 italic">
+                          Smetada hali tovarlar yo'q. Yuqoridan to'plam tanlang yoki qidiruv orqali qo'shing.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Calculations & Total Summary */}
+            {(() => {
+              let subtotalUSD = 0;
+              let subtotalUZS = 0;
+              estimateItems.forEach(item => {
+                const itemPriceUSD = item.unitPriceUSD || Math.round(item.unitPrice / exchangeRate);
+                const itemPriceUZS = item.unitPrice || Math.round(itemPriceUSD * exchangeRate);
+                const itemDisc = item.discountPercent || 0;
+                subtotalUSD += itemPriceUSD * (1 - itemDisc / 100) * item.quantity;
+                subtotalUZS += itemPriceUZS * (1 - itemDisc / 100) * item.quantity;
+              });
+              const totalDiscountUSD = subtotalUSD * (estimateDiscountPercent / 100);
+              const totalDiscountUZS = subtotalUZS * (estimateDiscountPercent / 100);
+              const finalTotalUSD = Number((subtotalUSD - totalDiscountUSD).toFixed(2));
+              const finalTotalUZS = Math.round(subtotalUZS - totalDiscountUZS);
+
+              return (
+                <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-indigo-950/40 border border-slate-800 text-xs">
+                  <div className="space-y-0.5">
+                    <p className="text-slate-400 font-semibold">
+                      Oraliq summa: <b className="text-slate-200">${formatUSDNumber(subtotalUSD)}</b> ({Math.round(subtotalUZS).toLocaleString()} so'm)
+                    </p>
+                    {estimateDiscountPercent > 0 && (
+                      <p className="text-rose-400 font-semibold">
+                        Chegirma ({estimateDiscountPercent}%): -${formatUSDNumber(totalDiscountUSD)} (-{Math.round(totalDiscountUZS).toLocaleString()} so'm)
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-xl font-black text-amber-400">
+                      ${formatUSDNumber(finalTotalUSD)}
+                    </div>
+                    <div className="text-xs font-mono font-bold text-slate-400">
+                      {finalTotalUZS.toLocaleString()} so'm
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
+              <div className="flex items-center gap-2">
+                {onNavigateToOrders && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedLeadForEstimate(null);
+                      onNavigateToOrders();
+                    }}
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Hisob-kitoblar Bo'limiga O'tish</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedLeadForEstimate(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-semibold text-xs"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEstimateForLead}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition active:scale-95"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Smetani Saqlash & Bog'lash</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

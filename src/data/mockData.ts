@@ -1018,7 +1018,7 @@ export const INITIAL_CRM_LEADS: CrmLead[] = [
     siteVisitTime: '14:00',
     notes: 'Hovli va darvoza uchun 6 ta IP kamera so\'radi, tungi ko\'rish rangli (ColorVu) bo\'lsin',
     nextActionDate: '2026-10-09',
-    nextActionNote: 'Zamerga borish va smeta hisoblash',
+    nextActionNote: 'O\'lchash-hisoblashga borish va smeta hisoblash',
     createdAt: '2026-10-07 10:30',
     updatedAt: '2026-10-08 09:00'
   },
@@ -1056,7 +1056,7 @@ export const INITIAL_CRM_LEADS: CrmLead[] = [
     cameraCountEstimated: 32,
     budgetEstimatedUZS: 32000000,
     budgetEstimatedUSD: 2480,
-    notes: 'Katta ishlab chiqarish tsexiga to\'liq kuzatuv va domofoniya tizimi kerak. Zamerga usta biriktirish lozim.',
+    notes: 'Katta ishlab chiqarish tsexiga to\'liq kuzatuv va domofoniya tizimi kerak. O\'lchash-hisoblashga usta biriktirish lozim.',
     nextActionDate: '2026-10-08',
     nextActionNote: 'Ustani belgilash va vaqtni aniqlash',
     createdAt: '2026-10-08 09:15',
@@ -1134,7 +1134,7 @@ export const INITIAL_CRM_OBJECTS: CrmObjectPassport[] = [
 export const INITIAL_CRM_REMINDERS: CrmReminder[] = [
   {
     id: 'rem-1',
-    title: 'Zamerga borish va smeta hisoblash',
+    title: 'O\'lchash-hisoblashga borish va smeta hisoblash',
     type: 'visit',
     dueDate: '2026-10-09',
     dueTime: '14:00',
