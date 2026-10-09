@@ -1109,67 +1109,7 @@ export const INITIAL_PURCHASES: PurchaseInvoice[] = [
   }
 ];
 
-export const INITIAL_SERVICE_TICKETS: ServiceTicket[] = [
-  {
-    id: 'srv-101',
-    ticketNumber: 'SRV-1001',
-    createdAt: '2026-10-02 11:20',
-    serialNumber: 'HK-4MP-982101',
-    productId: 'prod-1',
-    productName: 'Hikvision DS-2CD1043G0-I 4MP IP Tashqi Kamera',
-    category: 'Kuzatuv kameralari (CCTV)',
-    receiptId: 'rcpt-1',
-    receiptNumber: 'CK-1001',
-    saleDate: '2026-10-01 10:15',
-    warrantyMonths: 24,
-    isUnderWarranty: true,
-    warrantyExpiresAt: '2028-10-01',
-    customerId: 'cust-1',
-    customerName: 'Grand Qurilish MCHJ (Akmal Rahimov)',
-    customerPhone: '+998 90 123 45 67',
-    installationAddress: 'Namangan sh., Chortoq yo\'li, Yangi bino 14-uy',
-    assignedTechnicianName: 'Dilshod Karimov (Katta montajchi)',
-    assignedTechnicianPhone: '+998 90 111 22 33',
-    issueDescription: 'Kamera tunda IR yoritgichi yoqilmayapti, qorong\'uda tasvir ko\'rinmay qolgan',
-    diagnosticNotes: 'IR datchik platasi tekshirildi, filtr mexanizmi tiqilib qolgan',
-    solutionNotes: 'IR filtr bloki tozalandi va proshivkasi yangilandi',
-    status: 'in_repair',
-    isWarrantyFree: true,
-    repairCost: 0,
-    repairCostUSD: 0,
-    receivedBy: 'Kassir / Qabulxona'
-  },
-  {
-    id: 'srv-102',
-    ticketNumber: 'SRV-1002',
-    createdAt: '2026-10-03 14:00',
-    serialNumber: 'DH-2MP-84011',
-    productId: 'prod-2',
-    productName: 'Dahua DH-IPC-HDW1230T1 2MP Ichki Dome IP Kamera',
-    category: 'Kuzatuv kameralari (CCTV)',
-    receiptId: 'rcpt-2',
-    receiptNumber: 'CK-1002',
-    saleDate: '2026-10-02 14:45',
-    warrantyMonths: 12,
-    isUnderWarranty: true,
-    warrantyExpiresAt: '2027-10-02',
-    customerId: 'cust-2',
-    customerName: 'Sardorbek Alimov',
-    customerPhone: '+998 91 234 56 78',
-    installationAddress: 'Toshkent sh., Yunusobod 4-mavze 12-uy',
-    assignedTechnicianName: 'Jamshid Normurodov',
-    assignedTechnicianPhone: '+998 90 222 33 44',
-    issueDescription: 'Momaqaldiroqdan keyin PoE port orqali pitanie olmay qolgan',
-    diagnosticNotes: 'PoE transformator mikrosxemasi kuygan. Kafolat doirasida tuzatish imkonsiz, almashtirish tavsiya etiladi.',
-    solutionNotes: 'Ombordagi yangi zaxira kameraga almashtirib berildi (Zamen).',
-    status: 'ready',
-    isWarrantyFree: true,
-    repairCost: 0,
-    repairCostUSD: 0,
-    replacementSerialNumber: 'DH-2MP-84013',
-    receivedBy: 'Omborchi (Alisher)'
-  }
-];
+export const INITIAL_SERVICE_TICKETS: ServiceTicket[] = [];
 
 export const INITIAL_CUSTOMER_DEBT_PAYMENTS: CustomerDebtPayment[] = [
   {

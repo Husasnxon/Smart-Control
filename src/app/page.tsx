@@ -63,7 +63,7 @@ export default function Home() {
   const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>(INITIAL_CUSTOMER_ORDERS);
   const [shipments, setShipments] = useState<ShipmentOrder[]>(INITIAL_SHIPMENTS);
   const [purchases, setPurchases] = useState<PurchaseInvoice[]>(INITIAL_PURCHASES);
-  const [serviceTickets, setServiceTickets] = useState<ServiceTicket[]>(INITIAL_SERVICE_TICKETS);
+  const [serviceTickets, setServiceTickets] = useState<ServiceTicket[]>([]);
   const [customerDebtPayments, setCustomerDebtPayments] = useState<CustomerDebtPayment[]>(INITIAL_CUSTOMER_DEBT_PAYMENTS);
   const [payrolls, setPayrolls] = useState<PayrollRecord[]>(INITIAL_PAYROLLS);
   const [advances, setAdvances] = useState<EmployeeAdvance[]>(INITIAL_ADVANCES);
@@ -267,19 +267,28 @@ export default function Home() {
       const savedPurchases = localStorage.getItem('sc_purchases');
       if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
 
-      const savedTickets = localStorage.getItem('sc_service_tickets');
-      if (savedTickets) {
-        try {
-          const parsed = JSON.parse(savedTickets);
-          if (Array.isArray(parsed)) {
-            setServiceTickets(parsed);
-          }
-        } catch (e) {
-          console.error("Service tickets parse error", e);
-        }
+      const isTicketsPurged = localStorage.getItem('sc_service_tickets_clean_v1');
+      if (!isTicketsPurged) {
+        localStorage.setItem('sc_service_tickets', JSON.stringify([]));
+        localStorage.setItem('sc_service_tickets_clean_v1', 'true');
+        setServiceTickets([]);
+        pushDataToCloud({ serviceTickets: [] });
       } else {
-        localStorage.setItem('sc_service_tickets', JSON.stringify(INITIAL_SERVICE_TICKETS));
-        setServiceTickets(INITIAL_SERVICE_TICKETS);
+        const savedTickets = localStorage.getItem('sc_service_tickets');
+        if (savedTickets) {
+          try {
+            const parsed = JSON.parse(savedTickets);
+            if (Array.isArray(parsed)) {
+              const cleaned = parsed.filter((t: any) => t.id !== 'srv-101' && t.id !== 'srv-102');
+              setServiceTickets(cleaned);
+              localStorage.setItem('sc_service_tickets', JSON.stringify(cleaned));
+            }
+          } catch (e) {
+            setServiceTickets([]);
+          }
+        } else {
+          setServiceTickets([]);
+        }
       }
 
       const savedDebtPayments = localStorage.getItem('sc_customer_debt_payments');
