@@ -1979,10 +1979,13 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                     <input
                       type="number"
                       step={newProductCurrency === 'USD' ? '0.01' : '1'}
-                      value={newCostPrice || ''}
-                      onChange={(e) => setNewCostPrice(parseFloat(e.target.value) || 0)}
+                      value={newCostPrice === 0 ? '' : newCostPrice}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewCostPrice(val === '' ? 0 : parseFloat(val) || 0);
+                      }}
                       onFocus={(e) => e.target.select()}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
                       className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                     <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
@@ -2000,10 +2003,13 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                       type="number"
                       step={newProductCurrency === 'USD' ? '0.01' : '1'}
                       required
-                      value={newRetailPrice || ''}
-                      onChange={(e) => setNewRetailPrice(parseFloat(e.target.value) || 0)}
+                      value={newRetailPrice === 0 ? '' : newRetailPrice}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewRetailPrice(val === '' ? 0 : parseFloat(val) || 0);
+                      }}
                       onFocus={(e) => e.target.select()}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
                       className="w-full bg-white dark:bg-slate-900 border-2 border-emerald-500/50 focus:border-emerald-500 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300 outline-none"
                     />
                     <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold block mt-0.5">
@@ -2019,10 +2025,13 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                     </label>
                     <input
                       type="number"
-                      value={newWarrantyMonths}
-                      onChange={(e) => setNewWarrantyMonths(parseInt(e.target.value) || 0)}
+                      value={newWarrantyMonths === 0 ? '' : newWarrantyMonths}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewWarrantyMonths(val === '' ? 0 : Math.max(0, parseInt(val) || 0));
+                      }}
                       onFocus={(e) => e.target.select()}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
                       className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
@@ -2346,10 +2355,13 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                     <input
                       type="number"
                       step={editProductCurrency === 'USD' ? '0.01' : '1'}
-                      value={editCostPrice || ''}
-                      onChange={(e) => setEditCostPrice(parseFloat(e.target.value) || 0)}
+                      value={editCostPrice === 0 ? '' : editCostPrice}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditCostPrice(val === '' ? 0 : parseFloat(val) || 0);
+                      }}
                       onFocus={(e) => e.target.select()}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
                       className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                     <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
@@ -2367,10 +2379,13 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                       type="number"
                       step={editProductCurrency === 'USD' ? '0.01' : '1'}
                       required
-                      value={editRetailPrice || ''}
-                      onChange={(e) => setEditRetailPrice(parseFloat(e.target.value) || 0)}
+                      value={editRetailPrice === 0 ? '' : editRetailPrice}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditRetailPrice(val === '' ? 0 : parseFloat(val) || 0);
+                      }}
                       onFocus={(e) => e.target.select()}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
                       className="w-full bg-white dark:bg-slate-900 border-2 border-emerald-500/50 focus:border-emerald-500 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300 outline-none"
                     />
                     <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold block mt-0.5">
@@ -2386,10 +2401,13 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                     </label>
                     <input
                       type="number"
-                      value={editWarrantyMonths}
-                      onChange={(e) => setEditWarrantyMonths(parseInt(e.target.value) || 0)}
+                      value={editWarrantyMonths === 0 ? '' : editWarrantyMonths}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditWarrantyMonths(val === '' ? 0 : Math.max(0, parseInt(val) || 0));
+                      }}
                       onFocus={(e) => e.target.select()}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
                       className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
@@ -2417,13 +2435,14 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                           type="number"
                           step="0.5"
                           placeholder="25"
-                          value={editTechnicianWageUSD || ''}
+                          value={editTechnicianWageUSD === 0 ? '' : editTechnicianWageUSD}
                           onChange={(e) => {
-                            const val = Number(e.target.value);
+                            const val = e.target.value === '' ? 0 : Number(e.target.value) || 0;
                             setEditTechnicianWageUSD(val);
                             setEditTechnicianWageUZS(Math.round(val * exchangeRate));
                           }}
-                          className="w-full bg-white dark:bg-slate-900 border border-pink-200 dark:border-pink-800 rounded-xl pl-6 pr-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                          onFocus={(e) => e.target.select()}
+                          className="w-full bg-white dark:bg-slate-900 border border-pink-200 dark:border-pink-800 rounded-xl pl-6 pr-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-white outline-none"
                         />
                       </div>
                     </div>
@@ -2432,13 +2451,14 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                       <input
                         type="number"
                         placeholder="320000"
-                        value={editTechnicianWageUZS || ''}
+                        value={editTechnicianWageUZS === 0 ? '' : editTechnicianWageUZS}
                         onChange={(e) => {
-                          const val = Number(e.target.value);
+                          const val = e.target.value === '' ? 0 : Number(e.target.value) || 0;
                           setEditTechnicianWageUZS(val);
                           setEditTechnicianWageUSD(Number((val / exchangeRate).toFixed(1)));
                         }}
-                        className="w-full bg-white dark:bg-slate-900 border border-pink-200 dark:border-pink-800 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                        onFocus={(e) => e.target.select()}
+                        className="w-full bg-white dark:bg-slate-900 border border-pink-200 dark:border-pink-800 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-white outline-none"
                       />
                     </div>
                   </div>
@@ -2472,22 +2492,28 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Ombordagi Qoldiq</label>
                     <input
                       type="number"
-                      value={editStock || 0}
-                      onChange={(e) => setEditStock(Number(e.target.value))}
+                      value={editStock === 0 ? '' : editStock}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditStock(val === '' ? 0 : Number(val) || 0);
+                      }}
                       onFocus={(e) => e.target.select()}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 dark:text-white outline-none"
                     />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Min. Zaxira Chegarasi</label>
                     <input
                       type="number"
-                      value={editMinStock || 0}
-                      onChange={(e) => setEditMinStock(Number(e.target.value))}
+                      value={editMinStock === 0 ? '' : editMinStock}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditMinStock(val === '' ? 0 : Number(val) || 0);
+                      }}
                       onFocus={(e) => e.target.select()}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 dark:text-white"
+                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 dark:text-white outline-none"
                     />
                   </div>
                 </div>
