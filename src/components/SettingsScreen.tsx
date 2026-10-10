@@ -54,6 +54,7 @@ import {
   TrendingDown, 
   Trash2, 
   HardDrive,
+  Gift,
   Info,
   Users,
   Lock,
@@ -135,6 +136,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   // Exchange rate input state
   const [tempRate, setTempRate] = useState(exchangeRate.toString());
+
+  // Global Cashback state
+  const [isCashbackEnabled, setIsCashbackEnabled] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sc_cashback_enabled') !== 'false';
+    }
+    return true;
+  });
 
   // Permissions state
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(() => {
@@ -1213,6 +1222,54 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
             </div>
 
+            {/* Cashback (Sodiqlik tizimi) sozlamalari */}
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold">
+                    <Gift className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                      Mijozlar Keshbek & Sodiqlik Tizimi
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Kassada xaridlardan keshbek yig&apos;ilishini butunlay yoqish yoki o&apos;chirib qo&apos;yish
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !isCashbackEnabled;
+                    setIsCashbackEnabled(next);
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('sc_cashback_enabled', String(next));
+                    }
+                  }}
+                  className={`shrink-0 w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                    isCashbackEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                      isCashbackEnabled ? 'left-7' : 'left-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                <Info className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>
+                  {isCashbackEnabled
+                    ? "✓ Keshbek tizimi faol. Mijozlar o'z darajasiga qarab (1%, 2%, 3%, 5%) keshbek oladi."
+                    : "✕ Keshbek tizimi o'chirilgan. Yangi sotuvlarda mijozlarga keshbek hisoblanmaydi."}
+                </span>
+              </div>
+            </div>
+
             {/* Store Information */}
             <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
               <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -1660,6 +1717,34 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
                               activeEmployee?.permissions?.canDeleteOrders ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN DELETE LEADS */}
+                      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                            <span>CRM Lidlarini o&apos;chirish</span>
+                            <span className="text-[9px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.2 rounded">
+                              Admin / Menejer
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            CRM tizimidagi yangi yoki keraksiz lidlarni o&apos;chirib tashlash huquqi
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeleteLeads')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canDeleteLeads ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canDeleteLeads ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2307,6 +2392,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         { key: 'canCreateOrders', label: 'Yangi smeta/zakaz yaratish', category: 'Zakazlar' },
                         { key: 'canCreateShipments', label: 'Tovarni chiqarish (Otgruzka)', category: 'Zakazlar' },
                         { key: 'canDeleteOrders', label: "Smeta/otgruzkani o'chirish", category: 'Zakazlar' },
+                        { key: 'canDeleteLeads', label: "CRMda lidlarni o'chirish", category: 'Zakazlar' },
                         { key: 'canMakeSales', label: 'Kassada tovar sotish', category: 'Kassa' },
                         { key: 'canEditReceipts', label: 'Sotilgan chekni tahrirlash (Redakt)', category: 'Kassa', highlight: true },
                         { key: 'canReturnReceipts', label: 'Tovarni qaytarish (Vozvrat)', category: 'Kassa' },

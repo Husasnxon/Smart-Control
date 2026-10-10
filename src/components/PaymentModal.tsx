@@ -11,7 +11,8 @@ import {
   Gift, 
   DollarSign,
   ArrowRightLeft,
-  CheckCircle2
+  CheckCircle2,
+  User
 } from 'lucide-react';
 
 interface PaymentModalProps {
@@ -23,6 +24,8 @@ interface PaymentModalProps {
   isOffline: boolean;
   exchangeRate?: number;
   baseCurrency?: Currency;
+  customers?: Customer[];
+  onSelectCustomer?: (customer: Customer) => void;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -33,7 +36,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onConfirmPayment,
   isOffline,
   exchangeRate = 12850,
-  baseCurrency = 'UZS'
+  baseCurrency = 'UZS',
+  customers,
+  onSelectCustomer
 }) => {
   const [cash, setCash] = useState<number>(0);         // So'mda naqd
   const [cashUSD, setCashUSD] = useState<number>(0);   // Dollarda naqd ($)
@@ -42,6 +47,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [debtUSD, setDebtUSD] = useState<number>(0);   // Dollarda qarz ($)
   const [debtCurrencyMode, setDebtCurrencyMode] = useState<'UZS' | 'USD'>(baseCurrency === 'USD' ? 'USD' : 'UZS');
   const [useCashback, setUseCashback] = useState<number>(0); // So'mda cashback
+  const [showQuickCustSelect, setShowQuickCustSelect] = useState<boolean>(false);
 
   // Calculate total in USD
   const totalAmountUSD = Number((totalAmount / exchangeRate).toFixed(2));
@@ -116,10 +122,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const changeUZS = Math.max(0, remainingOrChange);
   const changeUSD = changeUZS > 0 ? Number((changeUZS / exchangeRate).toFixed(2)) : 0;
 
+  // Check if cashback is globally enabled or disabled
+  const isCashbackGloballyEnabled = typeof window !== 'undefined' 
+    ? localStorage.getItem('sc_cashback_enabled') !== 'false' 
+    : true;
+  const isCustomerCashbackDisabled = customer?.tier === 'None' || !isCashbackGloballyEnabled;
+
   // Cashback earned is based on cash (UZS + converted USD) + card payment only
   const eligibleAmount = Math.max(0, cash + cashUSDInUZS + card);
-  const cashbackRate = customer?.cashbackRate || 1; // Default 1%
-  const cashbackEarned = Math.round((eligibleAmount * cashbackRate) / 100);
+  const cashbackRate = isCustomerCashbackDisabled ? 0 : (customer?.cashbackRate || 1); // Default 1%
+  const cashbackEarned = isCustomerCashbackDisabled ? 0 : Math.round((eligibleAmount * cashbackRate) / 100);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,14 +216,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Mijoz</span>
                 <span className="text-xs font-semibold text-slate-200">{customer.fullName}</span>
                 <span className="text-[11px] block text-purple-400">
-                  {customer.tier} ({customer.cashbackRate}% cashback)
+                  {isCustomerCashbackDisabled ? 'Keshbeksiz (0%)' : `${customer.tier} (${customer.cashbackRate}% cashback)`}
                 </span>
               </div>
             )}
           </div>
 
-          {/* Cashback Selection if Customer has balance */}
-          {customer && customer.cashbackBalance > 0 && (
+          {/* Cashback Selection if Customer has balance and cashback is enabled */}
+          {isCashbackGloballyEnabled && customer && customer.cashbackBalance > 0 && customer.tier !== 'None' && (
             <div className="p-3 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50 dark:bg-purple-950/30 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-300 flex items-center justify-center">
@@ -531,43 +543,76 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               100% Karta
             </button>
 
-            {customer ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (baseCurrency === 'USD' || debtCurrencyMode === 'USD') {
-                    setDebtUSD(totalAmountUSD);
-                    setDebt(0);
-                  } else {
-                    setDebt(totalAmount - useCashback);
-                    setDebtUSD(0);
-                  }
-                  setCash(0);
-                  setCashUSD(0);
-                  setCard(0);
-                }}
-                className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 hover:bg-amber-100 transition"
-                title="To'liq summani nasiya qarzga yozish"
-              >
-                100% Nasiya ({baseCurrency === 'USD' ? '$' : 'So\'m'})
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setCashUSD(50);
-                  const rem = Math.max(0, totalAmount - (50 * exchangeRate) - useCashback);
-                  setCash(rem);
-                  setCard(0);
+            <button
+              type="button"
+              onClick={() => {
+                if (!customer) {
+                  setShowQuickCustSelect(true);
+                  return;
+                }
+                if (baseCurrency === 'USD' || debtCurrencyMode === 'USD') {
+                  setDebtUSD(totalAmountUSD);
                   setDebt(0);
+                } else {
+                  setDebt(totalAmount - useCashback);
                   setDebtUSD(0);
-                }}
-                className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
-              >
-                +$50 Naqd
-              </button>
-            )}
+                }
+                setCash(0);
+                setCashUSD(0);
+                setCard(0);
+              }}
+              className="py-1.5 px-2 text-xs font-semibold rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 hover:bg-amber-100 transition"
+              title="To'liq summani nasiya qarzga yozish"
+            >
+              📌 100% Nasiya ({baseCurrency === 'USD' ? '$' : 'So\'m'})
+            </button>
           </div>
+
+          {/* Quick inline customer selector for 1-Click Nasiya if customer not selected */}
+          {(!customer && showQuickCustSelect) && (
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 space-y-2 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                  <User className="w-4 h-4 text-amber-500" /> Nasiya uchun mijozni tanlang:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickCustSelect(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white text-xs px-1.5 py-0.5 rounded"
+                >
+                  ✕
+                </button>
+              </div>
+              <select
+                onChange={(e) => {
+                  const found = customers?.find(c => c.id === e.target.value);
+                  if (found && onSelectCustomer) {
+                    onSelectCustomer(found);
+                    setShowQuickCustSelect(false);
+                    if (baseCurrency === 'USD' || debtCurrencyMode === 'USD') {
+                      setDebtUSD(totalAmountUSD);
+                      setDebt(0);
+                    } else {
+                      setDebt(totalAmount - useCashback);
+                      setDebtUSD(0);
+                    }
+                    setCash(0);
+                    setCashUSD(0);
+                    setCard(0);
+                  }
+                }}
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none"
+                defaultValue=""
+              >
+                <option value="" disabled>-- Ro'yxatdan mijozni tanlang (1-Click Nasiya) --</option>
+                {customers?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.fullName} ({c.phone || "Tel yo'q"})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Change or Remaining Calculation */}
           <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
@@ -621,6 +666,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               )}
             </div>
           </div>
+
+          {/* 1-Click Nasiya Direct Transfer Button */}
+          {customer && totalDebtUZS >= totalAmount && (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-black text-xs tracking-wide shadow-lg shadow-amber-600/25 transition active:scale-[0.99] flex items-center justify-center gap-2"
+            >
+              <Coins className="w-4 h-4 text-amber-200" />
+              <span>📌 1-Click Nasiya: {customer.fullName} nomiga qarzga yozish</span>
+            </button>
+          )}
 
           {/* Submit Button */}
           <button

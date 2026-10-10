@@ -84,6 +84,7 @@ interface CrmScreenProps {
   customers: Customer[];
   customerOrders: CustomerOrder[];
   products?: Product[];
+  currentUser?: Employee | null;
   baseCurrency?: Currency;
   exchangeRate?: number;
   onConvertToOrder?: (lead: CrmLead) => void;
@@ -171,6 +172,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   customers = [],
   customerOrders = [],
   products = [],
+  currentUser,
   baseCurrency = 'UZS',
   exchangeRate = 12850,
   onConvertToOrder,
@@ -202,6 +204,54 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   const [selectedPassportForQr, setSelectedPassportForQr] = useState<CrmObjectPassport | null>(null);
   const [printingPassport, setPrintingPassport] = useState<CrmObjectPassport | null>(null);
 
+  // Assign Technician Modal State
+  const [assigningLeadTech, setAssigningLeadTech] = useState<CrmLead | null>(null);
+  const [selectedTechIdForAssign, setSelectedTechIdForAssign] = useState<string>('');
+  const [visitDateForAssign, setVisitDateForAssign] = useState<string>('');
+  const [visitTimeForAssign, setVisitTimeForAssign] = useState<string>('');
+  const [assignNotes, setAssignNotes] = useState<string>('');
+
+  const openAssignTechModal = (lead: CrmLead) => {
+    setAssigningLeadTech(lead);
+    setSelectedTechIdForAssign(lead.assignedTechnicianId || '');
+    setVisitDateForAssign(lead.siteVisitDate || new Date().toISOString().split('T')[0]);
+    setVisitTimeForAssign(lead.siteVisitTime || '14:00');
+    setAssignNotes(lead.nextActionNote || '');
+  };
+
+  const handleSaveAssignTech = () => {
+    if (!assigningLeadTech) return;
+    const tech = employees.find(e => e.id === selectedTechIdForAssign);
+    const updatedLead: CrmLead = {
+      ...assigningLeadTech,
+      assignedTechnicianId: tech ? tech.id : undefined,
+      assignedTechnicianName: tech ? tech.fullName : undefined,
+      siteVisitDate: visitDateForAssign || undefined,
+      siteVisitTime: visitTimeForAssign || undefined,
+      nextActionNote: assignNotes.trim() ? assignNotes.trim() : assigningLeadTech.nextActionNote,
+      // If still new_lead and a tech is assigned, advance to site_visit
+      stage: (assigningLeadTech.stage === 'new_lead' && tech) ? 'site_visit' : assigningLeadTech.stage
+    };
+    onUpdateLead(updatedLead);
+    setAssigningLeadTech(null);
+  };
+
+  const canDeleteLead = (lead: CrmLead) => {
+    if (!currentUser) return true;
+    if (currentUser.systemRole === 'admin') return true;
+    if (currentUser.permissions?.canDeleteLeads) return true;
+    if (lead.stage === 'new_lead') return true;
+    return false;
+  };
+
+  const handleDeleteLeadClick = (lead: CrmLead) => {
+    if (window.confirm(`"${lead.clientName}" (${lead.leadNumber}) lidini rostdan ham o'chirmoqchimisiz?`)) {
+      if (onDeleteLead) {
+        onDeleteLead(lead.id);
+      }
+    }
+  };
+
   // Integrated Lead Smeta Creator Modal State
   const [selectedLeadForEstimate, setSelectedLeadForEstimate] = useState<CrmLead | null>(null);
   const [estimateItems, setEstimateItems] = useState<OrderItem[]>([]);
@@ -228,6 +278,10 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (assigningLeadTech) {
+          setAssigningLeadTech(null);
+          return;
+        }
         if (selectedLeadForEstimate) {
           setSelectedLeadForEstimate(null);
           return;
@@ -807,14 +861,29 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                                 draggedLeadId === lead.id ? 'opacity-40 scale-95 ring-2 ring-indigo-500' : ''
                               }`}
                             >
-                              {/* Top row: Number & Source */}
+                              {/* Top row: Number & Source & Delete */}
                               <div className="flex items-center justify-between gap-1">
                                 <span className="text-[10px] font-mono font-black text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800/80">
                                   {lead.leadNumber}
                                 </span>
-                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border truncate max-w-[120px] ${srcInfo.color}`}>
-                                  {srcInfo.label}
-                                </span>
+                                <div className="flex items-center gap-1">
+                                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border truncate max-w-[110px] ${srcInfo.color}`}>
+                                    {srcInfo.label}
+                                  </span>
+                                  {canDeleteLead(lead) && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteLeadClick(lead);
+                                      }}
+                                      className="p-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition"
+                                      title="Lidni o'chirish"
+                                    >
+                                      <Trash2 className="w-2.5 h-2.5" />
+                                    </button>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Client Info & Telegram quick button */}
@@ -867,20 +936,32 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                                 </span>
                               </div>
 
-                              {/* Assigned Technician & Visit Date (only if assigned) */}
-                              {lead.assignedTechnicianName && (
-                                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-800/60">
-                                  <span className="flex items-center gap-1 text-purple-300 truncate max-w-[110px]">
-                                    <UserCheck className="w-2.5 h-2.5 text-purple-400 shrink-0" />
-                                    <span className="truncate">{lead.assignedTechnicianName.split(' ')[0]}</span>
+                              {/* Assigned Technician & Visit Date */}
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-800/60">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openAssignTechModal(lead);
+                                  }}
+                                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold transition truncate max-w-[130px] border ${
+                                    lead.assignedTechnicianName
+                                      ? 'text-purple-300 bg-purple-950/60 hover:bg-purple-900/60 border-purple-500/30'
+                                      : 'text-amber-300 bg-amber-950/40 hover:bg-amber-900/40 border-amber-500/30'
+                                  }`}
+                                  title="Ustaga bog'lash yoki o'zgartirish"
+                                >
+                                  <UserCheck className="w-2.5 h-2.5 text-purple-400 shrink-0" />
+                                  <span className="truncate">
+                                    {lead.assignedTechnicianName ? lead.assignedTechnicianName.split(' ')[0] : "+ Usta bog'lash"}
                                   </span>
-                                  {lead.siteVisitDate && (
-                                    <span className="text-amber-400 font-bold text-[9px]">
-                                      {lead.siteVisitDate.slice(5)} {lead.siteVisitTime || ''}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+                                </button>
+                                {lead.siteVisitDate && (
+                                  <span className="text-amber-400 font-bold text-[9px]">
+                                    {lead.siteVisitDate.slice(5)} {lead.siteVisitTime || ''}
+                                  </span>
+                                )}
+                              </div>
 
                               {/* Next Action reminder (only if present) */}
                               {lead.nextActionNote && (
@@ -889,46 +970,36 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                                 </div>
                               )}
 
-                              {/* Action Footer: Batafsil, Smeta, Stage dropdown */}
+                              {/* Action Footer: Smeta, Stage dropdown */}
                               <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800/50">
+                                {/* Quick Smeta creation & linking */}
                                 <button
                                   type="button"
-                                  onClick={() => setSelectedLeadForDetail(lead)}
-                                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold transition"
+                                  onClick={() => handleOpenEstimateModal(lead)}
+                                  className={`flex-1 py-1 px-2 rounded text-[10px] font-bold transition flex items-center justify-center gap-1 ${
+                                    lead.linkedOrderNumber
+                                      ? 'bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30'
+                                      : 'bg-indigo-600/30 text-indigo-300 hover:bg-indigo-600 hover:text-white border border-indigo-500/30'
+                                  }`}
+                                  title={lead.linkedOrderNumber ? `Smeta: #${lead.linkedOrderNumber}` : "Yangi smeta yaratish va hisob-kitobga qo'shish"}
                                 >
-                                  Batafsil
+                                  <FileSpreadsheet className="w-2.5 h-2.5" />
+                                  <span className="truncate">{lead.linkedOrderNumber ? lead.linkedOrderNumber : 'Smeta'}</span>
                                 </button>
 
-                                <div className="flex items-center gap-1">
-                                  {/* Quick Smeta creation & linking */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenEstimateModal(lead)}
-                                    className={`px-2 py-1 rounded text-[10px] font-bold transition flex items-center gap-1 ${
-                                      lead.linkedOrderNumber
-                                        ? 'bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30'
-                                        : 'bg-indigo-600/30 text-indigo-300 hover:bg-indigo-600 hover:text-white border border-indigo-500/30'
-                                    }`}
-                                    title={lead.linkedOrderNumber ? `Smeta: #${lead.linkedOrderNumber}` : "Yangi smeta yaratish va hisob-kitobga qo'shish"}
-                                  >
-                                    <FileSpreadsheet className="w-2.5 h-2.5" />
-                                    <span>{lead.linkedOrderNumber ? lead.linkedOrderNumber : 'Smeta'}</span>
-                                  </button>
-
-                                  {/* Stage switcher dropdown */}
-                                  <select
-                                    value={lead.stage}
-                                    onChange={(e) => handleMoveStage(lead, e.target.value as CrmLeadStage)}
-                                    className="px-1 py-1 bg-slate-950 border border-slate-700 rounded text-[9px] text-slate-300 font-semibold focus:outline-none"
-                                  >
-                                    <option value="new_lead">1. Yangi</option>
-                                    <option value="site_visit">2. O'lchash</option>
-                                    <option value="estimate_sent">3. Smeta</option>
-                                    <option value="installation">4. Montaj</option>
-                                    <option value="won">5. Yopildi</option>
-                                    <option value="lost">Rad</option>
-                                  </select>
-                                </div>
+                                {/* Stage switcher dropdown */}
+                                <select
+                                  value={lead.stage}
+                                  onChange={(e) => handleMoveStage(lead, e.target.value as CrmLeadStage)}
+                                  className="px-1 py-1 bg-slate-950 border border-slate-700 rounded text-[9px] text-slate-300 font-semibold focus:outline-none shrink-0"
+                                >
+                                  <option value="new_lead">1. Yangi</option>
+                                  <option value="site_visit">2. O'lchash</option>
+                                  <option value="estimate_sent">3. Smeta</option>
+                                  <option value="installation">4. Montaj</option>
+                                  <option value="won">5. Yopildi</option>
+                                  <option value="lost">Rad</option>
+                                </select>
                               </div>
                             </div>
                           );
@@ -998,7 +1069,21 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                               </div>
                             </td>
                             <td className="px-4 py-3 text-slate-300">
-                              {lead.assignedTechnicianName || <span className="text-slate-400">Biriktirilmagan</span>}
+                              <button
+                                type="button"
+                                onClick={() => openAssignTechModal(lead)}
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold transition border ${
+                                  lead.assignedTechnicianName
+                                    ? 'text-purple-300 bg-purple-950/60 hover:bg-purple-900/60 border-purple-500/30'
+                                    : 'text-amber-300 bg-amber-950/40 hover:bg-amber-900/40 border-amber-500/30'
+                                }`}
+                                title="Ustaga biriktirish yoki o'zgartirish"
+                              >
+                                <UserCheck className="w-3 h-3 text-purple-400 shrink-0" />
+                                <span className="truncate max-w-[120px]">
+                                  {lead.assignedTechnicianName ? lead.assignedTechnicianName.split(' ')[0] : "+ Usta bog'lash"}
+                                </span>
+                              </button>
                             </td>
                             <td className="px-4 py-3">
                               <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${stageConf.badgeBg}`}>
@@ -1006,21 +1091,27 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-2">
+                              <div className="flex items-center justify-end gap-1.5">
                                 <button
-                                  onClick={() => setSelectedLeadForDetail(lead)}
-                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
-                                  title="Ko'rish"
+                                  type="button"
+                                  onClick={() => handleOpenEstimateModal(lead)}
+                                  className={`p-1.5 rounded-lg border transition ${
+                                    lead.linkedOrderNumber
+                                      ? 'bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border-emerald-500/30'
+                                      : 'bg-indigo-600/30 text-indigo-300 hover:bg-indigo-600 hover:text-white border-indigo-500/30'
+                                  }`}
+                                  title={lead.linkedOrderNumber ? `Smeta: #${lead.linkedOrderNumber}` : "Smeta tuzish"}
                                 >
-                                  <Eye className="w-4 h-4" />
+                                  <FileSpreadsheet className="w-4 h-4" />
                                 </button>
-                                {onConvertToOrder && (
+                                {canDeleteLead(lead) && (
                                   <button
-                                    onClick={() => onConvertToOrder(lead)}
-                                    className="p-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
-                                    title="Smeta tuzish"
+                                    type="button"
+                                    onClick={() => handleDeleteLeadClick(lead)}
+                                    className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/80 text-rose-400 hover:text-rose-200 border border-rose-800/40 transition"
+                                    title="Lidni o'chirish"
                                   >
-                                    <FileSpreadsheet className="w-4 h-4" />
+                                    <Trash2 className="w-4 h-4" />
                                   </button>
                                 )}
                               </div>
@@ -3009,6 +3100,122 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
           }}
           onClose={() => setSelectedPassportForQr(null)}
         />
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 9: USTAGA BOG'LASH VA TASHRIF VAQTINI BELGILASH */}
+      {/* ========================================================================= */}
+      {assigningLeadTech && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-purple-600/20 text-purple-400 border border-purple-500/30">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Ustaga bog'lash</h3>
+                  <p className="text-xs text-slate-400">
+                    Lid: <span className="font-mono text-slate-300 font-bold">{assigningLeadTech.leadNumber}</span> - {assigningLeadTech.clientName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssigningLeadTech(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Mas'ul Usta / Montajchi</label>
+                <select
+                  value={selectedTechIdForAssign}
+                  onChange={(e) => setSelectedTechIdForAssign(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                >
+                  <option value="">-- Ustani tanlang --</option>
+                  {employees
+                    .filter(e => !e.isBlocked && (e.systemRole === 'technician' || e.role?.toLowerCase().includes('usta') || e.role?.toLowerCase().includes('montaj') || e.systemRole === 'admin'))
+                    .map((tech) => (
+                      <option key={tech.id} value={tech.id}>
+                        {tech.fullName} ({tech.role || tech.systemRole})
+                      </option>
+                    ))}
+                  {employees.filter(e => !e.isBlocked && e.systemRole !== 'technician' && !e.role?.toLowerCase().includes('usta') && !e.role?.toLowerCase().includes('montaj') && e.systemRole !== 'admin').length > 0 && (
+                    <optgroup label="Boshqa xodimlar">
+                      {employees
+                        .filter(e => !e.isBlocked && e.systemRole !== 'technician' && !e.role?.toLowerCase().includes('usta') && !e.role?.toLowerCase().includes('montaj') && e.systemRole !== 'admin')
+                        .map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.fullName} ({emp.role})
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Tashrif / O'lchash Sanasi</label>
+                  <input
+                    type="date"
+                    value={visitDateForAssign}
+                    onChange={(e) => setVisitDateForAssign(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Vaqt</label>
+                  <input
+                    type="time"
+                    value={visitTimeForAssign}
+                    onChange={(e) => setVisitTimeForAssign(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Usta uchun eslatma / topshiriq</label>
+                <textarea
+                  value={assignNotes}
+                  onChange={(e) => setAssignNotes(e.target.value)}
+                  placeholder="Masalan: Darvoza va orqa hovlini o'lchash, mijoz soat 14:00 da kutadi..."
+                  rows={2}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
+                />
+              </div>
+
+              {assigningLeadTech.address && (
+                <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-400">
+                  <span className="text-slate-300 font-semibold">Manzil:</span> {assigningLeadTech.address}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setAssigningLeadTech(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAssignTech}
+                className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition shadow-lg shadow-purple-600/20"
+              >
+                Saqlash va Biriktirish
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* AI CRM & Smeta Assistant Modal */}

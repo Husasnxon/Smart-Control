@@ -1359,11 +1359,12 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {paginatedCustomers.map((customer) => {
-                      const tierColors = {
+                      const tierColors: Record<string, string> = {
                         Standard: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
                         Silver: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
                         Gold: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800',
-                        VIP: 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 font-bold'
+                        VIP: 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 font-bold',
+                        None: 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-300 dark:border-slate-700'
                       };
 
                       return (

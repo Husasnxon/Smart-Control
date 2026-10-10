@@ -2717,6 +2717,7 @@ export default function Home() {
               customers={customers}
               customerOrders={customerOrders}
               products={products}
+              currentUser={currentUser}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
               onConvertToOrder={handleConvertLeadToOrder}

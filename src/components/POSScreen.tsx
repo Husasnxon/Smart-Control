@@ -38,7 +38,8 @@ import {
   Lock,
   Bell,
   BellRing,
-  Zap
+  Zap,
+  Coins
 } from 'lucide-react';
 import { PaymentModal } from './PaymentModal';
 import { ReceiptModal } from './ReceiptModal';
@@ -196,8 +197,9 @@ export const POSScreen: React.FC<POSScreenProps> = ({
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState<boolean>(false);
   const [newCustName, setNewCustName] = useState<string>('');
   const [newCustPhone, setNewCustPhone] = useState<string>('');
-  const [newCustTier, setNewCustTier] = useState<'Standard' | 'Silver' | 'Gold' | 'VIP'>('Standard');
+  const [newCustTier, setNewCustTier] = useState<'Standard' | 'Silver' | 'Gold' | 'VIP' | 'None'>('Standard');
   const [newCustBonus, setNewCustBonus] = useState<number>(10000);
+  const [newCustNoCashback, setNewCustNoCashback] = useState<boolean>(false);
 
   // Modals state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
@@ -384,22 +386,30 @@ export const POSScreen: React.FC<POSScreenProps> = ({
     e.preventDefault();
     if (!newCustName.trim()) return;
 
-    const cashbackRates = {
+    const isGlobalCbDisabled = typeof window !== 'undefined' && localStorage.getItem('sc_cashback_enabled') === 'false';
+    const isNoCb = newCustNoCashback || newCustTier === 'None' || isGlobalCbDisabled;
+
+    const cashbackRates: Record<string, number> = {
       Standard: 1,
       Silver: 2,
       Gold: 3,
-      VIP: 5
+      VIP: 5,
+      None: 0
     };
+
+    const finalTier = isNoCb ? 'None' : newCustTier;
+    const finalBonus = isNoCb ? 0 : newCustBonus;
+    const finalRate = isNoCb ? 0 : (cashbackRates[finalTier] ?? 0);
 
     const createdCust: Customer = {
       id: `cust-${Date.now()}`,
       fullName: newCustName.trim(),
       phone: newCustPhone.trim() || '+998 90 000 00 00',
-      cashbackBalance: newCustBonus,
+      cashbackBalance: finalBonus,
       totalPurchases: 0,
       debtBalance: 0,
-      tier: newCustTier,
-      cashbackRate: cashbackRates[newCustTier],
+      tier: finalTier,
+      cashbackRate: finalRate,
       registeredDate: new Date().toISOString().split('T')[0]
     };
 
@@ -411,6 +421,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
     setNewCustPhone('');
     setNewCustBonus(10000);
     setNewCustTier('Standard');
+    setNewCustNoCashback(false);
   };
 
   // Barcode / S/N enter trigger
@@ -632,6 +643,32 @@ export const POSScreen: React.FC<POSScreenProps> = ({
       currencyPaid: 'UZS'
     };
     handleConfirmPayment(payment, 0);
+  };
+
+  // Quick 1-Click Instant Debt / Nasiya Sale
+  const handleQuickNasiyaSale = () => {
+    if (cart.length === 0) return;
+    if (!selectedCustomer) {
+      // If customer is not selected, open payment modal to quickly choose customer
+      setIsPaymentModalOpen(true);
+      return;
+    }
+
+    if (window.confirm(`"${selectedCustomer.fullName}" mijoziga jami ${formatNumberWithSpaces(totalAmount)} so'm (${totalAmountUSD} $) to'liq Nasiyaga (qarzga) o'tkazilsinmi?`)) {
+      const isUSD = baseCurrency === 'USD';
+      const payment: PaymentDetails = {
+        cash: 0,
+        card: 0,
+        debt: totalAmount,
+        debtUSD: isUSD ? totalAmountUSD : undefined,
+        cashbackUsed: 0,
+        total: totalAmount,
+        totalUSD: totalAmountUSD,
+        exchangeRate: exchangeRate,
+        currencyPaid: isUSD ? 'USD' : 'UZS'
+      };
+      handleConfirmPayment(payment, 0);
+    }
   };
 
   // Keyboard shortcut listener (F2 for quick cash, F4 for detailed payment)
@@ -1410,8 +1447,8 @@ export const POSScreen: React.FC<POSScreenProps> = ({
             </div>
           </div>
 
-          {/* Dual Checkout Action Buttons: 1-Click Fast Cash (F2) + Detailed Payment Modal (F4) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {/* Trio Checkout Action Buttons: 1-Click Fast Cash (F2) + 1-Click Nasiya + Detailed Payment Modal (F4) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button
               onClick={handleQuickCashSale}
               disabled={cart.length === 0}
@@ -1420,6 +1457,16 @@ export const POSScreen: React.FC<POSScreenProps> = ({
             >
               <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
               <span>⚡ Tezkor Naqd (F2)</span>
+            </button>
+
+            <button
+              onClick={handleQuickNasiyaSale}
+              disabled={cart.length === 0}
+              className="py-3 px-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-40 text-white font-bold text-xs tracking-wide shadow-md shadow-amber-600/25 flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+              title={selectedCustomer ? `"${selectedCustomer.fullName}" nomiga 1 tugma bilan qarzga o'tkazish` : "1 tugma bilan Nasiyaga o'tkazish"}
+            >
+              <Coins className="w-4 h-4 text-amber-200" />
+              <span className="truncate">📌 {selectedCustomer ? selectedCustomer.fullName.split(' ')[0] : 'Nasiya (Qarz)'}</span>
             </button>
 
             <button
@@ -1669,6 +1716,30 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                 />
               </div>
 
+              {/* Cashback toggle / disable option */}
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                <input
+                  type="checkbox"
+                  id="posNoCashbackCheck"
+                  checked={newCustNoCashback || newCustTier === 'None'}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setNewCustNoCashback(checked);
+                    if (checked) {
+                      setNewCustTier('None');
+                      setNewCustBonus(0);
+                    } else {
+                      setNewCustTier('Standard');
+                      setNewCustBonus(10000);
+                    }
+                  }}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                />
+                <label htmlFor="posNoCashbackCheck" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer select-none">
+                  Keshbekni o'chirish (0% keshbek va 0 bonus)
+                </label>
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -1676,13 +1747,23 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                   </label>
                   <select
                     value={newCustTier}
-                    onChange={(e) => setNewCustTier(e.target.value as any)}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setNewCustTier(val);
+                      if (val === 'None') {
+                        setNewCustNoCashback(true);
+                        setNewCustBonus(0);
+                      } else {
+                        setNewCustNoCashback(false);
+                      }
+                    }}
                     className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-semibold"
                   >
                     <option value="Standard">Standard (1% cb)</option>
                     <option value="Silver">Silver (2% cb)</option>
                     <option value="Gold">Gold (3% cb)</option>
                     <option value="VIP">VIP (5% cb)</option>
+                    <option value="None">Keshbeksiz (0% cb)</option>
                   </select>
                 </div>
 
@@ -1693,8 +1774,9 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                   <input
                     type="number"
                     value={newCustBonus}
+                    disabled={newCustTier === 'None' || newCustNoCashback}
                     onChange={(e) => setNewCustBonus(Number(e.target.value) || 0)}
-                    className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono"
+                    className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -1723,8 +1805,6 @@ export const POSScreen: React.FC<POSScreenProps> = ({
         </div>
       )}
 
-
-
       {/* PAYMENT MODAL */}
       <PaymentModal
         isOpen={isPaymentModalOpen}
@@ -1735,6 +1815,8 @@ export const POSScreen: React.FC<POSScreenProps> = ({
         isOffline={isOffline}
         exchangeRate={exchangeRate}
         baseCurrency={baseCurrency}
+        customers={customers}
+        onSelectCustomer={setSelectedCustomer}
       />
 
       {/* RECEIPT MODAL */}

@@ -39,7 +39,7 @@ export interface Customer {
   totalPurchases: number;  // Jami xarid miqdori
   debtBalance: number;     // Qarzdorlik (so'mda)
   debtBalanceUSD?: number; // Qarzdorlik ($ da)
-  tier: 'Standard' | 'Silver' | 'Gold' | 'VIP';
+  tier: 'Standard' | 'Silver' | 'Gold' | 'VIP' | 'None';
   cashbackRate: number;    // % da (masalan 1, 2, 3, 5)
   registeredDate: string;
   address?: string;
@@ -162,6 +162,7 @@ export interface EmployeePermissions {
   canManageSettings?: boolean;        // Sozlamalar va Telegram botni boshqarish
   canManagePermissions?: boolean;     // Xodimlar huquqlarini o'zgartirish
   canViewFinancialReports?: boolean;  // P&L va moliyaviy hisobotlarni ko'rish
+  canDeleteLeads?: boolean;           // CRMda lidlarni o'chirish huquqi
 }
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> = {
@@ -170,6 +171,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canCreateOrders: true,
     canCreateShipments: true,
     canDeleteOrders: true,
+    canDeleteLeads: true,
     canMakeSales: true,
     canEditReceipts: true,
     canReturnReceipts: true,
@@ -195,6 +197,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canCreateOrders: true,
     canCreateShipments: true,
     canDeleteOrders: false,
+    canDeleteLeads: true,
     canMakeSales: true,
     canEditReceipts: true,
     canReturnReceipts: true,
@@ -220,6 +223,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canCreateOrders: true,
     canCreateShipments: true,
     canDeleteOrders: false,
+    canDeleteLeads: false,
     canMakeSales: true,
     canEditReceipts: false, // Kassir chekni redakt qilolmaydi (sozlamalardan yoqish mumkin)
     canReturnReceipts: true,
@@ -245,6 +249,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canCreateOrders: true,
     canCreateShipments: false,
     canDeleteOrders: false,
+    canDeleteLeads: false,
     canMakeSales: false,
     canEditReceipts: false,
     canReturnReceipts: false,
@@ -270,6 +275,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canCreateOrders: false,
     canCreateShipments: true,
     canDeleteOrders: false,
+    canDeleteLeads: false,
     canMakeSales: false,
     canEditReceipts: false,
     canReturnReceipts: false,

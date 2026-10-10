@@ -1354,7 +1354,7 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
       {activeSubTab === 'sales_history' && (
         <div className="-mx-6 -my-6">
           <SalesHistoryScreen
-            receipts={receipts}
+            receipts={filteredReceipts}
             products={products}
             customers={customers}
             employees={employees}
