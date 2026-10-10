@@ -51,7 +51,7 @@ input[type="number"] {
 /* BULLETPROOF PRINT STYLES (A4 & Thermal POS Print) */
 /* ======================================================== */
 @media print {
-  /* 1. Hide default app shell, navigation, sidebars, header, toasts */
+  /* 1. Hide default app shell, navigation, sidebars, header, toasts, modals backdrop */
   header, 
   aside, 
   nav, 
@@ -76,32 +76,21 @@ input[type="number"] {
     overflow: visible !important;
   }
 
-  /* 3. Hide any background screen behind the open modal */
-  body:has(.printable-document) > div > div > main > *:not(:has(.printable-document)),
-  body:has(.printable-document) > div > aside,
-  body:has(.printable-document) > div > div > header,
-  body:has(.printable-receipt) > div > div > main > *:not(:has(.printable-receipt)),
-  body:has(.printable-receipt) > div > aside,
-  body:has(.printable-receipt) > div > div > header {
-    display: none !important;
+  /* 3. Dedicated page sizes */
+  @page {
+    size: auto;
+    margin: 0;
   }
 
-  /* 4. Modal Backdrops to clean white static containers */
-  .fixed.inset-0,
-  div[class*="fixed"][class*="inset-0"] {
-    position: static !important;
-    inset: auto !important;
-    background: #ffffff !important;
-    backdrop-filter: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    overflow: visible !important;
-    display: block !important;
-    box-shadow: none !important;
-    border: none !important;
+  @page :left {
+    margin: 0;
   }
 
-  /* 5. Full A4 / Document Print Container */
+  @page :right {
+    margin: 0;
+  }
+
+  /* 4. Full A4 / Document Print Container */
   .printable-document {
     display: block !important;
     position: relative !important;
@@ -118,30 +107,27 @@ input[type="number"] {
     border-radius: 0 !important;
   }
 
-  /* 6. Thermal POS Receipt Print Container */
+  /* 5. Thermal POS Receipt Print Container */
   .printable-receipt {
     display: block !important;
     position: relative !important;
     left: 0 !important;
     top: 0 !important;
     margin: 0 auto !important;
-    padding: 0 !important;
+    padding: 2px !important;
     background: #ffffff !important;
     color: #000000 !important;
     box-shadow: none !important;
     border: none !important;
+    page-break-inside: avoid;
   }
 
-  /* 7. Exact colors for high-contrast clarity and QR/images */
+  /* 6. Exact colors for high-contrast clarity and QR/images */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-
-  @page {
-    size: A4 portrait;
-    margin: 10mm;
-  }
 }
+
 
 

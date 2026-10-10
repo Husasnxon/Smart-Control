@@ -7,18 +7,23 @@ import {
   Printer, 
   ShieldCheck, 
   MapPin, 
-  HardHat,
-  RotateCcw,
-  Edit3,
-  CheckCircle2,
-  QrCode,
-  SlidersHorizontal,
-  Smartphone,
-  PhoneCall,
-  CheckCheck,
-  Copy
+  HardHat, 
+  RotateCcw, 
+  Edit3, 
+  CheckCircle2, 
+  QrCode, 
+  SlidersHorizontal, 
+  Smartphone, 
+  PhoneCall, 
+  CheckCheck, 
+  Copy,
+  Bluetooth,
+  Loader2,
+  Settings2,
+  AlertCircle
 } from 'lucide-react';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
+import { printThermalReceiptViaIframe, printReceiptViaBluetooth } from '../utils/thermalPrinter';
 
 interface ReceiptModalProps {
   receipt: SaleReceipt | null;
@@ -33,11 +38,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   onOpenReturn,
   onOpenEdit
 }) => {
-  const [paperWidth, setPaperWidth] = useState<'58' | '80'>('80');
+  const [paperWidth, setPaperWidth] = useState<'58' | '80'>('58');
   const [showSettings, setShowSettings] = useState(false);
   const [showQR, setShowQR] = useState(true);
-  const [customFooter, setCustomFooter] = useState('Xaridingiz uchun tashakkur! Xaridingiz barakali bo\'lsin!');
+  const [customFooter, setCustomFooter] = useState("Xaridingiz uchun tashakkur! Barakali bo'lsin!");
   const [isCopied, setIsCopied] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [btStatus, setBtStatus] = useState<string | null>(null);
+  const [btError, setBtError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -65,8 +73,47 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  // 1. Isolated Thermal Print (Zero background bleed, clean 58mm/80mm roll)
+  const handlePrint = async () => {
+    setIsPrinting(true);
+    try {
+      await printThermalReceiptViaIframe(receipt, {
+        width: paperWidth,
+        customFooter,
+        showQR,
+        branchName: receipt.branchName || 'Asosiy Filial',
+        storePhone: '+998 90 123-45-67'
+      });
+    } catch (err) {
+      console.error('Print error:', err);
+      window.print();
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  // 2. Direct Web Bluetooth ESC/POS Print (For mobile / portable Bluetooth thermal printers)
+  const handleBluetoothPrint = async () => {
+    setBtStatus('Ulanmoqda...');
+    setBtError(null);
+    try {
+      const res = await printReceiptViaBluetooth(
+        receipt,
+        paperWidth,
+        customFooter,
+        (status) => setBtStatus(status)
+      );
+      if (!res.success) {
+        setBtError(res.message);
+        setTimeout(() => setBtError(null), 6000);
+      } else {
+        setBtStatus(res.message);
+        setTimeout(() => setBtStatus(null), 4000);
+      }
+    } catch (e: any) {
+      setBtError(e.message || "Bluetooth printerga ulanib bo'lmadi.");
+      setTimeout(() => setBtError(null), 6000);
+    }
   };
 
   const netTotal = receipt.totalAmount - (receipt.totalRefunded || 0);
@@ -89,7 +136,7 @@ Rahmat!`;
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[95vh] print:max-h-none print:shadow-none print:border-none print:w-auto">
         {/* Modal Top Actions (Hidden when printing) */}
-        <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 print:hidden shrink-0">
+        <div className="px-4 sm:px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800/50 print:hidden shrink-0">
           <div className="flex items-center gap-2">
             <span className={`w-2.5 h-2.5 rounded-full ${
               receipt.status === 'returned'
@@ -105,8 +152,9 @@ Rahmat!`;
             </span>
           </div>
 
-          {/* Width Toggle 58mm / 80mm */}
+          {/* Width & Print Actions */}
           <div className="flex items-center gap-2">
+            {/* Width Toggle 58mm / 80mm */}
             <div className="flex items-center bg-slate-200 dark:bg-slate-700 p-0.5 rounded-xl text-[11px] font-bold">
               <button
                 type="button"
@@ -116,8 +164,9 @@ Rahmat!`;
                     ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
+                title="58mm termal printerlar (Xprinter XP-58, Goojprt, Zjiang)"
               >
-                58 mm
+                58 mm (Standart)
               </button>
               <button
                 type="button"
@@ -127,11 +176,36 @@ Rahmat!`;
                     ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
+                title="80mm keng termal printerlar (XP-80, Epson, Sam4s)"
               >
                 80 mm
               </button>
             </div>
 
+            {/* Bluetooth Direct Print */}
+            <button
+              type="button"
+              onClick={handleBluetoothPrint}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold text-xs shadow-sm transition"
+              title="Bluetooth portativ printer orqali to'g'ridan-to'g'ri chiqarish (Usta / Mobil)"
+            >
+              <Bluetooth className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span className="hidden sm:inline">Bluetooth</span>
+            </button>
+
+            {/* Standard Driver / USB Print */}
+            <button
+              type="button"
+              onClick={handlePrint}
+              disabled={isPrinting}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold text-xs shadow-md transition disabled:opacity-50"
+              title="USB drayver yoki standart chop etish"
+            >
+              {isPrinting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+              <span>Chop Etish</span>
+            </button>
+
+            {/* Settings Toggle */}
             <button
               type="button"
               onClick={() => setShowSettings(!showSettings)}
@@ -140,19 +214,9 @@ Rahmat!`;
                   ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 border-amber-300' 
                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
               }`}
-              title="Chek sozlamalari"
+              title="Printer va chek sozlamalari"
             >
               <SlidersHorizontal className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold text-xs shadow-md transition"
-              title="Chop etish (Ctrl + P)"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Chop Etish</span>
             </button>
 
             <button
@@ -165,23 +229,65 @@ Rahmat!`;
           </div>
         </div>
 
+        {/* Bluetooth Status or Error Toast */}
+        {btStatus && (
+          <div className="bg-blue-600 text-white text-xs px-4 py-2 flex items-center gap-2 animate-in fade-in duration-150">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span className="font-semibold">{btStatus}</span>
+          </div>
+        )}
+        {btError && (
+          <div className="bg-rose-600 text-white text-xs px-4 py-2 flex items-center justify-between gap-2 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{btError}</span>
+            </div>
+            <button onClick={() => setBtError(null)} className="text-white/80 hover:text-white text-xs underline">
+              Yopish
+            </button>
+          </div>
+        )}
+
         {/* Settings Bar if toggled */}
         {showSettings && (
-          <div className="p-3 bg-amber-50/70 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/60 text-xs space-y-2 print:hidden animate-in fade-in duration-150">
+          <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/60 text-xs space-y-2.5 print:hidden animate-in fade-in duration-150">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
-                <QrCode className="w-3.5 h-3.5" />
-                <span>QR-kod ko&apos;rsatilsinmi:</span>
-              </label>
-              <input
-                type="checkbox"
-                checked={showQR}
-                onChange={(e) => setShowQR(e.target.checked)}
-                className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
-              />
+              <div className="font-bold text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                <Settings2 className="w-4 h-4 text-amber-600" />
+                <span>Termal Printer Sozlamalari (58mm / 80mm)</span>
+              </div>
+              <div className="text-[11px] text-amber-800 dark:text-amber-400">
+                Xprinter XP-58IIT, XP-58C, XP-80, Bluetooth & USB moslashtirilgan
+              </div>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-amber-200/60 dark:border-amber-900/40">
+              <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-amber-200 dark:border-amber-800/60">
+                <label className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                  <QrCode className="w-3.5 h-3.5 text-amber-600" />
+                  <span>QR-kod ko&apos;rsatilsinmi:</span>
+                </label>
+                <input
+                  type="checkbox"
+                  checked={showQR}
+                  onChange={(e) => setShowQR(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-amber-200 dark:border-amber-800/60">
+                <span className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                  <Bluetooth className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Ulanish turi:</span>
+                </span>
+                <span className="text-[11px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md">
+                  USB / BT / LAN
+                </span>
+              </div>
+            </div>
+
             <div>
-              <label className="block font-bold text-amber-900 dark:text-amber-200 mb-1">
+              <label className="block font-bold text-amber-950 dark:text-amber-200 mb-1">
                 Chek oxiridagi xabar (Footer):
               </label>
               <input
@@ -522,10 +628,20 @@ Rahmat!`;
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handlePrint}
-              className="px-4 py-1.5 rounded-xl font-bold text-xs bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/20 transition flex items-center gap-1.5"
+              onClick={handleBluetoothPrint}
+              className="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20 transition flex items-center gap-1.5"
+              title="Portativ Bluetooth printer orqali to'g'ridan-to'g'ri chiqarish"
             >
-              <Printer className="w-3.5 h-3.5" />
+              <Bluetooth className="w-3.5 h-3.5" />
+              <span>Bluetooth Chop Etish</span>
+            </button>
+            <button
+              type="button"
+              onClick={handlePrint}
+              disabled={isPrinting}
+              className="px-4 py-1.5 rounded-xl font-bold text-xs bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/20 transition flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {isPrinting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
               <span>Chop Etish ({paperWidth}mm)</span>
             </button>
             <button

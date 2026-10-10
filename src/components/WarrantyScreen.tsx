@@ -10,6 +10,7 @@ import {
   Currency 
 } from '../types';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
+import { printRawHtmlInIframe } from '../utils/thermalPrinter';
 import { 
   ShieldCheck, 
   Search, 
@@ -1555,7 +1556,55 @@ export const WarrantyScreen: React.FC<WarrantyScreenProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  window.print();
+                  const html = `
+                    <!DOCTYPE html>
+                    <html>
+                      <head>
+                        <meta charset="utf-8">
+                        <title>Kvitansiya: ${printingTicket.ticketNumber}</title>
+                        <style>
+                          @page { size: auto; margin: 0; }
+                          * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                          html, body {
+                            width: 50mm;
+                            max-width: 50mm;
+                            margin: 0 auto;
+                            padding: 4px 2px;
+                            background: #fff;
+                            color: #000;
+                            font-family: monospace;
+                            font-size: 10.5px;
+                            line-height: 1.2;
+                          }
+                        </style>
+                      </head>
+                      <body>
+                        <div style="text-align:center; border-bottom:1px dashed #000; padding-bottom:4px; margin-bottom:4px;">
+                          <div style="font-weight:900; font-size:13px;">SMART CONTROL</div>
+                          <div style="font-size:9px;">Xavfsizlik &amp; Tarmoq Tizimlari</div>
+                          <div style="font-weight:bold; font-size:10.5px; margin-top:2px;">SERVIS VA TA'MIR KVITANSIYASI</div>
+                          <div style="font-weight:bold; font-size:11px;">№ ${printingTicket.ticketNumber}</div>
+                        </div>
+                        <div style="border-bottom:1px dashed #000; padding-bottom:4px; margin-bottom:4px; font-size:10px;">
+                          <div style="display:flex;justify-content:space-between;"><span>Sana:</span><span>${printingTicket.createdAt}</span></div>
+                          <div style="display:flex;justify-content:space-between;"><span>Mijoz:</span><span>${printingTicket.customerName}</span></div>
+                          <div style="display:flex;justify-content:space-between;"><span>Tel:</span><span>${printingTicket.customerPhone}</span></div>
+                        </div>
+                        <div style="border-bottom:1px dashed #000; padding-bottom:4px; margin-bottom:4px; font-size:10px;">
+                          <div><span style="color:#555;">Qurilma:</span> <strong>${printingTicket.productName}</strong></div>
+                          <div><span style="color:#555;">S/N:</span> <strong>${printingTicket.serialNumber}</strong></div>
+                          <div style="margin-top:2px;"><span style="color:#555;">Muammo:</span> <em>${printingTicket.issueDescription}</em></div>
+                          <div style="margin-top:2px; font-weight:bold;">Holat: ${printingTicket.isWarrantyFree ? 'KAFOLATLI (BEPUL)' : 'PULLIK'}</div>
+                        </div>
+                        <div style="font-size:9px; padding-top:4px;">
+                          <div style="margin-bottom:6px;">Topshirdi: ________________</div>
+                          <div style="margin-bottom:6px;">Qabul qildi: ______________</div>
+                          <div style="text-align:center; font-size:8px; margin-top:4px;">Kvitansiyani saqlang!</div>
+                        </div>
+                      </body>
+                    </html>
+                  `;
+                  printRawHtmlInIframe(html);
                 }}
                 className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs"
               >

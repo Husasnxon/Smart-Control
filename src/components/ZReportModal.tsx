@@ -8,6 +8,7 @@ import {
   sendTelegramMessage, 
   generateDailySalesReport 
 } from '../utils/telegram';
+import { printRawHtmlInIframe } from '../utils/thermalPrinter';
 import { 
   X, 
   Printer, 
@@ -155,9 +156,69 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
     });
   };
 
-  // Thermal Print Handler
+  // Thermal Print Handler (Isolated 58mm / 80mm)
   const handlePrintZReport = () => {
-    window.print();
+    const is58 = true;
+    const paperWidthPx = is58 ? '48mm' : '72mm';
+    const zHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Z-Hisobot: ${nowDisplay}</title>
+          <style>
+            @page { size: auto; margin: 0; }
+            * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            html, body {
+              width: ${paperWidthPx};
+              max-width: ${paperWidthPx};
+              margin: 0 auto;
+              padding: 4px 2px;
+              background: #fff;
+              color: #000;
+              font-family: monospace;
+              font-size: 10.5px;
+              line-height: 1.2;
+            }
+          </style>
+        </head>
+        <body>
+          <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px;">
+            <div style="font-weight: 900; font-size: 14px;">*** Z-HISOBOT ***</div>
+            <div style="font-weight: bold; font-size: 11px;">${branchName}</div>
+            <div style="font-size: 9px;">SMART CONTROL XAVFSIZLIK &amp; TARMOQ</div>
+          </div>
+          <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; font-size: 10px;">
+            <div style="display:flex;justify-content:space-between;"><span>Sana/Vaqt:</span><span>${nowDisplay}</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>Kassir:</span><span>${cashierName}</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>Cheklar soni:</span><span>${stats.receiptsCount} ta</span></div>
+          </div>
+          <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px;">
+            <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:11.5px;">
+              <span>JAMI SAVDO:</span>
+              <span>${formatNumberWithSpaces(stats.totalSales)} UZS</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:9.5px;"><span>Naqd (so'm):</span><span>${formatNumberWithSpaces(stats.cashUZS)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:9.5px;"><span>Karta (Humo/Uzcard):</span><span>${formatNumberWithSpaces(stats.cardUZS)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:9.5px;"><span>Naqd ($ USD):</span><span>$${formatUSDNumber(stats.cashUSD)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:9.5px;"><span>Nasiya (Qarz):</span><span>${formatNumberWithSpaces(stats.debtUZS)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:9.5px;"><span>Sarflangan cashback:</span><span>${formatNumberWithSpaces(stats.cashbackUsedUZS)}</span></div>
+          </div>
+          <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; font-size: 10px;">
+            <div style="display:flex;justify-content:space-between;"><span>Chiqim/Xarajat:</span><span>-${formatNumberWithSpaces(stats.expensesTotal)} UZS</span></div>
+            <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>Kutilgan Naqd:</span><span>${formatNumberWithSpaces(stats.expectedCashInDrawer)} UZS</span></div>
+            <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>Faktik Naqd:</span><span>${formatNumberWithSpaces(actualCash)} UZS</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:9.5px;"><span>Tafovut:</span><span>${formatNumberWithSpaces(difference)} UZS</span></div>
+          </div>
+          <div style="font-size: 9px; padding-top: 4px;">
+            <div style="margin-bottom: 8px;">Kassir imzosi: ________________</div>
+            <div style="margin-bottom: 8px;">Menejer imzosi: _______________</div>
+            <div style="text-align: center; font-weight: bold; margin-top: 5px;">*** SMENA YOPILDI ***</div>
+          </div>
+        </body>
+      </html>
+    `;
+    printRawHtmlInIframe(zHtml);
   };
 
   // Close shift, send to Telegram automatically and archive

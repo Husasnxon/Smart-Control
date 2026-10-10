@@ -1,0 +1,701 @@
+import { SaleReceipt } from '../types';
+import { formatNumberWithSpaces, formatUSDNumber } from './formatters';
+
+export interface ThermalPrintOptions {
+  width: '58' | '80';
+  customFooter?: string;
+  showQR?: boolean;
+  branchName?: string;
+  storePhone?: string;
+}
+
+/**
+ * Generates clean, high-contrast, zero-margin HTML specifically formatted for 58mm / 80mm thermal receipts.
+ */
+export function generateThermalReceiptHtml(
+  receipt: SaleReceipt,
+  options: ThermalPrintOptions = { width: '58' }
+): string {
+  const { width = '58', customFooter = "Xaridingiz uchun tashakkur! Barakali bo'lsin!", showQR = true, branchName = 'Asosiy Filial', storePhone = '+998 90 123-45-67' } = options;
+  const is58 = width === '58';
+  const paperWidthPx = is58 ? '48mm' : '72mm';
+  const fontSize = is58 ? '10.5px' : '12px';
+  const titleSize = is58 ? '13px' : '15px';
+  const smallSize = is58 ? '9px' : '10px';
+
+  const netTotal = receipt.totalAmount - (receipt.totalRefunded || 0);
+
+  const itemsRows = receipt.items.map((it, idx) => {
+    const itemTotal = it.quantity * it.appliedPrice;
+    const serialsHtml = it.selectedSerialNumbers && it.selectedSerialNumbers.length > 0 
+      ? `<div style="font-size:${smallSize};font-weight:bold;margin:1px 0;padding:1px 3px;border:1px dashed #000;">S/N: ${it.selectedSerialNumbers.join(', ')}</div>`
+      : '';
+    const returnHtml = it.returnedQuantity && it.returnedQuantity > 0 
+      ? `<div style="font-size:8px;font-weight:bold;font-style:italic;">[Qaytarildi: ${it.returnedQuantity} ${it.product.unit}]</div>`
+      : '';
+
+    return `
+      <div style="margin-bottom: 5px; page-break-inside: avoid;">
+        <div style="font-weight: bold; line-height: 1.15;">${idx + 1}. ${escapeHtml(it.product.name)}</div>
+        ${serialsHtml}
+        <div style="display: flex; justify-content: space-between; font-size: ${smallSize}; margin-top: 1px;">
+          <span>${it.quantity} ${it.product.unit} × ${formatNumberWithSpaces(it.appliedPrice)}</span>
+          <span style="font-weight: bold;">${formatNumberWithSpaces(itemTotal)}</span>
+        </div>
+        ${returnHtml}
+      </div>
+    `;
+  }).join('');
+
+  const statusStamp = receipt.status === 'returned'
+    ? `<div style="margin-top:4px;padding:2px;background:#000;color:#fff;font-weight:bold;font-size:9px;text-align:center;">[ BEKOR QILINDI / VOZVRAT ]</div>`
+    : receipt.status === 'partially_returned'
+    ? `<div style="margin-top:4px;padding:2px;background:#000;color:#fff;font-weight:bold;font-size:9px;text-align:center;">[ QISMAN QAYTARILGAN ]</div>`
+    : receipt.status === 'edited'
+    ? `<div style="margin-top:4px;padding:2px;border:1px solid #000;font-weight:bold;font-size:9px;text-align:center;">[ TAHRIRLANGAN CHEK ]</div>`
+    : '';
+
+  const returnedBox = receipt.returnedItems && receipt.returnedItems.length > 0
+    ? `
+      <div style="border: 1px dashed #000; padding: 4px; margin: 5px 0; font-size: ${smallSize};">
+        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+          <span>Qaytarilganlar (Vozvrat):</span>
+          <span>-${formatNumberWithSpaces(receipt.totalRefunded || 0)}</span>
+        </div>
+        ${receipt.returnedItems.map(r => `
+          <div style="display:flex;justify-content:space-between;border-top:1px dotted #666;padding-top:2px;font-size:8px;">
+            <span>• ${escapeHtml(r.productName)} (${r.quantity} ta)</span>
+            <span style="font-weight:bold;">-${formatNumberWithSpaces(r.totalRefund)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `
+    : '';
+
+  const paymentsHtml = `
+    <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; font-size: ${smallSize};">
+      ${receipt.payments.cashUSD && receipt.payments.cashUSD > 0 ? `
+        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+          <span>Naqd Dollar ($ USD):</span>
+          <span>$${formatUSDNumber(receipt.payments.cashUSD)}</span>
+        </div>
+      ` : ''}
+      ${receipt.payments.cash > 0 ? `
+        <div style="display:flex;justify-content:space-between;">
+          <span>Naqd So'm:</span>
+          <span>${formatNumberWithSpaces(receipt.payments.cash)} so'm</span>
+        </div>
+      ` : ''}
+      ${receipt.payments.card > 0 ? `
+        <div style="display:flex;justify-content:space-between;">
+          <span>Karta:</span>
+          <span>${formatNumberWithSpaces(receipt.payments.card)} so'm</span>
+        </div>
+      ` : ''}
+      ${receipt.payments.debt > 0 ? `
+        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+          <span>Nasiya / Qarz:</span>
+          <span>${formatNumberWithSpaces(receipt.payments.debt)} so'm</span>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  const warrantyHtml = receipt.warrantyMonths && receipt.warrantyMonths > 0
+    ? `
+      <div style="border: 1px solid #000; padding: 4px; margin: 5px 0; font-size: ${smallSize};">
+        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+          <span>KAFOLAT TALONI:</span>
+          <span>${receipt.warrantyMonths} OY</span>
+        </div>
+        <div style="font-size:8px;line-height:1.15;margin-top:2px;">
+          Kafolat uskuna S/N seriya raqami va ushbu chek orqali servis markazida amal qiladi. Plomba butunligi shart.
+        </div>
+      </div>
+    `
+    : '';
+
+  const cashbackHtml = receipt.customer
+    ? `
+      <div style="border: 1px dotted #000; padding: 3px; margin: 4px 0; font-size: ${smallSize};">
+        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+          <span>Cashback qo'shildi:</span>
+          <span>+${(receipt.cashbackEarned || 0).toLocaleString()} so'm</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span>Jami Cashback balansingiz:</span>
+          <span style="font-weight:bold;">${((receipt.customer.cashbackBalance || 0) - (receipt.payments.cashbackUsed || 0) + (receipt.cashbackEarned || 0)).toLocaleString()} so'm</span>
+        </div>
+      </div>
+    `
+    : '';
+
+  // SVG QR Code representation
+  const qrSvg = showQR ? `
+    <div style="text-align: center; margin: 5px 0;">
+      <svg width="70" height="70" viewBox="0 0 100 100" style="margin: 0 auto; display: block;">
+        <rect width="100" height="100" fill="#ffffff" />
+        <!-- Corner 1 -->
+        <rect x="5" y="5" width="30" height="30" fill="#000000" />
+        <rect x="10" y="10" width="20" height="20" fill="#ffffff" />
+        <rect x="15" y="15" width="10" height="10" fill="#000000" />
+        <!-- Corner 2 -->
+        <rect x="65" y="5" width="30" height="30" fill="#000000" />
+        <rect x="70" y="10" width="20" height="20" fill="#ffffff" />
+        <rect x="75" y="15" width="10" height="10" fill="#000000" />
+        <!-- Corner 3 -->
+        <rect x="5" y="65" width="30" height="30" fill="#000000" />
+        <rect x="10" y="70" width="20" height="20" fill="#ffffff" />
+        <rect x="15" y="75" width="10" height="10" fill="#000000" />
+        <!-- Center Patterns -->
+        <rect x="42" y="12" width="6" height="6" fill="#000000" />
+        <rect x="52" y="12" width="6" height="6" fill="#000000" />
+        <rect x="42" y="24" width="6" height="6" fill="#000000" />
+        <rect x="42" y="42" width="16" height="16" fill="#000000" />
+        <rect x="46" y="46" width="8" height="8" fill="#ffffff" />
+        <rect x="12" y="42" width="6" height="6" fill="#000000" />
+        <rect x="24" y="42" width="6" height="6" fill="#000000" />
+        <rect x="65" y="42" width="6" height="6" fill="#000000" />
+        <rect x="80" y="42" width="6" height="6" fill="#000000" />
+        <rect x="42" y="65" width="6" height="6" fill="#000000" />
+        <rect x="52" y="75" width="6" height="6" fill="#000000" />
+        <rect x="70" y="65" width="15" height="15" fill="#000000" />
+        <rect x="75" y="70" width="5" height="5" fill="#ffffff" />
+      </svg>
+      <div style="font-size: 8px; font-family: monospace; margin-top: 2px;">${escapeHtml(receipt.receiptNumber)}</div>
+    </div>
+  ` : '';
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Chek: ${receipt.receiptNumber}</title>
+        <style>
+          @page {
+            size: ${is58 ? '58mm auto' : '80mm auto'};
+            margin: 0;
+          }
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          html, body {
+            width: ${paperWidthPx};
+            max-width: ${paperWidthPx};
+            margin: 0 auto;
+            padding: 0;
+            background: #ffffff;
+            color: #000000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Courier New", Courier, monospace;
+            font-size: ${fontSize};
+            line-height: 1.2;
+          }
+          .receipt-box {
+            width: 100%;
+            padding: ${is58 ? '4px 3px' : '8px 6px'};
+            margin: 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt-box">
+          <!-- Store Header -->
+          <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px;">
+            <div style="font-weight: 900; font-size: ${titleSize}; letter-spacing: 0.5px;">SMART CONTROL</div>
+            <div style="font-weight: bold; font-size: ${smallSize}; text-transform: uppercase;">Xavfsizlik & Tarmoq Tizimlari</div>
+            <div style="font-size: ${smallSize};">Kameralar · Domofon · Tarmoq · Montaj</div>
+            <div style="font-size: ${smallSize}; font-weight: bold; margin-top: 2px;">${escapeHtml(receipt.branchName || branchName)}</div>
+            <div style="font-size: ${smallSize}; font-family: monospace;">Tel: ${escapeHtml(storePhone)}</div>
+            ${statusStamp}
+          </div>
+
+          <!-- Metadata -->
+          <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; font-size: ${smallSize};">
+            <div style="display:flex; justify-content:space-between;">
+              <span>Chek raqami:</span>
+              <span style="font-weight:bold;">${escapeHtml(receipt.receiptNumber)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span>Sana / Vaqt:</span>
+              <span>${escapeHtml(receipt.createdAt)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span>Kassir / Mas'ul:</span>
+              <span>${escapeHtml(receipt.cashierName)}</span>
+            </div>
+            ${receipt.customer ? `
+              <div style="display:flex; justify-content:space-between; font-weight:bold; border-top:1px dotted #999; margin-top:2px; padding-top:2px;">
+                <span>Mijoz:</span>
+                <span>${escapeHtml(receipt.customer.fullName)}</span>
+              </div>
+            ` : ''}
+            ${receipt.installationAddress ? `
+              <div style="margin-top:2px; padding-top:2px; border-top:1px dotted #999;">
+                <span style="font-weight:bold;">Manzil:</span> ${escapeHtml(receipt.installationAddress)}
+              </div>
+            ` : ''}
+            ${receipt.technicians && receipt.technicians.length > 0 ? `
+              <div style="margin-top:2px; padding-top:2px; border-top:1px dotted #999;">
+                <span style="font-weight:bold;">Usta:</span> ${escapeHtml(receipt.technicians.map(t => t.fullName).join(', '))}
+              </div>
+            ` : receipt.technicianName ? `
+              <div style="margin-top:2px; padding-top:2px; border-top:1px dotted #999;">
+                <span style="font-weight:bold;">Usta:</span> ${escapeHtml(receipt.technicianName)}
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Items Table -->
+          <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px;">
+            <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:${smallSize}; border-bottom:1px solid #000; padding-bottom:2px; margin-bottom:3px; text-transform:uppercase;">
+              <span>Tovar / Xizmat</span>
+              <span>Summa</span>
+            </div>
+            ${itemsRows}
+          </div>
+
+          ${returnedBox}
+
+          <!-- Totals -->
+          <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; font-size: ${smallSize};">
+            <div style="display:flex; justify-content:space-between;">
+              <span>Oraliq jami:</span>
+              <span>${formatNumberWithSpaces(receipt.subtotal)} so'm</span>
+            </div>
+            ${receipt.discountTotal > 0 ? `
+              <div style="display:flex; justify-content:space-between; font-weight:bold;">
+                <span>Chegirma:</span>
+                <span>-${formatNumberWithSpaces(receipt.discountTotal)} so'm</span>
+              </div>
+            ` : ''}
+            ${receipt.payments.cashbackUsed > 0 ? `
+              <div style="display:flex; justify-content:space-between; font-weight:bold;">
+                <span>Cashback yechildi:</span>
+                <span>-${formatNumberWithSpaces(receipt.payments.cashbackUsed)} so'm</span>
+              </div>
+            ` : ''}
+            <div style="display:flex; justify-content:space-between; font-weight:900; font-size:${fontSize}; border-top:1px solid #000; padding-top:2px; margin-top:2px;">
+              <span>JAMI TO'LOV:</span>
+              <span>${formatNumberWithSpaces(receipt.totalAmount)} so'm</span>
+            </div>
+            ${receipt.totalRefunded && receipt.totalRefunded > 0 ? `
+              <div style="display:flex; justify-content:space-between; font-weight:bold; border-top:1px dashed #000; padding-top:2px;">
+                <span>SOF SUMMA:</span>
+                <span>${formatNumberWithSpaces(netTotal)} so'm</span>
+              </div>
+            ` : ''}
+            ${receipt.exchangeRate ? `
+              <div style="display:flex; justify-content:space-between; font-size:8.5px; font-weight:bold; margin-top:2px;">
+                <span>Valyutada ($ USD):</span>
+                <span>$${formatUSDNumber(receipt.totalAmountUSD || Number(receipt.totalAmount / receipt.exchangeRate))} (1$=${formatNumberWithSpaces(receipt.exchangeRate)})</span>
+              </div>
+            ` : ''}
+          </div>
+
+          ${paymentsHtml}
+
+          ${receipt.notes ? `
+            <div style="border: 1px dotted #999; padding: 3px; margin: 4px 0; font-size: 8.5px;">
+              <strong>Izoh:</strong> ${escapeHtml(receipt.notes)}
+            </div>
+          ` : ''}
+
+          ${warrantyHtml}
+          ${cashbackHtml}
+
+          <!-- Footer & QR -->
+          <div style="text-align: center; margin-top: 5px; font-size: ${smallSize};">
+            ${qrSvg}
+            <div style="letter-spacing: 4px; font-weight: bold; font-family: monospace; font-size: 11px; margin: 3px 0;">||| | |||| || ||| ||||</div>
+            <div style="font-weight: bold; margin: 3px 0;">${escapeHtml(customFooter)}</div>
+            <div style="font-size: 8px; color: #333;">Smart Control Security Systems</div>
+            <div style="font-size: 7.5px; color: #555;">${receipt.isOffline ? '[Oflayn chek]' : '✓ Tizimda tasdiqlangan'}</div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+function escapeHtml(text: string = ''): string {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Robust, 100% isolated printing using a hidden <iframe>.
+ * This guarantees the current screen (dashboards, modals, background cards) NEVER leaks into the print job!
+ */
+export function printThermalReceiptViaIframe(
+  receipt: SaleReceipt,
+  options: ThermalPrintOptions = { width: '58' }
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const html = generateThermalReceiptHtml(receipt, options);
+      printRawHtmlInIframe(html).then(resolve).catch(() => resolve(false));
+    } catch (err) {
+      console.error('Error generating receipt print frame:', err);
+      resolve(false);
+    }
+  });
+}
+
+/**
+ * Generic isolated HTML printer for any document (Z-Report, Warranty ticket, Smeta, QR Passport, Invoice)
+ */
+export function printRawHtmlInIframe(htmlContent: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      // Remove any existing print frame
+      const oldFrame = document.getElementById('sc-silent-print-frame');
+      if (oldFrame) {
+        oldFrame.remove();
+      }
+
+      const iframe = document.createElement('iframe');
+      iframe.id = 'sc-silent-print-frame';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.style.visibility = 'hidden';
+
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document;
+      if (!doc) {
+        throw new Error('Cannot access iframe document');
+      }
+
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      iframe.onload = () => {
+        setTimeout(() => {
+          try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            setTimeout(() => {
+              iframe.remove();
+              resolve(true);
+            }, 1000);
+          } catch (e) {
+            console.error('Failed to trigger iframe print:', e);
+            resolve(false);
+          }
+        }, 250);
+      };
+
+      // Fallback timeout in case onload event was already triggered
+      setTimeout(() => {
+        try {
+          if (document.body.contains(iframe)) {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            setTimeout(() => {
+              iframe.remove();
+              resolve(true);
+            }, 1000);
+          }
+        } catch {
+          // ignore
+        }
+      }, 500);
+
+    } catch (err) {
+      console.error('Iframe print error:', err);
+      // Fallback to window.print() if iframe blocked
+      window.print();
+      resolve(true);
+    }
+  });
+}
+
+/**
+ * Transliterates Cyrillic/Uzbek characters to Latin ASCII for reliable ESC/POS thermal printing
+ * (Prevents Chinese character gibberish on unconfigured thermal printer firmware).
+ */
+export function transliterateForEscPos(text: string): string {
+  const map: Record<string, string> = {
+    'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo',
+    'Ж': 'J', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
+    'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
+    'Ф': 'F', 'Х': 'X', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Sh', 'Ъ': '',
+    'Ы': 'I', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya',
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+    'ж': 'j', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+    'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+    'ф': 'f', 'х': 'x', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sh', 'ъ': '',
+    'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+    'ў': "o'", 'Ў': "O'", 'ғ': "g'", 'Ғ': "G'", 'ҳ': 'h', 'Ҳ': 'H', 'қ': 'q', 'Қ': 'Q'
+  };
+  return text.split('').map(char => map[char] || char).join('');
+}
+
+/**
+ * Generates raw ESC/POS binary byte array for standard thermal receipt printers
+ */
+export function generateEscPosReceiptBytes(
+  receipt: SaleReceipt,
+  width: '58' | '80' = '58',
+  customFooter = "Xaridingiz uchun tashakkur!"
+): Uint8Array {
+  const maxCols = width === '58' ? 32 : 48;
+  const bytes: number[] = [];
+
+  // Helper push strings
+  const pushText = (txt: string) => {
+    const clean = transliterateForEscPos(txt);
+    for (let i = 0; i < clean.length; i++) {
+      bytes.push(clean.charCodeAt(i) & 0xFF);
+    }
+  };
+
+  const pushLine = (txt: string = '') => {
+    pushText(txt);
+    bytes.push(0x0A); // Line feed (LF)
+  };
+
+  const pushDivider = (char = '-') => {
+    pushLine(char.repeat(maxCols));
+  };
+
+  const padRow = (left: string, right: string) => {
+    const cleanL = transliterateForEscPos(left);
+    const cleanR = transliterateForEscPos(right);
+    const spacesNeeded = Math.max(1, maxCols - cleanL.length - cleanR.length);
+    pushLine(cleanL + ' '.repeat(spacesNeeded) + cleanR);
+  };
+
+  // 1. Initialize Printer (ESC @)
+  bytes.push(0x1B, 0x40);
+
+  // 2. Center Align (ESC a 1)
+  bytes.push(0x1B, 0x61, 0x01);
+
+  // Double Height & Bold for Title
+  bytes.push(0x1B, 0x21, 0x20); // Double height
+  pushLine('SMART CONTROL');
+  bytes.push(0x1B, 0x21, 0x00); // Normal font
+
+  pushLine('Xavfsizlik & Tarmoq Tizimlari');
+  pushLine('Kameralar * Domofon * Montaj');
+  pushLine(receipt.branchName || 'Asosiy Filial');
+  pushLine('Tel: +998 90 123-45-67');
+
+  if (receipt.status === 'returned') {
+    pushLine('[ BEKOR QILINDI / VOZVRAT ]');
+  } else if (receipt.status === 'partially_returned') {
+    pushLine('[ QISMAN QAYTARILGAN ]');
+  }
+
+  // 3. Left Align (ESC a 0)
+  bytes.push(0x1B, 0x61, 0x00);
+  pushDivider('=');
+
+  padRow('Chek raqami:', receipt.receiptNumber);
+  padRow('Sana / Vaqt:', receipt.createdAt);
+  padRow("Kassir / Mas'ul:", receipt.cashierName);
+  if (receipt.customer) {
+    padRow('Mijoz:', receipt.customer.fullName);
+  }
+  if (receipt.installationAddress) {
+    pushLine('Manzil: ' + receipt.installationAddress);
+  }
+  if (receipt.technicians && receipt.technicians.length > 0) {
+    pushLine('Usta: ' + receipt.technicians.map(t => t.fullName).join(', '));
+  } else if (receipt.technicianName) {
+    pushLine('Usta: ' + receipt.technicianName);
+  }
+
+  pushDivider('-');
+  pushLine('TOVAR / XIZMAT' + ' '.repeat(Math.max(1, maxCols - 19)) + 'SUMMA');
+  pushDivider('-');
+
+  // Items
+  receipt.items.forEach((it, idx) => {
+    pushLine(`${idx + 1}. ${it.product.name}`);
+    if (it.selectedSerialNumbers && it.selectedSerialNumbers.length > 0) {
+      pushLine(`  S/N: ${it.selectedSerialNumbers.join(', ')}`);
+    }
+    const qtyPrice = `${it.quantity} ${it.product.unit} x ${formatNumberWithSpaces(it.appliedPrice)}`;
+    const total = formatNumberWithSpaces(it.quantity * it.appliedPrice);
+    padRow('  ' + qtyPrice, total);
+  });
+
+  pushDivider('-');
+
+  // Totals
+  padRow('Oraliq jami:', `${formatNumberWithSpaces(receipt.subtotal)} so'm`);
+  if (receipt.discountTotal > 0) {
+    padRow('Chegirma:', `-${formatNumberWithSpaces(receipt.discountTotal)} so'm`);
+  }
+  if (receipt.payments.cashbackUsed > 0) {
+    padRow('Cashback yechildi:', `-${formatNumberWithSpaces(receipt.payments.cashbackUsed)} so'm`);
+  }
+
+  // Bold Big Total
+  bytes.push(0x1B, 0x45, 0x01); // Bold on
+  padRow("JAMI TO'LOV:", `${formatNumberWithSpaces(receipt.totalAmount)} so'm`);
+  bytes.push(0x1B, 0x45, 0x00); // Bold off
+
+  if (receipt.exchangeRate) {
+    padRow('USD ($):', `$${formatUSDNumber(receipt.totalAmountUSD || receipt.totalAmount / receipt.exchangeRate)} (1$=${formatNumberWithSpaces(receipt.exchangeRate)})`);
+  }
+
+  pushDivider('-');
+
+  // Payments
+  if (receipt.payments.cashUSD && receipt.payments.cashUSD > 0) {
+    padRow('Naqd USD ($):', `$${formatUSDNumber(receipt.payments.cashUSD)}`);
+  }
+  if (receipt.payments.cash > 0) {
+    padRow("Naqd So'm:", `${formatNumberWithSpaces(receipt.payments.cash)} so'm`);
+  }
+  if (receipt.payments.card > 0) {
+    padRow('Karta:', `${formatNumberWithSpaces(receipt.payments.card)} so'm`);
+  }
+  if (receipt.payments.debt > 0) {
+    padRow('Nasiya / Qarz:', `${formatNumberWithSpaces(receipt.payments.debt)} so'm`);
+  }
+
+  // Warranty
+  if (receipt.warrantyMonths && receipt.warrantyMonths > 0) {
+    pushDivider('-');
+    bytes.push(0x1B, 0x61, 0x01); // Center
+    pushLine(`*** KAFOLAT: ${receipt.warrantyMonths} OY ***`);
+    pushLine('S/N raqami va chek orqali servis');
+    bytes.push(0x1B, 0x61, 0x00); // Left
+  }
+
+  // Footer
+  pushDivider('=');
+  bytes.push(0x1B, 0x61, 0x01); // Center
+  pushLine(customFooter);
+  pushLine('Smart Control Security Systems');
+  pushLine(receipt.isOffline ? '[Oflayn chek]' : '[Tasdiqlangan]');
+  pushLine('');
+  pushLine('');
+  pushLine('');
+
+  // Paper Cut (GS V 66 0)
+  bytes.push(0x1D, 0x56, 0x42, 0x00);
+
+  return new Uint8Array(bytes);
+}
+
+/**
+ * Direct Web Bluetooth API printing for portable / mobile thermal printers (Xprinter XP-58IIT, Goojprt, POS-58, etc.)
+ * Connects directly via Bluetooth GATT Serial Service and transmits raw ESC/POS bytes without OS print dialog.
+ */
+export async function printReceiptViaBluetooth(
+  receipt: SaleReceipt,
+  width: '58' | '80' = '58',
+  customFooter?: string,
+  onStatusUpdate?: (status: string) => void
+): Promise<{ success: boolean; message: string; deviceName?: string }> {
+  if (typeof navigator === 'undefined' || !(navigator as any).bluetooth) {
+    return {
+      success: false,
+      message: "Brauzeringiz Bluetooth to'g'ridan-to'g'ri chop etishni qo'llab-quvvatlamaydi (Chrome yoki Edge brauzeridan foydalaning)."
+    };
+  }
+
+  try {
+    onStatusUpdate?.("Bluetooth printer qidirilmoqda...");
+
+    // Standard Thermal Printer Bluetooth Services & Serial SPP
+    const navBluetooth = (navigator as any).bluetooth;
+    const device = await navBluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: [
+        '000018f0-0000-1000-8000-00805f9b34fb', // Standard POS Service
+        '0000ffe0-0000-1000-8000-00805f9b34fb', // Common BLE Serial (Goojprt, Xprinter)
+        '0000ff00-0000-1000-8000-00805f9b34fb', // Custom ESC/POS
+        'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+        '49535343-fe7d-4ae5-8fa9-9fafd205e455'
+      ]
+    });
+
+    onStatusUpdate?.(`${device.name || 'Printer'}ga ulanmoqda...`);
+
+    const server = await device.gatt?.connect();
+    if (!server) {
+      throw new Error("Printer GATT serveriga ulanib bo'lmadi.");
+    }
+
+    onStatusUpdate?.("Xizmatlar aniqlanmoqda...");
+
+    const services = await server.getPrimaryServices();
+    let writeCharacteristic: any = null;
+
+    for (const service of services) {
+      const characteristics = await service.getCharacteristics();
+      for (const char of characteristics) {
+        if (char.properties.write || char.properties.writeWithoutResponse) {
+          writeCharacteristic = char;
+          break;
+        }
+      }
+      if (writeCharacteristic) break;
+    }
+
+    if (!writeCharacteristic) {
+      throw new Error("Printerda ma'lumot yozish kanali (Write Characteristic) topilmadi.");
+    }
+
+    onStatusUpdate?.("Chek chop etilmoqda...");
+
+    const escPosData = generateEscPosReceiptBytes(receipt, width, customFooter);
+
+    // Send in chunks of 512 bytes with small delay
+    const chunkSize = 512;
+    for (let i = 0; i < escPosData.length; i += chunkSize) {
+      const chunk = escPosData.slice(i, i + chunkSize);
+      if (writeCharacteristic.writeValueWithResponse) {
+        await writeCharacteristic.writeValueWithResponse(chunk);
+      } else {
+        await writeCharacteristic.writeValue(chunk);
+      }
+      await new Promise(r => setTimeout(r, 40));
+    }
+
+    onStatusUpdate?.("Chop etish muvaffaqiyatli yakunlandi!");
+
+    // Disconnect cleanly
+    setTimeout(() => {
+      try {
+        device.gatt?.disconnect();
+      } catch {
+        // ignore
+      }
+    }, 1000);
+
+    return {
+      success: true,
+      message: "Chek Bluetooth orqali muvaffaqiyatli chop etildi!",
+      deviceName: device.name || 'Bluetooth Printer'
+    };
+
+  } catch (error: any) {
+    console.error("Bluetooth print error:", error);
+    if (error.name === 'NotFoundError') {
+      return { success: false, message: "Printer tanlanmadi yoki bekor qilindi." };
+    }
+    return {
+      success: false,
+      message: error.message || "Bluetooth printerga ulanishda xatolik yuz berdi."
+    };
+  }
+}
