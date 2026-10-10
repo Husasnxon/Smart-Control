@@ -175,7 +175,8 @@ export const generateDailySalesReport = (
   exchangeRate: number,
   storeName = 'SMART CONTROL',
   branchName = 'Chilonzor-1 Filiali',
-  targetDate?: string // Format: 'YYYY-MM-DD'
+  targetDate?: string, // Format: 'YYYY-MM-DD'
+  auditInfo?: { actualCashUZS?: number; differenceUZS?: number; actualCashUSD?: number; differenceUSD?: number; notes?: string }
 ): string => {
   const dateKey = targetDate || new Date().toISOString().split('T')[0];
   const displayDate = new Date().toLocaleString('uz-UZ', { 
@@ -258,6 +259,24 @@ ${todayExpenses.length > 0 ? todayExpenses.slice(0, 4).map(e => `  ▫️ <i>${e
     techMap.forEach((val, name) => {
       message += `\n• <b>${escapeHtml(name)}:</b> ${val.count} ta obyekt (<code>${formatNumberWithSpaces(val.wage)} so'm</code>)`;
     });
+  }
+
+  // Physical cash audit reconciliation if provided
+  if (auditInfo) {
+    message += `\n\n━━━━━━━━━━━━━━━━━━━━\n🔒 <b>KASSADAGI FAKTIK NAQD PUL:</b>`;
+    if (auditInfo.actualCashUZS !== undefined) {
+      const diffUZS = auditInfo.differenceUZS || 0;
+      const statusUZS = diffUZS === 0 ? '🟢 To\'liq mos' : diffUZS > 0 ? `🟡 Ortiqcha (+${formatNumberWithSpaces(diffUZS)})` : `🔴 Kamomad (${formatNumberWithSpaces(diffUZS)})`;
+      message += `\n• <b>So'm:</b> <code>${formatNumberWithSpaces(auditInfo.actualCashUZS)} so'm</code> (${statusUZS})`;
+    }
+    if (auditInfo.actualCashUSD !== undefined) {
+      const diffUSD = auditInfo.differenceUSD || 0;
+      const statusUSD = diffUSD === 0 ? '🟢 To\'liq mos' : diffUSD > 0 ? `🟡 Ortiqcha (+$${diffUSD})` : `🔴 Kamomad ($${diffUSD})`;
+      message += `\n• <b>Dollar ($):</b> <code>$${formatUSDNumber(auditInfo.actualCashUSD)} USD</code> (${statusUSD})`;
+    }
+    if (auditInfo.notes) {
+      message += `\n📝 <b>Izoh:</b> <i>${escapeHtml(auditInfo.notes)}</i>`;
+    }
   }
 
   message += `\n\n🤖 <i>SMART CONTROL ERP avtomatik hisoboti</i>`;

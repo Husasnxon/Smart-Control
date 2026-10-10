@@ -2634,9 +2634,12 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                             <input
                               type="number"
                               min="0"
-                              value={unitPriceDisplay}
+                              value={unitPriceDisplay === 0 ? '' : unitPriceDisplay}
+                              placeholder="0"
+                              onFocus={(e) => e.target.select()}
+                              onClick={(e) => (e.target as HTMLInputElement).select()}
                               onChange={(e) => {
-                                const val = Number(e.target.value) || 0;
+                                const val = e.target.value === '' ? 0 : (Number(e.target.value) || 0);
                                 const updated = [...estimateItems];
                                 if (estimateCurrency === 'USD') {
                                   updated[idx].unitPriceUSD = val;
@@ -2655,9 +2658,12 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                               type="number"
                               min="0"
                               max="100"
-                              value={item.discountPercent || 0}
+                              value={item.discountPercent === 0 ? '' : item.discountPercent}
+                              placeholder="0"
+                              onFocus={(e) => e.target.select()}
+                              onClick={(e) => (e.target as HTMLInputElement).select()}
                               onChange={(e) => {
-                                const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                                const val = e.target.value === '' ? 0 : Math.min(100, Math.max(0, Number(e.target.value) || 0));
                                 const updated = [...estimateItems];
                                 updated[idx].discountPercent = val;
                                 setEstimateItems(updated);

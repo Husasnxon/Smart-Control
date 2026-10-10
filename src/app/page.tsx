@@ -2564,8 +2564,10 @@ export default function Home() {
     showToast(`✓ Lid ${lead.leadNumber} bo'yicha smeta tuzish ochildi`);
   };
 
-  // Calculate today's sales for header
-  const todaySalesTotal = receipts.filter(r => isTodayDate(r.createdAt)).reduce((sum, r) => sum + r.totalAmount, 0);
+  // Calculate today's sales for header (excluding returned receipts and subtracting partial refunds)
+  const todaySalesTotal = receipts
+    .filter(r => isTodayDate(r.createdAt) && r.status !== 'returned')
+    .reduce((sum, r) => sum + Math.max(0, r.totalAmount - (r.totalRefunded || 0)), 0);
 
   // Active tickets count for badge
   const activeServiceCount = serviceTickets.filter(

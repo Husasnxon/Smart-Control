@@ -87,8 +87,10 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
     });
 
     const expensesTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const cashUSDInUZS = cashUSD * exchangeRate;
-    const expectedCashInDrawer = (cashUZS + cashUSDInUZS) - expensesTotal;
+    // So'm bo'yicha kutilayotgan naqd pul: tushgan so'm naqd - kunlik chiqimlar
+    const expectedCashUZS = Math.max(0, cashUZS - expensesTotal);
+    // Dollar ($) bo'yicha kutilayotgan naqd dollar: tushgan dollar naqd
+    const expectedCashUSD = cashUSD;
 
     return {
       totalSales,
@@ -97,18 +99,27 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
       cashUZS,
       cardUZS,
       cashUSD,
-      cashUSDInUZS,
       debtUZS,
       cashbackUsedUZS,
       expensesTotal,
-      expectedCashInDrawer: Math.max(0, expectedCashInDrawer)
+      expectedCashUZS,
+      expectedCashUSD
     };
   }, [todayReceipts, todayExpenses, exchangeRate]);
 
-  // Actual counted cash in drawer input
-  const [actualCashInput, setActualCashInput] = useState<string>(stats.expectedCashInDrawer.toString());
-  const actualCash = Number(actualCashInput) || 0;
-  const difference = actualCash - stats.expectedCashInDrawer;
+  // Actual counted cash in drawer input - So'm va $ alohida
+  const [actualCashUZSInput, setActualCashUZSInput] = useState<string>(stats.expectedCashUZS.toString());
+  const [actualCashUSDInput, setActualCashUSDInput] = useState<string>(stats.expectedCashUSD.toString());
+
+  useEffect(() => {
+    setActualCashUZSInput(stats.expectedCashUZS.toString());
+    setActualCashUSDInput(stats.expectedCashUSD.toString());
+  }, [stats.expectedCashUZS, stats.expectedCashUSD]);
+
+  const actualCashUZS = Number(actualCashUZSInput) || 0;
+  const actualCashUSD = Number(actualCashUSDInput) || 0;
+  const differenceUZS = actualCashUZS - stats.expectedCashUZS;
+  const differenceUSD = actualCashUSD - stats.expectedCashUSD;
 
   // Notes
   const [notes, setNotes] = useState('');
@@ -133,36 +144,6 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
-
-  // Send to Telegram
-  const handleSendTelegram = async () => {
-    const tgSettings = getTelegramSettings();
-    if (!tgSettings.botToken || !tgSettings.chatId) {
-      setTelegramStatus({
-        success: false,
-        message: 'Telegram sozlamalari ulanmagan! "Telegram & Sozlamalar" bo\'limida Bot Token va Chat ID ni kiriting.'
-      });
-      return;
-    }
-
-    setIsSendingTelegram(true);
-    setTelegramStatus(null);
-
-    const reportHtml = generateDailySalesReport(
-      receipts,
-      expenses,
-      exchangeRate,
-      tgSettings.storeName || 'SMART CONTROL',
-      branchName
-    );
-
-    const res = await sendTelegramMessage(tgSettings.botToken, tgSettings.chatId, reportHtml);
-    setIsSendingTelegram(false);
-    setTelegramStatus({
-      success: res.success,
-      message: res.message
-    });
-  };
 
   // Thermal Print Handler (Isolated 58mm / 80mm)
   const handlePrintZReport = () => {
@@ -214,9 +195,14 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
           </div>
           <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; font-size: 10px;">
             <div style="display:flex;justify-content:space-between;"><span>Chiqim/Xarajat:</span><span>-${formatNumberWithSpaces(stats.expensesTotal)} UZS</span></div>
-            <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>Kutilgan Naqd:</span><span>${formatNumberWithSpaces(stats.expectedCashInDrawer)} UZS</span></div>
-            <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>Faktik Naqd:</span><span>${formatNumberWithSpaces(actualCash)} UZS</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:9.5px;"><span>Tafovut:</span><span>${formatNumberWithSpaces(difference)} UZS</span></div>
+            <div style="display:flex;justify-content:space-between;font-weight:bold;margin-top:2px;"><span>Kutilgan Naqd (so'm):</span><span>${formatNumberWithSpaces(stats.expectedCashUZS)} UZS</span></div>
+            <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>Faktik Naqd (so'm):</span><span>${formatNumberWithSpaces(actualCashUZS)} UZS</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:9.5px;"><span>Tafovut (so'm):</span><span>${formatNumberWithSpaces(differenceUZS)} UZS</span></div>
+            ${stats.expectedCashUSD > 0 || actualCashUSD > 0 ? `
+              <div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px dotted #ccc;padding-top:2px;margin-top:2px;"><span>Kutilgan Naqd ($):</span><span>$${formatUSDNumber(stats.expectedCashUSD)}</span></div>
+              <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>Faktik Naqd ($):</span><span>$${formatUSDNumber(actualCashUSD)}</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:9.5px;"><span>Tafovut ($):</span><span>$${formatUSDNumber(differenceUSD)}</span></div>
+            ` : ''}
           </div>
           <div style="font-size: 9px; padding-top: 4px;">
             <div style="margin-bottom: 8px;">Kassir imzosi: ________________</div>
@@ -242,7 +228,15 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
           expenses,
           exchangeRate,
           tgSettings.storeName || 'SMART CONTROL',
-          branchName
+          branchName,
+          undefined,
+          {
+            actualCashUZS,
+            differenceUZS,
+            actualCashUSD,
+            differenceUSD,
+            notes: notes.trim() || undefined
+          }
         );
         const res = await sendTelegramMessage(tgSettings.botToken, tgSettings.chatId, reportHtml);
         sentTelegram = res.success;
@@ -269,9 +263,12 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
       debtUZS: stats.debtUZS,
       cashbackUsedUZS: stats.cashbackUsedUZS,
       expensesUZS: stats.expensesTotal,
-      expectedCashUZS: stats.expectedCashInDrawer,
-      actualCashUZS: actualCash,
-      differenceUZS: difference,
+      expectedCashUZS: stats.expectedCashUZS,
+      actualCashUZS: actualCashUZS,
+      differenceUZS: differenceUZS,
+      expectedCashUSD: stats.expectedCashUSD,
+      actualCashUSD: actualCashUSD,
+      differenceUSD: differenceUSD,
       sentToTelegram: sentTelegram,
       notes: notes.trim() || undefined
     };
@@ -454,7 +451,7 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
                 </div>
               </div>
 
-              {/* DRAWER CASH RECONCILIATION & COUNTING */}
+              {/* DRAWER CASH RECONCILIATION & COUNTING - SO'M VA $ ALOHIDA */}
               <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
@@ -462,41 +459,86 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
                     Kassadagi Naqd Pulni Sanash (Inkassatsiya)
                   </span>
                   <span className="text-[10px] text-amber-700 dark:text-amber-400">
-                    Kutilayotgan: <strong>{formatNumberWithSpaces(stats.expectedCashInDrawer)} so&apos;m</strong>
+                    Kutilayotgan: <strong>{formatNumberWithSpaces(stats.expectedCashUZS)} so&apos;m</strong> {stats.expectedCashUSD > 0 && <>| <strong className="text-cyan-700 dark:text-cyan-400">${formatUSDNumber(stats.expectedCashUSD)}</strong></>}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                {/* 1. SO'M (UZS) NAQD SANASH */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white/70 dark:bg-slate-900/60 p-3 rounded-xl border border-amber-200/70 dark:border-amber-900/40">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Kassadagi Haqiqiy Naqd Pul (so&apos;mda):
+                      Kassadagi Haqiqiy So&apos;m (UZS):
                     </label>
-                    <input
-                      type="number"
-                      value={actualCashInput}
-                      onChange={(e) => setActualCashInput(e.target.value)}
-                      onFocus={(e) => e.target.select()}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                      className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-xl px-3 py-2 text-sm font-black font-mono text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/40"
-                    />
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={actualCashUZSInput}
+                        onChange={(e) => setActualCashUZSInput(e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                        className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-xl px-3 py-2 text-sm font-black font-mono text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/40"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">UZS</span>
+                    </div>
                   </div>
 
                   <div>
                     <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Kassa Tafovuti:
+                      So&apos;m Tafovuti (Kutilgan: {formatNumberWithSpaces(stats.expectedCashUZS)}):
                     </span>
                     <div className={`p-2 rounded-xl text-xs font-bold font-mono flex items-center justify-between ${
-                      difference === 0
+                      differenceUZS === 0
                         ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                        : difference > 0
+                        : differenceUZS > 0
                         ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
                         : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
                     }`}>
                       <span>
-                        {difference === 0 ? '🟢 To\'liq Mos' : difference > 0 ? '🟡 Ortiqcha' : '🔴 Kamomad'}
+                        {differenceUZS === 0 ? '🟢 Mos' : differenceUZS > 0 ? '🟡 Ortiqcha' : '🔴 Kamomad'}
                       </span>
                       <span>
-                        {difference > 0 ? `+${formatNumberWithSpaces(difference)}` : formatNumberWithSpaces(difference)} so&apos;m
+                        {differenceUZS > 0 ? `+${formatNumberWithSpaces(differenceUZS)}` : formatNumberWithSpaces(differenceUZS)} so&apos;m
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. DOLLAR ($ USD) NAQD SANASH */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-cyan-50/50 dark:bg-cyan-950/20 p-3 rounded-xl border border-cyan-200/70 dark:border-cyan-900/40">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Kassadagi Haqiqiy Dollar ($ USD):
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={actualCashUSDInput}
+                        onChange={(e) => setActualCashUSDInput(e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                        className="w-full bg-white dark:bg-slate-900 border border-cyan-300 dark:border-cyan-800 rounded-xl px-3 py-2 text-sm font-black font-mono text-cyan-700 dark:text-cyan-300 outline-none focus:ring-2 focus:ring-cyan-500/40"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-cyan-600 dark:text-cyan-400 font-bold">$ USD</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Dollar Tafovuti (Kutilgan: ${formatUSDNumber(stats.expectedCashUSD)}):
+                    </span>
+                    <div className={`p-2 rounded-xl text-xs font-bold font-mono flex items-center justify-between ${
+                      differenceUSD === 0
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                        : differenceUSD > 0
+                        ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                        : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                    }`}>
+                      <span>
+                        {differenceUSD === 0 ? '🟢 Mos' : differenceUSD > 0 ? '🟡 Ortiqcha' : '🔴 Kamomad'}
+                      </span>
+                      <span>
+                        {differenceUSD > 0 ? `+$${formatUSDNumber(differenceUSD)}` : `$${formatUSDNumber(differenceUSD)}`}
                       </span>
                     </div>
                   </div>
@@ -541,26 +583,11 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
               <button
                 type="button"
                 onClick={handlePrintZReport}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-[0.98]"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-[0.98]"
                 title="Termal printerda Z-hisobot slipini chiqarish"
               >
                 <Printer className="w-4 h-4 text-slate-500" />
-                <span className="hidden sm:inline">Chop Etish</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSendTelegram}
-                disabled={isSendingTelegram}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-sm transition active:scale-[0.98] disabled:opacity-50"
-                title="Z-Hisobotni Telegram guruhga yoki xo'jayinga yuborish"
-              >
-                {isSendingTelegram ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-                <span>Telegramga Yuborish</span>
+                <span>Chop Etish</span>
               </button>
             </div>
 
@@ -579,7 +606,7 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg shadow-amber-600/20 transition active:scale-[0.98]"
               >
                 <Lock className="w-4 h-4" />
-                <span>Smenani Yopish (Tasdiqlash)</span>
+                <span>Smenani Yopish (Avtomatik Telegramga Yuborish)</span>
               </button>
             </div>
 
@@ -648,17 +675,33 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
               <span>-{formatNumberWithSpaces(stats.expensesTotal)} UZS</span>
             </div>
             <div className="flex justify-between font-bold">
-              <span>Kassada Kutilgan Naqd:</span>
-              <span>{formatNumberWithSpaces(stats.expectedCashInDrawer)} UZS</span>
+              <span>Kassada Kutilgan Naqd (so&apos;m):</span>
+              <span>{formatNumberWithSpaces(stats.expectedCashUZS)} UZS</span>
             </div>
             <div className="flex justify-between font-bold">
-              <span>Kassadagi Faktik Naqd:</span>
-              <span>{formatNumberWithSpaces(actualCash)} UZS</span>
+              <span>Kassadagi Faktik Naqd (so&apos;m):</span>
+              <span>{formatNumberWithSpaces(actualCashUZS)} UZS</span>
             </div>
             <div className="flex justify-between text-[11px]">
-              <span>Tafovut:</span>
-              <span>{formatNumberWithSpaces(difference)} UZS</span>
+              <span>Tafovut (so&apos;m):</span>
+              <span>{formatNumberWithSpaces(differenceUZS)} UZS</span>
             </div>
+            {(stats.expectedCashUSD > 0 || actualCashUSD > 0) && (
+              <>
+                <div className="flex justify-between font-bold border-t border-dotted border-black/40 pt-1 mt-1">
+                  <span>Kassada Kutilgan ($):</span>
+                  <span>${formatUSDNumber(stats.expectedCashUSD)}</span>
+                </div>
+                <div className="flex justify-between font-bold">
+                  <span>Kassadagi Faktik ($):</span>
+                  <span>${formatUSDNumber(actualCashUSD)}</span>
+                </div>
+                <div className="flex justify-between text-[11px]">
+                  <span>Tafovut ($):</span>
+                  <span>${formatUSDNumber(differenceUSD)}</span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="border-b border-black border-dashed my-3" />

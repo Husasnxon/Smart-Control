@@ -707,6 +707,9 @@ export interface ZReport {
   expectedCashUZS: number;
   actualCashUZS: number;
   differenceUZS: number;
+  expectedCashUSD?: number;
+  actualCashUSD?: number;
+  differenceUSD?: number;
   sentToTelegram: boolean;
   notes?: string;
 }

@@ -15,7 +15,7 @@ import {
   Bell,
   BellRing
 } from 'lucide-react';
-import { formatDualMoney, formatNumberWithSpaces } from '../utils/formatters';
+import { formatDualMoney, formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 
 interface HeaderProps {
   isOffline: boolean;
@@ -160,39 +160,30 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
 
-        {/* Exchange Rate Pill (Dollar Kursi) */}
+        {/* Exchange Rate Pill (Dollar Kursi - Faqat ko'rinib turadi, ixcham va modal ochilmaydi) */}
         <div 
-          onClick={() => {
-            const promptVal = window.prompt("1 AQSH Dollari ($) kursini kiriting (so'mda):", exchangeRate.toString());
-            if (promptVal && !isNaN(Number(promptVal)) && Number(promptVal) > 0 && onUpdateExchangeRate) {
-              onUpdateExchangeRate(Number(promptVal));
-            }
-          }}
-          className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/60 cursor-pointer hover:bg-cyan-100 dark:hover:bg-cyan-900/50 transition select-none"
-          title="Dollar kursini o'zgartirish uchun bosing (barcha bo'limlarga ta'sir qiladi)"
+          className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-50/70 dark:bg-cyan-950/40 border border-cyan-200/80 dark:border-cyan-800/60 select-none text-xs font-bold text-cyan-700 dark:text-cyan-300"
+          title={`Joriy kurs: 1$ = ${formatNumberWithSpaces(exchangeRate)} so'm`}
         >
-          <div className="w-6 h-6 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center font-bold text-xs">
-            $
-          </div>
-          <div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Kurs</div>
-            <div className="text-xs font-bold text-cyan-700 dark:text-cyan-300">
-              {formatNumberWithSpaces(exchangeRate)}
-            </div>
-          </div>
+          <span className="w-5 h-5 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center font-bold text-xs shrink-0">$</span>
+          <span className="text-[10px] text-slate-400 font-medium hidden lg:inline">Kurs:</span>
+          <span className="font-mono font-extrabold">{formatNumberWithSpaces(exchangeRate)}</span>
         </div>
 
-        {/* Kassa Savdosi Pill */}
-        <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80">
-          <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold text-xs">
-            {baseCurrency === 'UZS' ? "so'm" : "$"}
-          </div>
-          <div>
-            <div className="text-[10px] text-slate-400 font-medium">Bugungi Kassa</div>
-            <div className="text-xs font-bold text-slate-800 dark:text-white">
-              {dualSales.primary}
-            </div>
-          </div>
+        {/* Bugungi Kassa (Ixcham, to'g'ri hisoblangan va kam joy egallaydi) */}
+        <div 
+          onClick={onOpenZReport}
+          className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 cursor-pointer hover:bg-emerald-100/70 dark:hover:bg-emerald-900/40 transition text-xs font-bold select-none"
+          title="Bugungi jami kassa tushumi (Z-hisobotni ko'rish uchun bosing)"
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Kassa:</span>
+          <span className="font-mono text-emerald-700 dark:text-emerald-400 font-black">
+            {baseCurrency === 'USD' ? `$${formatUSDNumber(todaySalesTotal / exchangeRate)}` : `${formatNumberWithSpaces(todaySalesTotal)} so'm`}
+          </span>
+          <span className="text-[10px] text-slate-400 font-mono hidden xl:inline">
+            ({baseCurrency === 'USD' ? `${formatNumberWithSpaces(todaySalesTotal)} so'm` : `$${formatUSDNumber(todaySalesTotal / exchangeRate)}`})
+          </span>
         </div>
 
         {/* Z-Report / Smena Yopish Button (Only for admin or cashier) */}

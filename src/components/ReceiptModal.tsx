@@ -568,27 +568,66 @@ Rahmat!`;
                   <span>-{formatNumberWithSpaces(receipt.payments.cashbackUsed)} so&apos;m</span>
                 </div>
               )}
-              <div className="flex justify-between font-black text-xs sm:text-sm pt-1 border-t border-black">
-                <span>JAMI TO&apos;LOV:</span>
-                <span>{formatNumberWithSpaces(receipt.totalAmount)} so&apos;m</span>
-              </div>
-              {receipt.totalRefunded && receipt.totalRefunded > 0 ? (
-                <div className="flex justify-between font-black text-xs pt-0.5 border-t border-dashed border-black">
-                  <span>SOF SUMMA:</span>
-                  <span>{formatNumberWithSpaces(netTotal)} so&apos;m</span>
-                </div>
-              ) : null}
-              {receipt.exchangeRate && (
-                <div className="flex justify-between text-[9px] font-bold pt-0.5">
-                  <span>Valyutada ($ USD):</span>
-                  <span>
-                    ${formatUSDNumber(receipt.totalAmountUSD || Number((receipt.totalAmount / receipt.exchangeRate)))}
-                    <small className="font-normal ml-1">
-                      (1$ = {formatNumberWithSpaces(receipt.exchangeRate)})
-                    </small>
-                  </span>
-                </div>
-              )}
+              {/* JAMI TO'LOV - Valyutada sotilgan bo'lsa valyuta ($) birinchi o'rinda, ostida so'm */}
+              {(() => {
+                const isPaidInUSD = receipt.payments.currencyPaid === 'USD' || 
+                  ((receipt.payments.cashUSD || 0) + (receipt.payments.debtUSD || 0) > 0 && (receipt.payments.cash || 0) === 0 && (receipt.payments.card || 0) === 0);
+                const usdAmount = receipt.totalAmountUSD || (receipt.exchangeRate ? Number((receipt.totalAmount / receipt.exchangeRate).toFixed(2)) : 0);
+
+                if (isPaidInUSD) {
+                  return (
+                    <>
+                      <div className="flex justify-between font-black text-xs sm:text-sm pt-1 border-t border-black text-black">
+                        <span>JAMI TO&apos;LOV:</span>
+                        <span>${formatUSDNumber(usdAmount)} USD</span>
+                      </div>
+                      {receipt.exchangeRate && (
+                        <div className="flex justify-between text-[9px] font-bold pt-0.5 text-black">
+                          <span>So&apos;mda:</span>
+                          <span>
+                            {formatNumberWithSpaces(receipt.totalAmount)} so&apos;m
+                            <small className="font-normal ml-1">
+                              (1$ = {formatNumberWithSpaces(receipt.exchangeRate)})
+                            </small>
+                          </span>
+                        </div>
+                      )}
+                      {receipt.totalRefunded && receipt.totalRefunded > 0 ? (
+                        <div className="flex justify-between font-black text-xs pt-0.5 border-t border-dashed border-black">
+                          <span>SOF SUMMA:</span>
+                          <span>${formatUSDNumber(usdAmount - (receipt.exchangeRate ? (receipt.totalRefunded / receipt.exchangeRate) : 0))} USD</span>
+                        </div>
+                      ) : null}
+                    </>
+                  );
+                }
+
+                return (
+                  <>
+                    <div className="flex justify-between font-black text-xs sm:text-sm pt-1 border-t border-black text-black">
+                      <span>JAMI TO&apos;LOV:</span>
+                      <span>{formatNumberWithSpaces(receipt.totalAmount)} so&apos;m</span>
+                    </div>
+                    {receipt.totalRefunded && receipt.totalRefunded > 0 ? (
+                      <div className="flex justify-between font-black text-xs pt-0.5 border-t border-dashed border-black">
+                        <span>SOF SUMMA:</span>
+                        <span>{formatNumberWithSpaces(netTotal)} so&apos;m</span>
+                      </div>
+                    ) : null}
+                    {receipt.exchangeRate && (
+                      <div className="flex justify-between text-[9px] font-bold pt-0.5 text-black">
+                        <span>Valyutada ($ USD):</span>
+                        <span>
+                          ${formatUSDNumber(usdAmount)}
+                          <small className="font-normal ml-1">
+                            (1$ = {formatNumberWithSpaces(receipt.exchangeRate)})
+                          </small>
+                        </span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Payment Details Breakdown */}

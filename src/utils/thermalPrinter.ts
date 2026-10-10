@@ -292,22 +292,51 @@ export function generateThermalReceiptHtml(
                 <span>-${formatNumberWithSpaces(receipt.payments.cashbackUsed)} so'm</span>
               </div>
             ` : ''}
-            <div style="display:flex; justify-content:space-between; font-weight:900; font-size:${titleSize}; border-top:1.5px solid #000; padding-top:3px; margin-top:3px;">
-              <span>JAMI TO'LOV:</span>
-              <span>${formatNumberWithSpaces(receipt.totalAmount)} so'm</span>
-            </div>
-            ${receipt.totalRefunded && receipt.totalRefunded > 0 ? `
-              <div style="display:flex; justify-content:space-between; font-weight:900; border-top:1px dashed #000; padding-top:3px;">
-                <span>SOF SUMMA:</span>
-                <span>${formatNumberWithSpaces(netTotal)} so'm</span>
-              </div>
-            ` : ''}
-            ${receipt.exchangeRate ? `
-              <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:bold; margin-top:2px;">
-                <span>Valyutada ($ USD):</span>
-                <span>$${formatUSDNumber(receipt.totalAmountUSD || Number(receipt.totalAmount / receipt.exchangeRate))} (1$=${formatNumberWithSpaces(receipt.exchangeRate)})</span>
-              </div>
-            ` : ''}
+            ${(() => {
+              const isPaidInUSD = receipt.payments.currencyPaid === 'USD' || 
+                ((receipt.payments.cashUSD || 0) + (receipt.payments.debtUSD || 0) > 0 && (receipt.payments.cash || 0) === 0 && (receipt.payments.card || 0) === 0);
+              const usdVal = receipt.totalAmountUSD || (receipt.exchangeRate ? Number((receipt.totalAmount / receipt.exchangeRate).toFixed(2)) : 0);
+
+              if (isPaidInUSD) {
+                return `
+                  <div style="display:flex; justify-content:space-between; font-weight:900; font-size:${titleSize}; border-top:1.5px solid #000; padding-top:3px; margin-top:3px;">
+                    <span>JAMI TO'LOV:</span>
+                    <span>$${formatUSDNumber(usdVal)} USD</span>
+                  </div>
+                  ${receipt.totalRefunded && receipt.totalRefunded > 0 ? `
+                    <div style="display:flex; justify-content:space-between; font-weight:900; border-top:1px dashed #000; padding-top:3px;">
+                      <span>SOF SUMMA:</span>
+                      <span>$${formatUSDNumber(usdVal - (receipt.exchangeRate ? (receipt.totalRefunded / receipt.exchangeRate) : 0))} USD</span>
+                    </div>
+                  ` : ''}
+                  ${receipt.exchangeRate ? `
+                    <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:bold; margin-top:2px;">
+                      <span>So'mda:</span>
+                      <span>${formatNumberWithSpaces(receipt.totalAmount)} so'm (1$=${formatNumberWithSpaces(receipt.exchangeRate)})</span>
+                    </div>
+                  ` : ''}
+                `;
+              }
+
+              return `
+                <div style="display:flex; justify-content:space-between; font-weight:900; font-size:${titleSize}; border-top:1.5px solid #000; padding-top:3px; margin-top:3px;">
+                  <span>JAMI TO'LOV:</span>
+                  <span>${formatNumberWithSpaces(receipt.totalAmount)} so'm</span>
+                </div>
+                ${receipt.totalRefunded && receipt.totalRefunded > 0 ? `
+                  <div style="display:flex; justify-content:space-between; font-weight:900; border-top:1px dashed #000; padding-top:3px;">
+                    <span>SOF SUMMA:</span>
+                    <span>${formatNumberWithSpaces(netTotal)} so'm</span>
+                  </div>
+                ` : ''}
+                ${receipt.exchangeRate ? `
+                  <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:bold; margin-top:2px;">
+                    <span>Valyutada ($ USD):</span>
+                    <span>$${formatUSDNumber(usdVal)} (1$=${formatNumberWithSpaces(receipt.exchangeRate)})</span>
+                  </div>
+                ` : ''}
+              `;
+            })()}
           </div>
 
           ${paymentsHtml}

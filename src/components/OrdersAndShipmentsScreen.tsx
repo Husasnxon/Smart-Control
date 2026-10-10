@@ -1781,9 +1781,19 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                             <input
                               type="number"
                               min={1}
-                              value={item.quantity}
-                              onChange={(e) => handleUpdateOrderItem(idx, 'quantity', parseInt(e.target.value) || 1)}
-                              className="w-20 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-center font-bold font-mono text-xs text-slate-900 dark:text-white"
+                              value={item.quantity === 0 ? '' : item.quantity}
+                              onFocus={(e) => e.target.select()}
+                              onClick={(e) => (e.target as HTMLInputElement).select()}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                handleUpdateOrderItem(idx, 'quantity', isNaN(val) ? 0 : val);
+                              }}
+                              onBlur={(e) => {
+                                if (item.quantity <= 0) {
+                                  handleUpdateOrderItem(idx, 'quantity', 1);
+                                }
+                              }}
+                              className="w-20 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-center font-bold font-mono text-xs text-slate-900 dark:white outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                           </td>
 
@@ -1795,9 +1805,15 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                               <input
                                 type="number"
                                 step={formCurrency === 'USD' ? "0.01" : "500"}
-                                value={item.unitPrice}
-                                onChange={(e) => handleUpdateOrderItem(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                className="w-24 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-right font-bold font-mono text-xs text-slate-900 dark:text-white"
+                                value={item.unitPrice === 0 ? '' : item.unitPrice}
+                                placeholder="0"
+                                onFocus={(e) => e.target.select()}
+                                onClick={(e) => (e.target as HTMLInputElement).select()}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                  handleUpdateOrderItem(idx, 'unitPrice', isNaN(val) ? 0 : val);
+                                }}
+                                className="w-24 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-right font-bold font-mono text-xs text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
                               />
                             </div>
                           </td>
@@ -1807,10 +1823,15 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                               type="number"
                               min={0}
                               max={100}
-                              value={item.discountPercent || ''}
+                              value={item.discountPercent === 0 ? '' : item.discountPercent}
                               placeholder="0"
-                              onChange={(e) => handleUpdateOrderItem(idx, 'discountPercent', parseFloat(e.target.value) || 0)}
-                              className="w-14 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-center font-bold font-mono text-xs text-emerald-600"
+                              onFocus={(e) => e.target.select()}
+                              onClick={(e) => (e.target as HTMLInputElement).select()}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                handleUpdateOrderItem(idx, 'discountPercent', isNaN(val) ? 0 : val);
+                              }}
+                              className="w-14 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-center font-bold font-mono text-xs text-emerald-600 outline-none focus:ring-1 focus:ring-emerald-500"
                             />
                           </td>
 
