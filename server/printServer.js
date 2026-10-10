@@ -11,7 +11,7 @@ const os = require('os');
 const { execFile } = require('child_process');
 
 const PORT = 12111;
-const DEFAULT_PRINTER = 'XP-58C';
+const DEFAULT_PRINTER = 'AUTO';
 const SCRIPT_PATH = path.join(__dirname, '..', 'print_raw.ps1');
 
 const server = http.createServer((req, res) => {

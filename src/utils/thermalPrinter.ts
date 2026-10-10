@@ -672,7 +672,7 @@ export async function printReceiptViaLocalAgent(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        printer: 'XP-58C',
+        printer: 'AUTO',
         bytes: Array.from(escPosBytes)
       }),
       signal: controller.signal

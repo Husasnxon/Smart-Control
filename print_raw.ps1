@@ -1,11 +1,22 @@
 param(
-    [string]$printerName = "XP-58C",
+    [string]$printerName = "AUTO",
     [string]$filePath
 )
 
 if (-not $filePath -or -not (Test-Path $filePath)) {
     Write-Error "Fayl topilmadi: $filePath"
     exit 1
+}
+
+if (-not $printerName -or $printerName -eq "AUTO" -or $printerName -eq "XP-58C") {
+    try {
+        $defaultObj = Get-CimInstance Win32_Printer | Where-Object Default
+        if ($defaultObj -and $defaultObj.Name) {
+            $printerName = $defaultObj.Name
+        }
+    } catch {
+        $printerName = "XP-58C"
+    }
 }
 
 $csharpCode = @'
