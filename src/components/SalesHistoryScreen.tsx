@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SaleReceipt, Product, Customer, Employee, Currency } from '../types';
 import { formatDualMoney, formatMoney } from '../utils/formatters';
 import { 
@@ -94,6 +94,23 @@ export const SalesHistoryScreen: React.FC<SalesHistoryScreenProps> = ({
     setEditInitialTab(tab);
     setEditingReceipt(receipt);
   };
+
+  // Escape key handler to close modals in SalesHistoryScreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (viewingReceipt) {
+          setViewingReceipt(null);
+        } else if (returningReceipt) {
+          setReturningReceipt(null);
+        } else if (editingReceipt) {
+          setEditingReceipt(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewingReceipt, returningReceipt, editingReceipt]);
 
   // Filter receipts
   const filtered = receipts.filter((r) => {

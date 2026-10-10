@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { CustomerOrder } from '../types';
 import { 
   X, 
@@ -28,6 +28,18 @@ export const OrderQuotationModal: React.FC<OrderQuotationModalProps> = ({
   onConvertToShipment,
   onDirectSale
 }) => {
+  // Escape key listener to close modal
+  useEffect(() => {
+    if (!order) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [order, onClose]);
+
   if (!order) return null;
 
   const handlePrint = () => {

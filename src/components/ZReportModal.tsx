@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { SaleReceipt, Expense, Currency, ZReport } from '../types';
 import { formatNumberWithSpaces, formatUSDNumber, isTodayDate } from '../utils/formatters';
 import { 
@@ -119,6 +119,18 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
 
   // Closed success flag
   const [isShiftClosed, setIsShiftClosed] = useState(false);
+
+  // Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

@@ -64,6 +64,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   }, [isOpen, totalAmount, baseCurrency, totalAmountUSD]);
 
+  // Escape key to close payment modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   // Maximum cashback usable cannot exceed customer balance or total amount

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Product, 
   SaleReceipt, 
@@ -92,6 +92,29 @@ export const WarrantyScreen: React.FC<WarrantyScreenProps> = ({
 
   // Print slip modal state
   const [printingTicket, setPrintingTicket] = useState<ServiceTicket | null>(null);
+
+  // ESC key listener to close any open service/warranty modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (printingTicket) {
+          setPrintingTicket(null);
+          return;
+        }
+        if (replacementTicket) {
+          setReplacementTicket(null);
+          return;
+        }
+        if (isTicketModalOpen) {
+          setIsTicketModalOpen(false);
+          setEditingTicket(null);
+          return;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [printingTicket, replacementTicket, isTicketModalOpen]);
 
   // -------------------------------------------------------------
   // 1. S/N INSPECTION ENGINE (Hero Search)

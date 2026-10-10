@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SaleReceipt, ReturnedItemRecord, Customer } from '../types';
 import { 
   X, 
@@ -65,6 +65,17 @@ export const ReturnReceiptModal: React.FC<ReturnReceiptModalProps> = ({
   const [refundMethod, setRefundMethod] = useState<'cash' | 'card' | 'debt_deduction'>('cash');
   const [reason, setReason] = useState<string>('Mijoz xohishi bilan');
   const [customReason, setCustomReason] = useState<string>('');
+
+  // Escape key handler to close modal without saving
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // Calculate returnable quantity for each item
   const getReturnableQty = (itemIndex: number) => {

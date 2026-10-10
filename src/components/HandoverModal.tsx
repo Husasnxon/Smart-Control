@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ObjectHandover, 
   HandoverPhoto, 
@@ -249,6 +249,18 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
 
     return { returnedCount, extraCount, installedCount };
   }, [workItems]);
+
+  // Escape key handler to close modal without saving
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

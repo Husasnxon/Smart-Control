@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Customer, SaleReceipt, CustomerDebtPayment, Currency } from '../types';
 import { formatDualMoney, formatMoney, formatUSDNumber, formatNumberWithSpaces } from '../utils/formatters';
 import { 
@@ -422,6 +422,30 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
     setName('');
     setPhone('+998 ');
   };
+
+  // Escape key handler to close any active modal in CustomersScreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (isPaymentModalOpen) {
+          setIsPaymentModalOpen(false);
+          setSelectedCustomerForPayment(null);
+        } else if (isAddModalOpen) {
+          setIsAddModalOpen(false);
+        } else if (printingPayment) {
+          setPrintingPayment(null);
+        } else if (isBulkReminderModalOpen) {
+          setIsBulkReminderModalOpen(false);
+        } else if (statementCustomer) {
+          setStatementCustomer(null);
+        } else if (reminderCustomer) {
+          setReminderCustomer(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPaymentModalOpen, isAddModalOpen, printingPayment, isBulkReminderModalOpen, statementCustomer, reminderCustomer]);
 
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">

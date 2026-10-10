@@ -235,6 +235,30 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
     }
   }, [activeTechnician]);
 
+  // Escape key handler to close modals in TechnicianPortalScreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (isOnSiteEstimateOpen) {
+          setIsOnSiteEstimateOpen(false);
+          setEstimateTargetOrder(null);
+        } else if (isHandoverModalOpen) {
+          setIsHandoverModalOpen(false);
+          setSelectedHandoverOrder(null);
+          setSelectedViewingHandover(null);
+        } else if (isHddCalcOpen) {
+          setIsHddCalcOpen(false);
+        } else if (selectedPassportForFloorPlan) {
+          setSelectedPassportForFloorPlan(null);
+        } else if (selectedPassportForQr) {
+          setSelectedPassportForQr(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOnSiteEstimateOpen, isHandoverModalOpen, isHddCalcOpen, selectedPassportForFloorPlan, selectedPassportForQr]);
+
   // Toggle single accordion job card
   const toggleJobExpanded = (orderId: string) => {
     setExpandedJobIds(prev => ({

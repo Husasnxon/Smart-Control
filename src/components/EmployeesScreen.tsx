@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Employee, PayrollRecord, EmployeeAdvance, SalaryType, SaleReceipt, Expense, SystemRole, ActiveTab, DEFAULT_ROLE_TABS } from '../types';
 import {
   Users,
@@ -333,6 +333,25 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
     setAdvPeriod(getCurrentPeriod());
     setAdvNotes('');
   };
+
+  // Escape key handler to close any open modal in EmployeesScreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (payrollEmployee) {
+          setPayrollEmployee(null);
+        } else if (advanceEmployee) {
+          setAdvanceEmployee(null);
+        } else if (editingEmployee) {
+          setEditingEmployee(null);
+        } else if (isAddModalOpen) {
+          setIsAddModalOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [payrollEmployee, advanceEmployee, editingEmployee, isAddModalOpen]);
 
   // Calculate gross breakdown for payroll modal
   const calcGrossComponents = (emp: Employee) => {

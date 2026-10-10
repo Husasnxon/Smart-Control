@@ -539,6 +539,22 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
     onClose();
   };
 
+  // Escape key handler to close modal without saving
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (isHddCalcOpen) {
+          setIsHddCalcOpen(false);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isHddCalcOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   CrmLead, 
   CrmObjectPassport, 
@@ -223,6 +223,67 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
+
+  // ESC key listener to close any open CRM modals/drawers
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedLeadForEstimate) {
+          setSelectedLeadForEstimate(null);
+          return;
+        }
+        if (selectedPassportForFloorPlan) {
+          setSelectedPassportForFloorPlan(null);
+          return;
+        }
+        if (selectedPassportForQr) {
+          setSelectedPassportForQr(null);
+          return;
+        }
+        if (selectedPassportForDetail) {
+          setSelectedPassportForDetail(null);
+          return;
+        }
+        if (selectedLeadForDetail) {
+          setSelectedLeadForDetail(null);
+          return;
+        }
+        if (printingPassport) {
+          setPrintingPassport(null);
+          return;
+        }
+        if (isAddLeadModalOpen) {
+          setIsAddLeadModalOpen(false);
+          return;
+        }
+        if (isAddPassportModalOpen) {
+          setIsAddPassportModalOpen(false);
+          return;
+        }
+        if (isAddReminderModalOpen) {
+          setIsAddReminderModalOpen(false);
+          return;
+        }
+        if (isAiAssistantOpen) {
+          setIsAiAssistantOpen(false);
+          return;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    selectedLeadForEstimate,
+    selectedPassportForFloorPlan,
+    selectedPassportForQr,
+    selectedPassportForDetail,
+    selectedLeadForDetail,
+    printingPassport,
+    isAddLeadModalOpen,
+    isAddPassportModalOpen,
+    isAddReminderModalOpen,
+    isAiAssistantOpen
+  ]);
 
   // -------------------------------------------------------------
   // 1. CALCULATED METRICS

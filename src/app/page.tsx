@@ -705,19 +705,95 @@ export default function Home() {
     }, 3500);
   };
 
-  // Global Escape key listener to close modals
+  // Universal Global Capture-Phase Escape Key listener for all sections & modals
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' || e.key === 'Esc') {
-        setIsSwitchUserModalOpen(false);
-        setIsZReportOpen(false);
-        setIsGlobalApprovalModalOpen(false);
-        setIsMobileNavOpen(false);
+        // 1. If root page modals are open, close them first
+        if (isSwitchUserModalOpen || isZReportOpen || isGlobalApprovalModalOpen || isMobileNavOpen) {
+          setIsSwitchUserModalOpen(false);
+          setIsZReportOpen(false);
+          setIsGlobalApprovalModalOpen(false);
+          setIsMobileNavOpen(false);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+
+        // 2. Query all visible modal dialogs, backdrops, or overlays in DOM
+        const potentialOverlays = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '.fixed.inset-0, [role="dialog"], [aria-modal="true"], dialog[open]'
+          )
+        ).filter(el => {
+          try {
+            const style = window.getComputedStyle(el);
+            const isVisible =
+              style.display !== 'none' &&
+              style.visibility !== 'hidden' &&
+              style.opacity !== '0' &&
+              el.offsetWidth > 0 &&
+              el.offsetHeight > 0;
+            const isShell =
+              el.closest('header.sticky') ||
+              el.classList.contains('sidebar-container') ||
+              el.tagName === 'BODY' ||
+              el.tagName === 'HTML';
+            return isVisible && !isShell;
+          } catch {
+            return false;
+          }
+        });
+
+        if (potentialOverlays.length > 0) {
+          // Get topmost overlay
+          const topModal = potentialOverlays[potentialOverlays.length - 1];
+
+          // Search for close / cancel button
+          const buttons = Array.from(topModal.querySelectorAll<HTMLButtonElement>('button'));
+
+          // Option A: Button containing Lucide X icon or close title/aria
+          const xBtn = buttons.find(b => {
+            const hasXIcon = b.querySelector('svg.lucide-x') !== null || b.querySelector('svg[class*="lucide-x"]') !== null;
+            const titleOrAria = (b.getAttribute('title') || b.getAttribute('aria-label') || '').toLowerCase();
+            return hasXIcon || titleOrAria.includes('yopish') || titleOrAria.includes('close') || titleOrAria.includes('bekor');
+          });
+
+          if (xBtn) {
+            xBtn.click();
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+
+          // Option B: Button with Uzbek, Russian, English Cancel / Close text
+          const cancelTextBtn = buttons.find(b => {
+            const txt = b.textContent?.trim().toLowerCase() || '';
+            return [
+              'bekor qilish',
+              'yopish',
+              'bekor',
+              'chiqish',
+              'orqaga',
+              'отмена',
+              'закрыть',
+              'cancel',
+              'close'
+            ].includes(txt);
+          });
+
+          if (cancelTextBtn) {
+            cancelTextBtn.click();
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }
       }
     };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
+
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
+  }, [isSwitchUserModalOpen, isZReportOpen, isGlobalApprovalModalOpen, isMobileNavOpen]);
 
   // Login handler
   const handleLoginSuccess = (emp: Employee) => {

@@ -80,6 +80,23 @@ export const ObjectQrPassportModal: React.FC<ObjectQrPassportModalProps> = ({
     window.print();
   };
 
+  // Escape key handler to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (isFloorPlanEditorOpen) {
+          setIsFloorPlanEditorOpen(false);
+        } else if (selectedMobilePin) {
+          setSelectedMobilePin(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFloorPlanEditorOpen, selectedMobilePin, onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-fade-in select-none">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 max-w-4xl w-full shadow-2xl space-y-4 max-h-[94vh] overflow-y-auto print:p-0 print:m-0 print:border-none print:bg-white print:text-black">

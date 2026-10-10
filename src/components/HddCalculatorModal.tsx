@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   HardDrive, 
   X, 
@@ -177,6 +177,18 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
   ]);
 
   const activeBrandConfig = BRAND_CONFIGS[brand] || BRAND_CONFIGS.hikvision;
+
+  // Escape key handler to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Conditional return AFTER all hooks — React Rules of Hooks compliance
   if (!isOpen) return null;

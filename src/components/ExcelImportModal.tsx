@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Product } from '../types';
 import { parseProductsFromExcel, downloadProductImportTemplate } from '../utils/excel';
 import { formatNumberWithSpaces } from '../utils/formatters';
@@ -37,6 +37,18 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [importMode, setImportMode] = useState<'append' | 'merge'>('append');
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Escape key handler to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

@@ -442,6 +442,28 @@ export const POSScreen: React.FC<POSScreenProps> = ({
     }
   };
 
+  // Escape key handler for POSScreen modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (snPickerProduct) {
+          setSnPickerProduct(null);
+          setSnPickerSelected('');
+        } else if (isAddCustomerModalOpen) {
+          setIsAddCustomerModalOpen(false);
+        } else if (isPaymentModalOpen) {
+          setIsPaymentModalOpen(false);
+        } else if (isApprovalModalOpen) {
+          setIsApprovalModalOpen(false);
+        } else if (lastReceipt) {
+          setLastReceipt(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [snPickerProduct, isAddCustomerModalOpen, isPaymentModalOpen, isApprovalModalOpen, lastReceipt]);
+
   // Totals calculations
   const subtotal = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.quantity * item.appliedPrice, 0);

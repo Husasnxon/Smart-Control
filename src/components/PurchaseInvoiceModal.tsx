@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { PurchaseInvoice } from '../types';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { 
@@ -27,6 +27,18 @@ export const PurchaseInvoiceModal: React.FC<PurchaseInvoiceModalProps> = ({
   invoice,
   onClose
 }) => {
+  // Escape key handler to close modal
+  useEffect(() => {
+    if (!invoice) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [invoice, onClose]);
+
   if (!invoice) return null;
 
   const handlePrint = () => {

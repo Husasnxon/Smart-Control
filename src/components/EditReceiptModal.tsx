@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   SaleReceipt, 
   Product, 
@@ -60,6 +60,17 @@ export const EditReceiptModal: React.FC<EditReceiptModalProps> = ({
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'add_items' | 'edit_details'>('add_items');
+
+  // Escape key handler to close modal without saving
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // --- TAB 1: ADD MORE ITEMS STATE ---
   const [selectedProductId, setSelectedProductId] = useState<string>('');

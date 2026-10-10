@@ -196,6 +196,24 @@ export const CashierOrderApprovalModal: React.FC<CashierOrderApprovalModalProps>
     };
   };
 
+  // Escape key handling
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (isRejectConfirmOpen) {
+          setIsRejectConfirmOpen(false);
+        } else if (isAddingProduct) {
+          setIsAddingProduct(false);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isRejectConfirmOpen, isAddingProduct, onClose]);
+
   if (!isOpen) return null;
 
   return (
