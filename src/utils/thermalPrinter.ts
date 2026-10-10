@@ -18,10 +18,22 @@ export function generateThermalReceiptHtml(
 ): string {
   const { width = '58', customFooter = "Xaridingiz uchun tashakkur! Barakali bo'lsin!", showQR = true, branchName = 'Asosiy Filial', storePhone = '+998 90 123-45-67' } = options;
   const is58 = width === '58';
-  const fontSize = is58 ? '12.5px' : '14px';
-  const titleSize = is58 ? '16px' : '18px';
-  const subTitleSize = is58 ? '11.5px' : '13px';
-  const smallSize = is58 ? '11px' : '12px';
+  const fontSize = is58 ? '13px' : '14.5px';
+  const titleSize = is58 ? '17px' : '19px';
+  const subTitleSize = is58 ? '12px' : '13.5px';
+  const smallSize = is58 ? '11.5px' : '12.5px';
+
+  // Calculate dynamic realistic paper height so Chrome Preview fits 100% of the screen (not 3-meter 3276mm endless void)
+  const itemsCount = receipt.items.length;
+  const approxHeightMm = Math.max(
+    130,
+    90 + (itemsCount * 18) +
+    ((receipt.returnedItems?.length || 0) * 14) +
+    (receipt.notes ? 16 : 0) +
+    (receipt.warrantyMonths ? 22 : 0) +
+    (receipt.customer ? 18 : 0) +
+    (showQR ? 35 : 10)
+  );
 
   const netTotal = receipt.totalAmount - (receipt.totalRefunded || 0);
 
@@ -174,7 +186,7 @@ export function generateThermalReceiptHtml(
         <title>Chek: ${receipt.receiptNumber}</title>
         <style>
           @page {
-            size: auto;
+            size: ${is58 ? `58mm ${approxHeightMm}mm` : `80mm ${approxHeightMm}mm`};
             margin: 0mm;
           }
           * {
@@ -184,7 +196,8 @@ export function generateThermalReceiptHtml(
           }
           html, body {
             width: 100% !important;
-            margin: 0 !important;
+            max-width: 100% !important;
+            margin: 0 auto !important;
             padding: 0 !important;
             background: #ffffff !important;
             color: #000000 !important;
