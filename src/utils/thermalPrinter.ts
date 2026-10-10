@@ -854,6 +854,12 @@ export async function printReceiptViaWebUSB(
     if (error.name === 'NotFoundError') {
       return { success: false, message: "USB printer tanlanmadi yoki bekor qilindi." };
     }
+    if (error.message?.includes('Access denied') || error.name === 'SecurityError') {
+      return {
+        success: false,
+        message: "Windows tizimining 'XP-58C' drayveri USB portni band qilgan. Chek darcha orqali chiqarilmoqda..."
+      };
+    }
     return {
       success: false,
       message: error.message || "USB printerga ulanishda xatolik yuz berdi."

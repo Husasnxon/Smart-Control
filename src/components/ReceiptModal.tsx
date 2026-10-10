@@ -154,7 +154,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       );
       if (!res.success) {
         setBtError(res.message);
-        setTimeout(() => setBtError(null), 7000);
+        setTimeout(() => setBtError(null), 8000);
+        // Fallback to driver print if USB is monopolized by Windows
+        if (res.message.includes('XP-58C') || res.message.includes('band qilgan')) {
+          setTimeout(() => {
+            handlePrint();
+          }, 800);
+        }
       } else {
         setUsbStatus(res.message);
         setTimeout(() => setUsbStatus(null), 4000);
@@ -162,6 +168,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     } catch (e: any) {
       setBtError(e.message || "USB printerga ulanib bo'lmadi.");
       setTimeout(() => setBtError(null), 7000);
+      handlePrint();
     } finally {
       setTimeout(() => setUsbStatus(null), 5000);
     }
