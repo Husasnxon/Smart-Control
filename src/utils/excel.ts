@@ -80,6 +80,7 @@ export const downloadProductImportTemplate = () => {
       'Qoldiq Miqdori': 10,
       'O\'lchov Birligi': 'dona',
       'Tannarx (So\'m)': 340000,
+      'Tannarx ($ USD)': 27,
       'Sotish Narxi (So\'m)': 440000,
       'Sotish Narxi ($ USD)': 35,
       'Kafolat Muddati (Oy)': 24,
@@ -93,6 +94,7 @@ export const downloadProductImportTemplate = () => {
       'Qoldiq Miqdori': 5,
       'O\'lchov Birligi': 'dona',
       'Tannarx (So\'m)': 650000,
+      'Tannarx ($ USD)': 51,
       'Sotish Narxi (So\'m)': 890000,
       'Sotish Narxi ($ USD)': 70,
       'Kafolat Muddati (Oy)': 24,
@@ -106,6 +108,7 @@ export const downloadProductImportTemplate = () => {
       'Qoldiq Miqdori': 15,
       'O\'lchov Birligi': 'quti',
       'Tannarx (So\'m)': 440000,
+      'Tannarx ($ USD)': 34,
       'Sotish Narxi (So\'m)': 620000,
       'Sotish Narxi ($ USD)': 48,
       'Kafolat Muddati (Oy)': 0,
@@ -119,6 +122,7 @@ export const downloadProductImportTemplate = () => {
       'Qoldiq Miqdori': 9999,
       'O\'lchov Birligi': 'nuqta',
       'Tannarx (So\'m)': 0,
+      'Tannarx ($ USD)': 0,
       'Sotish Narxi (So\'m)': 100000,
       'Sotish Narxi ($ USD)': 8,
       'Kafolat Muddati (Oy)': 12,
@@ -134,6 +138,7 @@ export const downloadProductImportTemplate = () => {
     { wch: 20 },
     { wch: 15 },
     { wch: 15 },
+    { wch: 18 },
     { wch: 18 },
     { wch: 18 },
     { wch: 18 },
@@ -180,6 +185,7 @@ export const parseProductsFromExcel = async (
           const stockQty = Number(row['Qoldiq Miqdori'] || row['Qoldiq'] || row['Stock'] || row['Количество'] || 0);
           const unit = row['O\'lchov Birligi'] || row['Birlik'] || row['Unit'] || row['Ед. изм.'] || 'dona';
           const costPrice = Number(row['Tannarx (So\'m)'] || row['Tannarx'] || row['Cost'] || row['Себестоимость'] || 0);
+          const costPriceUSD = row['Tannarx ($ USD)'] || row['Tannarx ($)'] || row['Cost USD'] ? Number(row['Tannarx ($ USD)'] || row['Tannarx ($)'] || row['Cost USD']) : undefined;
           const retailPrice = Number(row['Sotish Narxi (So\'m)'] || row['Narxi'] || row['Price'] || row['Цена'] || 0);
           const retailPriceUSD = row['Sotish Narxi ($ USD)'] || row['Narxi ($)'] || row['Price USD'] ? Number(row['Sotish Narxi ($ USD)'] || row['Narxi ($)'] || row['Price USD']) : undefined;
           const warrantyMonths = Number(row['Kafolat Muddati (Oy)'] || row['Kafolat'] || row['Warranty'] || row['Гарантия'] || 12);
@@ -207,6 +213,7 @@ export const parseProductsFromExcel = async (
             minStockAlert: 5,
             unit: String(unit).trim(),
             costPrice,
+            costPriceUSD,
             retailPrice: retailPrice > 0 ? retailPrice : Math.round(costPrice * 1.3),
             retailPriceUSD,
             warrantyMonths,

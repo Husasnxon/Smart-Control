@@ -139,6 +139,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   // ----------------------------------------------------
   const [shipmentItemsWithSerials, setShipmentItemsWithSerials] = useState<OrderItem[]>([]);
   const [manualSerialInput, setManualSerialInput] = useState<{ [itemIdx: number]: string }>({});
+  const [editingSerialsMode, setEditingSerialsMode] = useState<{ [itemIdx: number]: boolean }>({});
   const [shipmentPaymentMethod, setShipmentPaymentMethod] = useState<'cash' | 'card' | 'debt' | 'usd'>('cash');
   const [assignedTechnicians, setAssignedTechnicians] = useState<AssignedTechnician[]>([]);
   const [shipmentProductSearch, setShipmentProductSearch] = useState('');
@@ -2389,65 +2390,112 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                             {/* Serial Numbers selector if serialized */}
                             {item.hasSerialNumber && (
                               <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700/80 space-y-2">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                                    <Barcode className="w-3.5 h-3.5 text-sky-600" />
-                                    Ombordagi mavjud S/N lardan tanlang yoki skaner qiling:
-                                  </span>
-
-                                  {/* Manual Input for scanning S/N */}
-                                  <div className="flex items-center gap-1.5">
-                                    <input
-                                      type="text"
-                                      placeholder="Skaner / Yangi S/N..."
-                                      value={manualSerialInput[idx] || ''}
-                                      onChange={(e) => setManualSerialInput((prev) => ({ ...prev, [idx]: e.target.value }))}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          e.preventDefault();
-                                          handleAddManualSerial(idx);
-                                        }
-                                      }}
-                                      className="w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono outline-none focus:ring-1 focus:ring-sky-500"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAddManualSerial(idx)}
-                                      className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-sm"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {/* Available Serials Chips */}
-                                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                                  {availableWarehouseSerials.length === 0 ? (
-                                    <span className="text-xs text-rose-500 italic">
-                                      Omborda ushbu tovar uchun seriya raqami mavjud emas! Iltimos, avval tovar kirimini (prixod) amalga oshiring.
-                                    </span>
-                                  ) : (
-                                    availableWarehouseSerials.map((sn) => {
-                                      const isChecked = selectedSerials.includes(sn);
-                                      return (
-                                        <button
-                                          type="button"
+                                {/* When S/N are chosen and not in edit mode: show ONLY selected S/N */}
+                                {selectedSerials.length > 0 && !editingSerialsMode[idx] ? (
+                                  <div className="space-y-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                        <Barcode className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Otgruzka qilingan seriya raqamlar ({selectedSerials.length} ta):</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingSerialsMode((prev) => ({ ...prev, [idx]: true }))}
+                                        className="text-[11px] font-bold text-sky-600 hover:text-sky-500 hover:underline flex items-center gap-1 transition"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                        <span>O&apos;zgartirish / Boshqasini tanlash</span>
+                                      </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {selectedSerials.map((sn) => (
+                                        <span
                                           key={sn}
-                                          onClick={() => handleToggleShipmentSerial(idx, sn)}
-                                          className={`px-2.5 py-1 rounded-lg text-xs font-mono border transition flex items-center gap-1 ${
-                                            isChecked
-                                              ? 'bg-emerald-600 text-white border-emerald-700 font-bold shadow-sm'
-                                              : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-emerald-500'
-                                          }`}
+                                          className="px-2.5 py-1 rounded-lg text-xs font-mono bg-emerald-600 text-white border border-emerald-700 font-bold shadow-sm flex items-center gap-1.5"
                                         >
-                                          <Hash className="w-3 h-3 opacity-60" />
+                                          <Hash className="w-3 h-3 opacity-70" />
                                           <span>{sn}</span>
-                                          {isChecked && <Check className="w-3.5 h-3.5 ml-0.5" />}
-                                        </button>
-                                      );
-                                    })
-                                  )}
-                                </div>
+                                          <Check className="w-3 h-3" />
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* In edit mode or when no S/N selected yet: show full selection & scanning */
+                                  <div className="space-y-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                        <Barcode className="w-3.5 h-3.5 text-sky-600" />
+                                        Ombordagi mavjud S/N lardan tanlang yoki skaner qiling:
+                                      </span>
+
+                                      <div className="flex items-center gap-2">
+                                        {/* Manual Input for scanning S/N */}
+                                        <div className="flex items-center gap-1.5">
+                                          <input
+                                            type="text"
+                                            placeholder="Skaner / Yangi S/N..."
+                                            value={manualSerialInput[idx] || ''}
+                                            onChange={(e) => setManualSerialInput((prev) => ({ ...prev, [idx]: e.target.value }))}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleAddManualSerial(idx);
+                                              }
+                                            }}
+                                            className="w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono outline-none focus:ring-1 focus:ring-sky-500"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddManualSerial(idx)}
+                                            className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-sm"
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+
+                                        {selectedSerials.length > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingSerialsMode((prev) => ({ ...prev, [idx]: false }))}
+                                            className="px-2 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:hover:bg-emerald-900 dark:text-emerald-300 text-[10px] font-bold transition"
+                                          >
+                                            Tayyor (Yopish)
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Available Serials Chips */}
+                                    <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                                      {availableWarehouseSerials.length === 0 ? (
+                                        <span className="text-xs text-rose-500 italic">
+                                          Omborda ushbu tovar uchun seriya raqami mavjud emas! Iltimos, avval tovar kirimini (prixod) amalga oshiring.
+                                        </span>
+                                      ) : (
+                                        availableWarehouseSerials.map((sn) => {
+                                          const isChecked = selectedSerials.includes(sn);
+                                          return (
+                                            <button
+                                              type="button"
+                                              key={sn}
+                                              onClick={() => handleToggleShipmentSerial(idx, sn)}
+                                              className={`px-2.5 py-1 rounded-lg text-xs font-mono border transition flex items-center gap-1 ${
+                                                isChecked
+                                                  ? 'bg-emerald-600 text-white border-emerald-700 font-bold shadow-sm'
+                                                  : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-emerald-500'
+                                              }`}
+                                            >
+                                              <Hash className="w-3 h-3 opacity-60" />
+                                              <span>{sn}</span>
+                                              {isChecked && <Check className="w-3.5 h-3.5 ml-0.5" />}
+                                            </button>
+                                          );
+                                        })
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

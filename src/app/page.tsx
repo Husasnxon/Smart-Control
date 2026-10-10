@@ -41,6 +41,7 @@ import { FinancialReportsScreen } from '../components/FinancialReportsScreen';
 import { CrmScreen } from '../components/CrmScreen';
 import { ZReportModal } from '../components/ZReportModal';
 import { CashierOrderApprovalModal } from '../components/CashierOrderApprovalModal';
+import { ReceiptModal } from '../components/ReceiptModal';
 import { LoginScreen } from '../components/LoginScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { getTelegramSettings, sendTelegramMessage, generateDailySalesReport } from '../utils/telegram';
@@ -80,6 +81,7 @@ export default function Home() {
   const [isZReportOpen, setIsZReportOpen] = useState<boolean>(false);
   const [isGlobalApprovalModalOpen, setIsGlobalApprovalModalOpen] = useState<boolean>(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
+  const [activeModalReceipt, setActiveModalReceipt] = useState<SaleReceipt | null>(null);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   // Ustalardan kelgan tasdiqlash kutilayotgan smetalar soni
@@ -2762,7 +2764,12 @@ export default function Home() {
               exchangeRate={exchangeRate}
               baseCurrency={baseCurrency}
               onViewReceipt={(receiptId) => {
-                setActiveTab('financial_reports');
+                const found = (receipts || []).find(r => r.id === receiptId || r.receiptNumber === receiptId);
+                if (found) {
+                  setActiveModalReceipt(found);
+                } else {
+                  setActiveTab('financial_reports');
+                }
               }}
             />
           )}
@@ -2779,7 +2786,12 @@ export default function Home() {
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
               onViewReceipt={(receiptId) => {
-                setActiveTab('financial_reports');
+                const found = (receipts || []).find(r => r.id === receiptId || r.receiptNumber === receiptId);
+                if (found) {
+                  setActiveModalReceipt(found);
+                } else {
+                  setActiveTab('financial_reports');
+                }
               }}
             />
           )}
@@ -2950,6 +2962,18 @@ export default function Home() {
           handleRejectEstimate(orderId, reason);
         }}
       />
+
+      {/* Global Direct Receipt Modal (e.g. from Servis / Kafolat / Mijozlar) */}
+      {activeModalReceipt && (
+        <ReceiptModal
+          receipt={activeModalReceipt}
+          onClose={() => setActiveModalReceipt(null)}
+          onOpenReturn={(r) => {
+            setActiveModalReceipt(null);
+            setActiveTab('financial_reports');
+          }}
+        />
+      )}
 
       {/* Switch Account Quick Modal */}
       {isSwitchUserModalOpen && (

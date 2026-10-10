@@ -101,6 +101,8 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   const [paymentModalPurchaseId, setPaymentModalPurchaseId] = useState<string | null>(null);
   const [paymentModalSupplierName, setPaymentModalSupplierName] = useState<string | null>(null);
   const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
+  const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>('all');
+  const [supplierDebtStatusFilter, setSupplierDebtStatusFilter] = useState<'all' | 'with_debt' | 'settled'>('all');
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -567,15 +569,44 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
     return Array.from(map.values()).sort((a, b) => b.totalDebtUZS - a.totalDebtUZS);
   }, [currentPurchases, exchangeRate]);
 
-  // Filtered suppliers summary
+  // Filtered suppliers summary based on search, supplier dropdown filter, and debt status filter
   const filteredSuppliersSummary = useMemo(() => {
     const q = supplierSearchQuery.toLowerCase().trim();
-    if (!q) return suppliersSummary;
-    return suppliersSummary.filter(s => 
-      s.name.toLowerCase().includes(q) || 
-      (s.phone && s.phone.includes(q))
-    );
-  }, [suppliersSummary, supplierSearchQuery]);
+    return suppliersSummary.filter(s => {
+      // 1. Search query
+      const matchSearch = !q || s.name.toLowerCase().includes(q) || (s.phone && s.phone.includes(q));
+      if (!matchSearch) return false;
+
+      // 2. Specific supplier filter dropdown
+      if (selectedSupplierFilter !== 'all' && s.name !== selectedSupplierFilter) {
+        return false;
+      }
+
+      // 3. Debt status filter
+      if (supplierDebtStatusFilter === 'with_debt' && s.totalDebtUZS <= 0) {
+        return false;
+      }
+      if (supplierDebtStatusFilter === 'settled' && s.totalDebtUZS > 0) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [suppliersSummary, supplierSearchQuery, selectedSupplierFilter, supplierDebtStatusFilter]);
+
+  // Dynamic Debt & Paid totals reflecting active filter
+  const filteredSupplierDebtUZS = useMemo(() => 
+    filteredSuppliersSummary.reduce((sum, s) => sum + s.totalDebtUZS, 0),
+    [filteredSuppliersSummary]
+  );
+  const filteredSupplierDebtUSD = useMemo(() => 
+    filteredSuppliersSummary.reduce((sum, s) => sum + s.totalDebtUSD, 0),
+    [filteredSuppliersSummary]
+  );
+  const filteredSupplierPaidUZS = useMemo(() => 
+    filteredSuppliersSummary.reduce((sum, s) => sum + s.totalPaidUZS, 0),
+    [filteredSuppliersSummary]
+  );
 
   // Filtered Purchases list
   const filteredPurchases = useMemo(() => {
@@ -1405,27 +1436,86 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   {/* CONDITIONAL SUB-TAB: SUPPLIER PAYMENTS & DEBT MANAGEMENT */}
   {activeSubTab === 'supplier_payments' && (
     <div className="space-y-6">
-      {/* Header & Search */}
-      <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="relative w-full md:w-96">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Ta'minotchi nomi, telefon raqami..."
-            value={supplierSearchQuery}
-            onChange={(e) => setSupplierSearchQuery(e.target.value)}
-            className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/40 text-slate-800 dark:text-slate-100"
-          />
+      {/* Header, Search & Suppliers Filters */}
+      <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1">
+          {/* Text Search */}
+          <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Ta'minotchi qidirish..."
+              value={supplierSearchQuery}
+              onChange={(e) => setSupplierSearchQuery(e.target.value)}
+              className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/40 text-slate-800 dark:text-slate-100"
+            />
+          </div>
+
+          {/* Supplier Dropdown Filter */}
+          <div className="relative min-w-[200px]">
+            <select
+              value={selectedSupplierFilter}
+              onChange={(e) => setSelectedSupplierFilter(e.target.value)}
+              className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500/40"
+            >
+              <option value="all">🏢 Barcha Ta'minotchilar ({suppliersSummary.length} ta)</option>
+              {suppliersSummary.map((supp, idx) => (
+                <option key={idx} value={supp.name}>
+                  {supp.name} {supp.totalDebtUZS > 0 ? `(Qarz: ${formatNumberWithSpaces(supp.totalDebtUZS)} so'm)` : `(Qarzsiz)`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Debt Status Quick Filter Pills */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setSupplierDebtStatusFilter('all')}
+              className={`px-2.5 py-1 rounded-lg transition ${
+                supplierDebtStatusFilter === 'all'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              Barchasi
+            </button>
+            <button
+              type="button"
+              onClick={() => setSupplierDebtStatusFilter('with_debt')}
+              className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition ${
+                supplierDebtStatusFilter === 'with_debt'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+              }`}
+            >
+              <span>Faqat Qarzlar</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-200 dark:bg-rose-900 text-rose-900 dark:text-rose-200">
+                {suppliersSummary.filter(s => s.totalDebtUZS > 0).length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSupplierDebtStatusFilter('settled')}
+              className={`px-2.5 py-1 rounded-lg transition ${
+                supplierDebtStatusFilter === 'settled'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+              }`}
+            >
+              Qarzsizlar
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 self-end lg:self-center">
           <button
             onClick={() => {
               setPaymentModalPurchaseId(null);
-              setPaymentModalSupplierName(null);
+              setPaymentModalSupplierName(selectedSupplierFilter !== 'all' ? selectedSupplierFilter : null);
               setIsSupplierPaymentModalOpen(true);
             }}
-            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition active:scale-[0.98]"
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition active:scale-[0.98] shrink-0"
           >
             <CreditCard className="w-4 h-4" />
             <span>+ Yangi To&apos;lov Qilish</span>
@@ -1435,12 +1525,14 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
 
       {/* KPI Strip for Suppliers */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Debt Owed */}
+        {/* Card 1: Total Debt Owed (Filtered vs All) */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Jami Ta&apos;minotchi Qarzi</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              {selectedSupplierFilter !== 'all' ? `Qarz: ${selectedSupplierFilter}` : "Filtr Bo'yicha Qarz (Jami)"}
+            </span>
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-              totalSupplierDebtUZS > 0 
+              filteredSupplierDebtUZS > 0 
                 ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400' 
                 : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400'
             }`}>
@@ -1449,18 +1541,20 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
           </div>
           <div className="mt-2">
             <div className={`text-xl font-black font-mono ${
-              totalSupplierDebtUZS > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'
+              filteredSupplierDebtUZS > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'
             }`}>
-              {formatMoney(totalSupplierDebtUZS, baseCurrency, exchangeRate)}
+              {formatMoney(filteredSupplierDebtUZS, baseCurrency, exchangeRate)}
             </div>
             <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-              ≈ {formatMoney(totalSupplierDebtUZS, baseCurrency === 'UZS' ? 'USD' : 'UZS', exchangeRate)}
+              ≈ {formatMoney(filteredSupplierDebtUZS, baseCurrency === 'UZS' ? 'USD' : 'UZS', exchangeRate)}
             </div>
           </div>
           <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] flex items-center justify-between">
-            <span className="text-slate-500">Holat:</span>
-            <span className={`font-bold ${totalSupplierDebtUZS > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600'}`}>
-              {totalSupplierDebtUZS > 0 ? 'Qarzlar mavjud' : 'Barcha qarzlar yopilgan'}
+            <span className="text-slate-500">
+              {selectedSupplierFilter !== 'all' ? 'Ushbu ta\'minotchi' : `Ta'minotchilar: ${filteredSuppliersSummary.length} ta`}
+            </span>
+            <span className={`font-bold ${filteredSupplierDebtUZS > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600'}`}>
+              {filteredSupplierDebtUZS > 0 ? 'Qarz mavjud' : 'To\'liq yopilgan'}
             </span>
           </div>
         </div>
@@ -1781,12 +1875,32 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                     type="checkbox"
                     checked={newIsService}
                     onChange={(e) => {
-                      setNewIsService(e.target.checked);
-                      if (e.target.checked) {
+                      const isChecked = e.target.checked;
+                      setNewIsService(isChecked);
+                      if (isChecked) {
                         setNewHasSerialNumber(false);
                         setNewUnit('nuqta');
+                        // Avtomatik ravishda toifani montaj/o'rnatish xizmatiga o'tkazish
+                        const serviceCat = categories.find(c => 
+                          c.name.toLowerCase().includes('montaj') || 
+                          c.name.toLowerCase().includes('o\'rnatish') || 
+                          c.name.toLowerCase().includes('xizmat')
+                        );
+                        if (serviceCat) {
+                          setNewCategory(serviceCat.name);
+                        } else if (categories.length > 0) {
+                          setNewCategory("O'rnatish & Montaj xizmatlari");
+                        }
                       } else {
                         setNewUnit('dona');
+                        // Mahsulotga qaytganda CCTV yoki birinchi mavjud mahsulot toifasiga qaytarish
+                        const cctvCat = categories.find(c => 
+                          !c.name.toLowerCase().includes('montaj') && 
+                          !c.name.toLowerCase().includes('xizmat')
+                        );
+                        if (cctvCat) {
+                          setNewCategory(cctvCat.name);
+                        }
                       }
                     }}
                     className="w-4 h-4 rounded text-pink-600 focus:ring-pink-500"
@@ -2175,8 +2289,21 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                     type="checkbox"
                     checked={editIsService}
                     onChange={(e) => {
-                      setEditIsService(e.target.checked);
-                      if (e.target.checked) setEditHasSerialNumber(false);
+                      const isChecked = e.target.checked;
+                      setEditIsService(isChecked);
+                      if (isChecked) {
+                        setEditHasSerialNumber(false);
+                        const serviceCat = categories.find(c => 
+                          c.name.toLowerCase().includes('montaj') || 
+                          c.name.toLowerCase().includes('o\'rnatish') || 
+                          c.name.toLowerCase().includes('xizmat')
+                        );
+                        if (serviceCat) {
+                          setEditCategory(serviceCat.name);
+                        } else if (categories.length > 0) {
+                          setEditCategory("O'rnatish & Montaj xizmatlari");
+                        }
+                      }
                     }}
                     className="w-4 h-4 rounded text-pink-600 focus:ring-pink-500"
                   />
