@@ -15,16 +15,12 @@ import {
   Send, 
   CheckCircle2, 
   AlertTriangle, 
-  Clock, 
   Coins, 
   DollarSign, 
   CreditCard, 
   BookOpen, 
-  Gift, 
   TrendingDown, 
-  FileText, 
   RefreshCw,
-  Building2,
   Lock
 } from 'lucide-react';
 

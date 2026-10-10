@@ -188,7 +188,7 @@ export const generateDailySalesReport = (
   });
 
   // Filter receipts for today
-  const todayReceipts = receipts.filter(r => targetDate ? getNormalizedDateKey(r.createdAt) === targetDate : isTodayDate(r.createdAt));
+  const todayReceipts = receipts.filter(r => getNormalizedDateKey(r.createdAt) === dateKey);
   
   // Financial breakdown
   let totalSales = 0;
@@ -336,7 +336,7 @@ export const generateTechniciansReport = (
   targetDate?: string
 ): string => {
   const dateKey = targetDate || getNormalizedDateKey();
-  const todayReceipts = receipts.filter(r => targetDate ? getNormalizedDateKey(r.createdAt) === targetDate : isTodayDate(r.createdAt));
+  const todayReceipts = receipts.filter(r => getNormalizedDateKey(r.createdAt) === dateKey);
 
   const techStats = new Map<string, {
     fullName: string;

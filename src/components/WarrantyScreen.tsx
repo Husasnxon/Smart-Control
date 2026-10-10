@@ -276,7 +276,7 @@ export const WarrantyScreen: React.FC<WarrantyScreenProps> = ({
   // 3. SERVICE TICKETS FILTERING
   // -------------------------------------------------------------
   const [ticketPage, setTicketPage] = useState(1);
-  const [ticketPageSize, setTicketPageSize] = useState(15);
+  const [ticketPageSize] = useState(15);
 
   const filteredTickets = useMemo(() => {
     return serviceTickets.filter(t => {

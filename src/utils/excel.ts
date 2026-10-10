@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Product, SaleReceipt, Customer, ServiceTicket, CustomerDebtPayment, PurchaseInvoice, PurchasePaymentRecord } from '../types';
+import { Product, SaleReceipt, Customer, ServiceTicket, CustomerDebtPayment, PurchaseInvoice } from '../types';
 
 /**
  * Cleanly format array of serial numbers for Excel

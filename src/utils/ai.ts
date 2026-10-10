@@ -1,4 +1,4 @@
-import { Product, Employee, CrmLead, CrmObjectType, CrmLeadSource } from '../types';
+import { Product, Employee, CrmObjectType, CrmLeadSource } from '../types';
 
 export interface AiParsedCrmResult {
   clientName: string;

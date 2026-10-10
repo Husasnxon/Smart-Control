@@ -23,18 +23,6 @@ export function generateThermalReceiptHtml(
   const subTitleSize = is58 ? '12px' : '13.5px';
   const smallSize = is58 ? '11.5px' : '12.5px';
 
-  // Calculate dynamic realistic paper height so Chrome Preview fits 100% of the screen (not 3-meter 3276mm endless void)
-  const itemsCount = receipt.items.length;
-  const approxHeightMm = Math.max(
-    130,
-    90 + (itemsCount * 18) +
-    ((receipt.returnedItems?.length || 0) * 14) +
-    (receipt.notes ? 16 : 0) +
-    (receipt.warrantyMonths ? 22 : 0) +
-    (receipt.customer ? 18 : 0) +
-    (showQR ? 35 : 10)
-  );
-
   const netTotal = receipt.totalAmount - (receipt.totalRefunded || 0);
 
   const itemsRows = receipt.items.map((it, idx) => {
@@ -691,7 +679,7 @@ export async function printReceiptViaLocalAgent(
         message: "Mahalliy print agent xatolik berdi"
       };
     }
-  } catch (err) {
+  } catch {
     return {
       success: false,
       message: "Mahalliy agent ishlamayapti"

@@ -8,13 +8,13 @@ export function playOrderNotificationSound() {
     if ('vibrate' in navigator) {
       try {
         navigator.vibrate([200, 100, 200, 100, 300]);
-      } catch (e) {
+      } catch {
         // Ignore vibration errors
       }
     }
 
     // 2. Web Audio Beep
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
 
     const ctx = new AudioContextClass();

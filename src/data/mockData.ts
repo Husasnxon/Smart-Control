@@ -1,4 +1,4 @@
-import { Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, PurchaseInvoice, PurchaseItem, ServiceTicket, CustomerDebtPayment, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_PERMISSIONS, DEFAULT_ROLE_TABS } from '../types';
+import { Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, PurchaseInvoice, ServiceTicket, CustomerDebtPayment, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_PERMISSIONS } from '../types';
 
 export const INITIAL_PRODUCT_CATEGORIES: ProductCategory[] = [
   { id: 'pcat-1', name: 'Kuzatuv kameralari (CCTV)', description: 'IP, HD kameralar, PTZ aylanuvchi va Wi-Fi kameralar', color: '#06B6D4' },
