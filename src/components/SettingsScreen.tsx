@@ -70,8 +70,21 @@ import {
   ToggleLeft,
   ToggleRight,
   User,
-  ExternalLink
+  ExternalLink,
+  Clock,
+  Globe,
+  PhoneCall,
+  Radio,
+  ShoppingBag
 } from 'lucide-react';
+
+const InstagramIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+  </svg>
+);
 
 interface SettingsScreenProps {
   products: Product[];
@@ -108,7 +121,83 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   currentUser,
   onUpdateEmployee
 }) => {
-  const [activeTab, setActiveTab] = useState<'telegram' | 'reports' | 'store' | 'backup' | 'permissions' | 'ai'>('telegram');
+  const [activeTab, setActiveTab] = useState<'telegram' | 'reports' | 'store' | 'backup' | 'permissions' | 'ai' | 'integrations'>('telegram');
+
+  // Omnichannel Integrations State (Sayt, Instagram, TG Do'kon, IP Telefoniya)
+  const [integrations, setIntegrations] = useState<{
+    websiteEnabled: boolean;
+    websiteUrl: string;
+    websiteWebhookUrl: string;
+    websiteApiKey: string;
+    autoSyncStock: boolean;
+    autoImportWebOrders: boolean;
+
+    instagramEnabled: boolean;
+    instagramUsername: string;
+    instagramAccountId: string;
+    instagramAccessToken: string;
+    autoCreateLeadsFromDirect: boolean;
+
+    tgShopEnabled: boolean;
+    tgShopBotUsername: string;
+    tgShopWebAppUrl: string;
+    notifyOnTgShopOrder: boolean;
+
+    telephonyEnabled: boolean;
+    telephonyProvider: 'zadarma' | 'asterisk' | 'moizvonki' | 'binotel' | 'uztelecom';
+    telephonyApiUrl: string;
+    telephonyApiKey: string;
+    telephonySecret: string;
+    telephonyWebhookUrl: string;
+    autoPopupCustomerCard: boolean;
+    recordCalls: boolean;
+  }>(() => {
+    const defaults = {
+      websiteEnabled: false,
+      websiteUrl: 'https://smartcontrol.uz',
+      websiteWebhookUrl: 'https://smartcontrol.uz/api/webhooks/orders',
+      websiteApiKey: '',
+      autoSyncStock: true,
+      autoImportWebOrders: true,
+
+      instagramEnabled: false,
+      instagramUsername: '@smartcontrol_uz',
+      instagramAccountId: '',
+      instagramAccessToken: '',
+      autoCreateLeadsFromDirect: true,
+
+      tgShopEnabled: false,
+      tgShopBotUsername: '@SmartControlShopBot',
+      tgShopWebAppUrl: 'https://t.me/SmartControlShopBot/app',
+      notifyOnTgShopOrder: true,
+
+      telephonyEnabled: false,
+      telephonyProvider: 'zadarma' as const,
+      telephonyApiUrl: 'https://api.zadarma.com',
+      telephonyApiKey: '',
+      telephonySecret: '',
+      telephonyWebhookUrl: '',
+      autoPopupCustomerCard: true,
+      recordCalls: true,
+    };
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem('sc_omnichannel_integrations');
+      if (raw) {
+        try { return { ...defaults, ...JSON.parse(raw) }; } catch (e) {}
+      }
+    }
+    return defaults;
+  });
+  const [isIntegrationsSaved, setIsIntegrationsSaved] = useState(false);
+  const [activeIntegrationTab, setActiveIntegrationTab] = useState<'website' | 'instagram' | 'telegram_shop' | 'telephony'>('website');
+
+  const handleSaveIntegrations = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sc_omnichannel_integrations', JSON.stringify(integrations));
+    }
+    setIsIntegrationsSaved(true);
+    setTimeout(() => setIsIntegrationsSaved(false), 2000);
+  };
 
   // AI Gemini settings state
   const [geminiApiKey, setGeminiApiKey] = useState<string>(() => getGeminiApiKey());
@@ -151,6 +240,30 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   });
   const [permissionsViewMode, setPermissionsViewMode] = useState<'cards' | 'matrix'>('cards');
   const [permissionsSavedToast, setPermissionsSavedToast] = useState(false);
+
+  // Background automated scheduler for Telegram reports
+  useEffect(() => {
+    if (!settings.enabled || !settings.autoSchedulerEnabled || !settings.scheduledSendTime || !settings.botToken || !settings.chatId) {
+      return;
+    }
+
+    const checkAndSend = () => {
+      const now = new Date();
+      const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const todayStr = now.toISOString().split('T')[0];
+
+      if (currentHHMM === settings.scheduledSendTime) {
+        const lastSentDate = localStorage.getItem('sc_last_auto_scheduled_date');
+        if (lastSentDate !== todayStr) {
+          localStorage.setItem('sc_last_auto_scheduled_date', todayStr);
+          handleSendReport('daily');
+        }
+      }
+    };
+
+    const timer = setInterval(checkAndSend, 30000); // Check every 30s
+    return () => clearInterval(timer);
+  }, [settings, receipts, expenses, exchangeRate]);
 
   useEffect(() => {
     if (!employees.some(e => e.id === selectedEmployeeId) && employees.length > 0) {
@@ -529,6 +642,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <Sparkles className="w-4 h-4 text-purple-400" />
             <span>Google Gemini AI</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('integrations')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              activeTab === 'integrations'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/20'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+            }`}
+          >
+            <Globe className="w-4 h-4 text-emerald-400" />
+            <span>Integratsiyalar (Sayt, Instagram, IP Telefoniya)</span>
+          </button>
         </div>
 
         {/* ============================================================= */}
@@ -684,12 +810,79 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
 
               {/* Automatic Notifications Settings */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Avtomatik Bildirishnomalar Parametrlari
-                </h4>
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Avtomatik Bildirishnomalar & Rejalashtirish Parametrlari
+                  </h4>
+                </div>
 
-                <div className="space-y-2">
+                {/* Master Switch: Enable / Disable Telegram Notifications */}
+                <div className="flex items-center justify-between p-3.5 rounded-xl border border-sky-200 dark:border-sky-900/60 bg-sky-50/40 dark:bg-sky-950/20">
+                  <div>
+                    <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <Bot className="w-4 h-4 text-sky-500" />
+                      <span>Telegram Xabarnomalarini Yoqish / O&apos;chirish</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${settings.enabled ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400'}`}>
+                        {settings.enabled ? 'Yoqilgan (Faol)' : "O'chirilgan"}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      O&apos;chirilganda tizimdan hech qanday avtomatik yoki rejalashtirilgan xabarlar Telegramga bormaydi
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, enabled: !settings.enabled })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.enabled ? 'bg-sky-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {/* Scheduled Auto Dispatcher */}
+                <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/30 dark:bg-indigo-950/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-indigo-500" />
+                        <span>Avtomatik Belgilangan Vaqtda Kunlik Hisobotni Yuborish</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${settings.autoSchedulerEnabled ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400'}`}>
+                          {settings.autoSchedulerEnabled ? 'Faol' : "O'chirilgan"}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        Har kuni belgilangan vaqtda kunlik to&apos;liq kassa va savdo hisobotini avtomat Telegramga jo&apos;natadi
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, autoSchedulerEnabled: !settings.autoSchedulerEnabled })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.autoSchedulerEnabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.autoSchedulerEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {settings.autoSchedulerEnabled && (
+                    <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-indigo-100 dark:border-indigo-900/40">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Yuborilish vaqti (soat:daqiqa):
+                      </label>
+                      <input
+                        type="time"
+                        value={settings.scheduledSendTime || '21:00'}
+                        onChange={(e) => setSettings({ ...settings, scheduledSendTime: e.target.value })}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold font-mono text-slate-900 dark:text-white"
+                      />
+                      <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
+                        ⏰ Har kuni soat <strong>{settings.scheduledSendTime || '21:00'}</strong> da avtomatik Z-Hisobot yuboriladi
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2 pt-1">
                   <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition">
                     <input
                       type="checkbox"
@@ -2652,6 +2845,555 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ============================================================= */}
+        {/* TAB 7: INTEGRATSIYALAR (SAYT, INSTAGRAM, TG DO'KON, IP TELEFONIYA) */}
+        {/* ============================================================= */}
+        {activeTab === 'integrations' && (
+          <div className="space-y-5">
+            {/* Top Toolbar */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveIntegrationTab('website')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                    activeIntegrationTab === 'website'
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  <Globe className="w-4 h-4" />
+                  <span>🌐 Veb-sayt & Internet Do&apos;kon</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveIntegrationTab('instagram')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                    activeIntegrationTab === 'instagram'
+                      ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-md shadow-pink-600/20'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  <InstagramIcon className="w-4 h-4" />
+                  <span>📸 Instagram Direct</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveIntegrationTab('telegram_shop')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                    activeIntegrationTab === 'telegram_shop'
+                      ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  <span>🤖 Telegram Do&apos;koni (Mini App)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveIntegrationTab('telephony')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                    activeIntegrationTab === 'telephony'
+                      ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  <PhoneCall className="w-4 h-4" />
+                  <span>📞 IP Telefoniya PBX</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveIntegrations}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition shrink-0"
+              >
+                {isIntegrationsSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                <span>{isIntegrationsSaved ? 'Sozlamalar Saqlandi!' : 'Integratsiyalarni Saqlash'}</span>
+              </button>
+            </div>
+
+            {/* Sub-tab 1: Website */}
+            {activeIntegrationTab === 'website' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-emerald-500" />
+                        <span>Veb-sayt & Tashqi Internet Do&apos;kon Ulanishi</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Tashqi veb-sayt (Next.js, WordPress/WooCommerce, OpenCart) bilan katalog va buyurtmalar sinxronizatsiyasi
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${integrations.websiteEnabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-slate-100 text-slate-500'}`}>
+                        {integrations.websiteEnabled ? 'Yoqilgan' : "O'chirilgan"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIntegrations({ ...integrations, websiteEnabled: !integrations.websiteEnabled })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${integrations.websiteEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${integrations.websiteEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Sayt Asosiy Manzili (URL)
+                      </label>
+                      <input
+                        type="url"
+                        value={integrations.websiteUrl}
+                        onChange={(e) => setIntegrations({ ...integrations, websiteUrl: e.target.value })}
+                        placeholder="https://smartcontrol.uz"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Webhook Qabul Qilish URL (Yangi buyurtmalar uchun)
+                      </label>
+                      <input
+                        type="url"
+                        value={integrations.websiteWebhookUrl}
+                        onChange={(e) => setIntegrations({ ...integrations, websiteWebhookUrl: e.target.value })}
+                        placeholder="https://smartcontrol.uz/api/webhooks/orders"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        API Secret / Avtorizatsiya Kaliti (Token)
+                      </label>
+                      <input
+                        type="password"
+                        value={integrations.websiteApiKey}
+                        onChange={(e) => setIntegrations({ ...integrations, websiteApiKey: e.target.value })}
+                        placeholder="sc_live_sec_9847120398401..."
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition">
+                        <input
+                          type="checkbox"
+                          checked={integrations.autoSyncStock}
+                          onChange={(e) => setIntegrations({ ...integrations, autoSyncStock: e.target.checked })}
+                          className="w-4 h-4 rounded text-emerald-600"
+                        />
+                        <div className="flex-1">
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Ombor Qoldiqlari Va Narxlarni Saytda Real Vaqtda Yangilash
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Ombordagi har qanday kirim/chiqim bo&apos;lganda avtomatik saytga API orqali yangilanish yuboriladi
+                          </div>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition">
+                        <input
+                          type="checkbox"
+                          checked={integrations.autoImportWebOrders}
+                          onChange={(e) => setIntegrations({ ...integrations, autoImportWebOrders: e.target.checked })}
+                          className="w-4 h-4 rounded text-emerald-600"
+                        />
+                        <div className="flex-1">
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Saytdan Tushgan Buyurtmalarni CRM va Smetalarga Qabul Qilish
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Mijoz saytda savatni rasmiylashtirganda CRM &quot;Yangi Buyurtma&quot; holatida paydo bo&apos;ladi
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-slate-900 p-5 rounded-2xl text-white border border-slate-800 space-y-3 text-xs">
+                    <h4 className="font-bold text-sm text-emerald-400 flex items-center gap-1.5">
+                      <Globe className="w-4 h-4" />
+                      <span>API Hujjatlari & Webhook</span>
+                    </h4>
+                    <p className="text-slate-300 leading-relaxed">
+                      Saytingizdan POST so&apos;rov orqali yangi buyurtmalarni quyidagi formatda yuboring:
+                    </p>
+                    <pre className="p-3 bg-slate-950 rounded-xl font-mono text-[11px] text-emerald-300 overflow-x-auto">
+{`POST /api/webhooks/orders
+Headers: {
+  "Authorization": "Bearer TOKEN",
+  "Content-Type": "application/json"
+}
+Body: {
+  "clientName": "Jasur Aliyev",
+  "phone": "+998 90 123 45 67",
+  "items": [{ "sku": "HK-4MP", "qty": 4 }]
+}`}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab 2: Instagram */}
+            {activeIntegrationTab === 'instagram' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <InstagramIcon className="w-4 h-4 text-pink-500" />
+                        <span>Instagram Direct & Meta Business API</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Instagram Direct va izohlardan to&apos;g&apos;ridan-to&apos;g&apos;ri CRM tizimiga lidlar qabul qilish
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${integrations.instagramEnabled ? 'bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300' : 'bg-slate-100 text-slate-500'}`}>
+                        {integrations.instagramEnabled ? 'Yoqilgan' : "O'chirilgan"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIntegrations({ ...integrations, instagramEnabled: !integrations.instagramEnabled })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${integrations.instagramEnabled ? 'bg-pink-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${integrations.instagramEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Instagram Akkaunt Username (@)
+                      </label>
+                      <input
+                        type="text"
+                        value={integrations.instagramUsername}
+                        onChange={(e) => setIntegrations({ ...integrations, instagramUsername: e.target.value })}
+                        placeholder="@smartcontrol_uz"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Meta / Instagram Business Account ID
+                      </label>
+                      <input
+                        type="text"
+                        value={integrations.instagramAccountId}
+                        onChange={(e) => setIntegrations({ ...integrations, instagramAccountId: e.target.value })}
+                        placeholder="17841400123456789"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Meta Graph API Access Token (Uzun muddatli)
+                      </label>
+                      <input
+                        type="password"
+                        value={integrations.instagramAccessToken}
+                        onChange={(e) => setIntegrations({ ...integrations, instagramAccessToken: e.target.value })}
+                        placeholder="EAAK... (Meta for Developers token)"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition">
+                        <input
+                          type="checkbox"
+                          checked={integrations.autoCreateLeadsFromDirect}
+                          onChange={(e) => setIntegrations({ ...integrations, autoCreateLeadsFromDirect: e.target.checked })}
+                          className="w-4 h-4 rounded text-pink-600"
+                        />
+                        <div className="flex-1">
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Direct Xabarlari Va Izohlardan Avtomatik CRM Lid Yaratish
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Xaridor Instagramdan narx yoki xizmat so&apos;rab yozganda CRM da &quot;Instagram&quot; manbasi bilan yangi lid ochiladi
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-slate-900 p-5 rounded-2xl text-white border border-slate-800 space-y-3 text-xs">
+                    <h4 className="font-bold text-sm text-pink-400 flex items-center gap-1.5">
+                      <InstagramIcon className="w-4 h-4" />
+                      <span>Ulanish Ko&apos;rsatmasi</span>
+                    </h4>
+                    <p className="text-slate-300 leading-relaxed">
+                      1. <strong className="text-white">developers.facebook.com</strong> saytiga kiring.
+                      <br />2. Instagram Graph API ilovasini yarating.
+                      <br />3. <code className="text-pink-300 font-mono">instagram_manage_messages</code> ruxsatini yoqing.
+                      <br />4. Olingan tokenni chapdagi maydonga joylang va saqlang.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab 3: Telegram Shop */}
+            {activeIntegrationTab === 'telegram_shop' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <ShoppingBag className="w-4 h-4 text-sky-500" />
+                        <span>Telegram Internet Do&apos;koni (Mini App & WebApp)</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Mijozlar Telegramdan chiqmasdan tovarlarni ko&apos;rishlari va xarid qilishlari uchun maxsus bot do&apos;koni
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${integrations.tgShopEnabled ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300' : 'bg-slate-100 text-slate-500'}`}>
+                        {integrations.tgShopEnabled ? 'Yoqilgan' : "O'chirilgan"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIntegrations({ ...integrations, tgShopEnabled: !integrations.tgShopEnabled })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${integrations.tgShopEnabled ? 'bg-sky-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${integrations.tgShopEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Telegram Do&apos;kon Bot Username (@)
+                      </label>
+                      <input
+                        type="text"
+                        value={integrations.tgShopBotUsername}
+                        onChange={(e) => setIntegrations({ ...integrations, tgShopBotUsername: e.target.value })}
+                        placeholder="@SmartControlShopBot"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Telegram WebApp / Mini App Havolasi (URL)
+                      </label>
+                      <input
+                        type="url"
+                        value={integrations.tgShopWebAppUrl}
+                        onChange={(e) => setIntegrations({ ...integrations, tgShopWebAppUrl: e.target.value })}
+                        placeholder="https://t.me/SmartControlShopBot/app"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition">
+                        <input
+                          type="checkbox"
+                          checked={integrations.notifyOnTgShopOrder}
+                          onChange={(e) => setIntegrations({ ...integrations, notifyOnTgShopOrder: e.target.checked })}
+                          className="w-4 h-4 rounded text-sky-600"
+                        />
+                        <div className="flex-1">
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Bot orqali yangi buyurtma tushganda kassir va boshqaruv guruhiga tezkor xabar
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Telegram do&apos;konidan har bir xarid cheki kassa ekranida va boshqaruv guruhida ko&apos;rinadi
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-slate-900 p-5 rounded-2xl text-white border border-slate-800 space-y-3 text-xs">
+                    <h4 className="font-bold text-sm text-sky-400 flex items-center gap-1.5">
+                      <ShoppingBag className="w-4 h-4" />
+                      <span>Telegram Do&apos;koni Imtiyozlari</span>
+                    </h4>
+                    <ul className="space-y-2 text-slate-300 list-disc list-inside leading-relaxed">
+                      <li>Mijoz ilovani yuklab olmasdan to&apos;g&apos;ridan-to&apos;g&apos;ri Telegram ichida tovarlarni tanlaydi.</li>
+                      <li>Katalogdagi narxlar va fotosuratlar ERP omboringiz bilan sinxron.</li>
+                      <li>Payme / Click / Naqd orqali to&apos;lovlarni qabul qilish imkoniyati.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab 4: Telephony */}
+            {activeIntegrationTab === 'telephony' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <PhoneCall className="w-4 h-4 text-amber-500" />
+                        <span>IP Telefoniya & ATS Integratsiyasi</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Kiruvchi qo&apos;ng&apos;iroqlarda mijoz kartochkasi chiqishi, so&apos;zlashuvlar tarixi va avtomatik lid yaratish
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${integrations.telephonyEnabled ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-slate-100 text-slate-500'}`}>
+                        {integrations.telephonyEnabled ? 'Yoqilgan' : "O'chirilgan"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIntegrations({ ...integrations, telephonyEnabled: !integrations.telephonyEnabled })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${integrations.telephonyEnabled ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${integrations.telephonyEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Telefoniya Provayderi
+                      </label>
+                      <select
+                        value={integrations.telephonyProvider}
+                        onChange={(e: any) => setIntegrations({ ...integrations, telephonyProvider: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-100"
+                      >
+                        <option value="zadarma">Zadarma Cloud PBX</option>
+                        <option value="asterisk">Asterisk / FreePBX Server</option>
+                        <option value="moizvonki">MoiZvonki CRM API</option>
+                        <option value="binotel">Binotel Virtual PBX</option>
+                        <option value="uztelecom">Uztelecom Biznes ATS</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          API URL / Server Host
+                        </label>
+                        <input
+                          type="text"
+                          value={integrations.telephonyApiUrl}
+                          onChange={(e) => setIntegrations({ ...integrations, telephonyApiUrl: e.target.value })}
+                          placeholder="https://api.zadarma.com"
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          API Key (Foydalanuvchi kaliti)
+                        </label>
+                        <input
+                          type="text"
+                          value={integrations.telephonyApiKey}
+                          onChange={(e) => setIntegrations({ ...integrations, telephonyApiKey: e.target.value })}
+                          placeholder="zdr_api_key_84920..."
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        API Secret / Maxfiy Parol
+                      </label>
+                      <input
+                        type="password"
+                        value={integrations.telephonySecret}
+                        onChange={(e) => setIntegrations({ ...integrations, telephonySecret: e.target.value })}
+                        placeholder="••••••••••••••••"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 dark:text-slate-100"
+                      />
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition">
+                        <input
+                          type="checkbox"
+                          checked={integrations.autoPopupCustomerCard}
+                          onChange={(e) => setIntegrations({ ...integrations, autoPopupCustomerCard: e.target.checked })}
+                          className="w-4 h-4 rounded text-amber-600"
+                        />
+                        <div className="flex-1">
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Kiruvchi Qo&apos;ng&apos;iroqda Mijoz Kartochkasi Va Qarzlarini Avtomatik Ekranga Chiqarish
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Qo&apos;ng&apos;iroq tushishi bilan mijoz ismi, oxirgi xaridlari va nasiyasi ekranda paydo bo&apos;ladi
+                          </div>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition">
+                        <input
+                          type="checkbox"
+                          checked={integrations.recordCalls}
+                          onChange={(e) => setIntegrations({ ...integrations, recordCalls: e.target.checked })}
+                          className="w-4 h-4 rounded text-amber-600"
+                        />
+                        <div className="flex-1">
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            So&apos;zlashuv Audio Yozuvlarini CRM Mijoz Tarixida Saqlash
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Har bir qo&apos;ng&apos;iroq audio fayli mijoz kartochkasida tinglash uchun saqlanadi
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-slate-900 p-5 rounded-2xl text-white border border-slate-800 space-y-3 text-xs">
+                    <h4 className="font-bold text-sm text-amber-400 flex items-center gap-1.5">
+                      <PhoneCall className="w-4 h-4" />
+                      <span>PBX Webhook Havolasi</span>
+                    </h4>
+                    <p className="text-slate-300 leading-relaxed">
+                      IP Telefoniya provayderingiz shaxsiy kabinetida (Zadarma / Asterisk) quyidagi Webhook manzilini ko&apos;rsating:
+                    </p>
+                    <div className="p-2.5 bg-slate-950 rounded-xl font-mono text-[11px] text-amber-300 break-all select-all border border-slate-800">
+                      https://api.smartcontrol.uz/telephony/webhook
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

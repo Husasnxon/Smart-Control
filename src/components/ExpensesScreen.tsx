@@ -54,7 +54,8 @@ import {
   Filter,
   CheckCircle2,
   Sparkles,
-  Info
+  Info,
+  Eye
 } from 'lucide-react';
 
 interface ExpensesScreenProps {
@@ -126,6 +127,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
   const [isCategoryManageModalOpen, setIsCategoryManageModalOpen] = useState(false);
   const [selectedVoucherExpense, setSelectedVoucherExpense] = useState<Expense | null>(null);
+  const [selectedReceiptForItems, setSelectedReceiptForItems] = useState<(Expense & { itemsList?: any[] }) | null>(null);
 
   // Keyboard Escape listener to close modals
   useEffect(() => {
@@ -135,6 +137,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
         setIsAddExpenseModalOpen(false);
         setIsCategoryManageModalOpen(false);
         setSelectedVoucherExpense(null);
+        setSelectedReceiptForItems(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -457,9 +460,83 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
     }
   };
 
+  // Synthesize POS Sales & Receipts into Cash Flow Transactions (so all sold goods & cash payments appear in finance)
+  const receiptTransactions: (Expense & { 
+    isReceipt?: boolean; 
+    itemsList?: { name: string; quantity: number; unit: string; price: number; total: number; serials?: string[] }[] 
+  })[] = useMemo(() => {
+    const existingLinkedReceiptIds = new Set(
+      expenses.filter(e => e.linkedDocType === 'receipt' && e.linkedDocId).map(e => e.linkedDocId)
+    );
+
+    return (receipts || [])
+      .filter(r => r.status !== 'returned' && !existingLinkedReceiptIds.has(r.id))
+      .map(r => {
+        const cashUZS = r.payments?.cash || 0;
+        const cardUZS = r.payments?.card || 0;
+        const usdPaid = r.payments?.cashUSD || 0;
+        const usdInUZS = usdPaid * (r.exchangeRate || exchangeRate);
+
+        const totalCashReceived = cashUZS + cardUZS + usdInUZS;
+        const amountToCount = totalCashReceived > 0 ? totalCashReceived : (r.totalAmount - (r.payments?.debt || 0));
+
+        let pSource: Expense['paymentSource'] = 'Kassa (Naqd)';
+        if (usdPaid > 0 && cashUZS === 0 && cardUZS === 0) {
+          pSource = 'Valyuta (Naqd USD)';
+        } else if (cardUZS > 0 && cashUZS === 0 && usdPaid === 0) {
+          pSource = 'Hisob raqam / Karta';
+        }
+
+        const itemsList = (r.items || []).map(it => {
+          const itemPrice = it.appliedPrice || it.product.retailPrice || 0;
+          const itemTotal = itemPrice * it.quantity;
+          return {
+            name: it.product.name,
+            quantity: it.quantity,
+            unit: it.product.unit || 'dona',
+            price: itemPrice,
+            total: itemTotal,
+            serials: it.selectedSerialNumbers
+          };
+        });
+
+        const itemsSummary = itemsList.map(i => `${i.name} (${i.quantity} ${i.unit})`).join(', ');
+
+        return {
+          id: `rcpt-${r.id}`,
+          type: 'income',
+          category: 'POS Savdo / Chek',
+          amount: amountToCount > 0 ? amountToCount : r.totalAmount,
+          amountUSD: usdPaid > 0 ? usdPaid : Number(((amountToCount > 0 ? amountToCount : r.totalAmount) / exchangeRate).toFixed(2)),
+          currency: (usdPaid > 0 && cashUZS === 0) ? 'USD' : 'UZS',
+          paymentSource: pSource,
+          paidBy: r.customer?.fullName || 'Chakana xaridor',
+          notes: itemsSummary ? `Sotilgan tovarlar: ${itemsSummary}` : 'POS Kassa savdosi',
+          createdAt: r.createdAt || new Date().toISOString(),
+          createdBy: r.cashierName || 'Kassir',
+          linkedDocType: 'receipt',
+          linkedDocId: r.id,
+          linkedDocNumber: r.receiptNumber,
+          customerId: r.customer?.id,
+          customerName: r.customer?.fullName,
+          isReceipt: true,
+          itemsList
+        };
+      });
+  }, [receipts, expenses, exchangeRate]);
+
+  // Combined transactions ledger
+  const allTransactions = useMemo(() => {
+    return [...receiptTransactions, ...expenses].sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime() || 0;
+      const timeB = new Date(b.createdAt).getTime() || 0;
+      return timeB - timeA;
+    });
+  }, [receiptTransactions, expenses]);
+
   // Calculations for Totals & KPIs
-  const incomesList = useMemo(() => expenses.filter(e => e.type === 'income'), [expenses]);
-  const expensesList = useMemo(() => expenses.filter(e => e.type !== 'income'), [expenses]);
+  const incomesList = useMemo(() => allTransactions.filter(e => e.type === 'income'), [allTransactions]);
+  const expensesList = useMemo(() => allTransactions.filter(e => e.type !== 'income'), [allTransactions]);
 
   const totalIncomeUZS = useMemo(() => incomesList.reduce((sum, e) => sum + e.amount, 0), [incomesList]);
   const totalExpenseUZS = useMemo(() => expensesList.reduce((sum, e) => sum + e.amount, 0), [expensesList]);
@@ -487,7 +564,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
 
   // Filtering items
   const filteredTransactions = useMemo(() => {
-    return expenses.filter(e => {
+    return allTransactions.filter(e => {
       // Sub-tab filter
       if (activeSubTab === 'incomes' && e.type !== 'income') return false;
       if (activeSubTab === 'expenses' && e.type === 'income') return false;
@@ -512,14 +589,15 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
         const matchCategory = e.category?.toLowerCase().includes(q);
         const matchDoc = e.linkedDocNumber?.toLowerCase().includes(q);
         const matchCustomer = e.customerName?.toLowerCase().includes(q);
-        if (!matchNotes && !matchPaidTo && !matchPaidBy && !matchCategory && !matchDoc && !matchCustomer) {
+        const matchItems = (e as any).itemsList?.some((it: any) => it.name?.toLowerCase().includes(q));
+        if (!matchNotes && !matchPaidTo && !matchPaidBy && !matchCategory && !matchDoc && !matchCustomer && !matchItems) {
           return false;
         }
       }
 
       return true;
     });
-  }, [expenses, activeSubTab, selectedFilterCategory, selectedPaymentSource, onlyLinkedDocs, searchQuery]);
+  }, [allTransactions, activeSubTab, selectedFilterCategory, selectedPaymentSource, onlyLinkedDocs, searchQuery]);
 
   // Handle Creating Income (Prixod)
   const handleCreateIncome = (e: React.FormEvent) => {
@@ -1037,27 +1115,57 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                           </td>
 
                           {/* 3. Linked Document / Otgruzka */}
+                          {/* 3. Linked Document / Otgruzka / Chek */}
                           <td className="py-3 px-4">
                             {trx.linkedDocNumber ? (
-                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 font-mono font-bold text-[11px]">
-                                <Package className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if ((trx as any).itemsList) {
+                                    setSelectedReceiptForItems(trx);
+                                  }
+                                }}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono font-bold text-[11px] transition ${
+                                  (trx as any).isReceipt
+                                    ? 'bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-700 dark:text-purple-300 cursor-pointer'
+                                    : 'bg-teal-500/10 border-teal-500/30 text-teal-700 dark:text-teal-300'
+                                }`}
+                                title={(trx as any).itemsList ? "Sotilgan tovarlar ro'yxatini ko'rish" : undefined}
+                              >
+                                {(trx as any).isReceipt ? (
+                                  <Receipt className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                ) : (
+                                  <Package className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                                )}
                                 <span>{trx.linkedDocNumber}</span>
                                 {trx.customerName && (
-                                  <span className="text-[10px] text-teal-600/70 dark:text-teal-400/70 font-sans font-medium">
+                                  <span className="text-[10px] opacity-75 font-sans font-medium">
                                     ({trx.customerName})
                                   </span>
                                 )}
-                              </div>
+                              </button>
                             ) : (
                               <span className="text-slate-400 font-mono text-[11px]">-</span>
                             )}
                           </td>
 
-                          {/* 4. Notes & Purpose */}
-                          <td className="py-3 px-4 max-w-xs">
-                            <span className="text-slate-700 dark:text-slate-200 font-medium block truncate" title={trx.notes}>
-                              {trx.notes}
-                            </span>
+                          {/* 4. Notes & Purpose (including sold goods breakdown) */}
+                          <td className="py-3 px-4 max-w-sm">
+                            <div className="space-y-1">
+                              <span className="text-slate-700 dark:text-slate-200 font-medium block truncate" title={trx.notes}>
+                                {trx.notes}
+                              </span>
+                              {(trx as any).itemsList && (trx as any).itemsList.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedReceiptForItems(trx)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 hover:bg-purple-200 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[10px] font-bold transition"
+                                >
+                                  <Package className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                  <span>📦 {(trx as any).itemsList.length} ta sotilgan tovar ro&apos;yxati</span>
+                                </button>
+                              )}
+                            </div>
                           </td>
 
                           {/* 5. Paid To / Paid By */}
@@ -1110,14 +1218,26 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                           {/* 10. Actions / Voucher Print */}
                           <td className="py-3 px-4 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => handlePrintVoucher(trx)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition"
-                                title="Kvitansiya / Order chop etish (PKO/RKO)"
-                              >
-                                <Printer className="w-3.5 h-3.5" />
-                              </button>
-                              {onDeleteExpense && (
+                              {(trx as any).itemsList ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedReceiptForItems(trx)}
+                                  className="px-2 py-1 rounded-lg text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 transition text-[11px] font-bold flex items-center gap-1"
+                                  title="Sotilgan tovarlar tarkibini ko'rish"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Tovarlar</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handlePrintVoucher(trx)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition"
+                                  title="Kvitansiya / Order chop etish (PKO/RKO)"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {onDeleteExpense && !(trx as any).isReceipt && (
                                 <button
                                   onClick={() => {
                                     if (window.confirm("Rostdan ham ushbu moliya yozuvini o'chirmoqchimisiz?")) {
@@ -2451,6 +2571,146 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                     <Printer className="w-4 h-4" />
                     Chop Etish (Print)
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* MODAL 5: DETAILED SOLD GOODS LIST MODAL (KASSAGA TUSHGAN TOVARLAR)      */}
+          {/* ========================================================================= */}
+          {selectedReceiptForItems && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-850 shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-600/30">
+                      <Package className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Sotilgan Tovarlar Tarkibi</span>
+                        <span className="font-mono text-purple-600 dark:text-purple-400 font-bold text-xs bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
+                          #{selectedReceiptForItems.linkedDocNumber || 'CHEK'}
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Ushbu savdo cheki orqali sotilgan va kassaga tushgan mahsulotlar ro&apos;yxati
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReceiptForItems(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {/* Meta Bar */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-semibold">Xaridor:</span>
+                      <span className="font-bold text-slate-900 dark:text-white truncate block">
+                        {selectedReceiptForItems.paidBy || selectedReceiptForItems.customerName || 'Chakana xaridor'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-semibold">Sana / Vaqt:</span>
+                      <span className="font-mono text-slate-700 dark:text-slate-300 block">
+                        {selectedReceiptForItems.createdAt}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-semibold">To&apos;lov Manbai:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 block">
+                        {selectedReceiptForItems.paymentSource}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-semibold">Kassir / Mas&apos;ul:</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300 block">
+                        {selectedReceiptForItems.createdBy}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Goods List Table */}
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
+                        <tr>
+                          <th className="py-2.5 px-3">#</th>
+                          <th className="py-2.5 px-3">Mahsulot Nomi</th>
+                          <th className="py-2.5 px-3 text-center">Miqdori</th>
+                          <th className="py-2.5 px-3 text-right">Narxi</th>
+                          <th className="py-2.5 px-3 text-right">Jami Summa</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-sans">
+                        {(selectedReceiptForItems.itemsList || []).map((it: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                            <td className="py-2.5 px-3">
+                              <div className="font-bold text-slate-900 dark:text-white">{it.name}</div>
+                              {it.serials && it.serials.length > 0 && (
+                                <div className="text-[10px] text-purple-600 font-mono mt-0.5">
+                                  S/N: {it.serials.join(', ')}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-700 dark:text-slate-300">
+                              {it.quantity} {it.unit || 'dona'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">
+                              {formatMoney(it.price, baseCurrency, exchangeRate)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900 dark:text-white">
+                              {formatMoney(it.total || (it.quantity * it.price), baseCurrency, exchangeRate)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-slate-50 dark:bg-slate-800/80 font-bold border-t border-slate-200 dark:border-slate-700 text-xs">
+                        <tr>
+                          <td colSpan={4} className="py-3 px-3 text-right text-slate-600 dark:text-slate-400 uppercase text-[11px]">
+                            Jami Tushum Summasi:
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                            +{formatDualMoney(selectedReceiptForItems.amount, baseCurrency, exchangeRate).primary}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between shrink-0">
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Jami {selectedReceiptForItems.itemsList?.length || 0} xil mahsulot sotilgan
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReceiptForItems(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                    >
+                      Yopish
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/20 transition"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span>Chop Etish</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

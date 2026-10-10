@@ -46,7 +46,10 @@ import {
   CheckCheck,
   Clock4,
   ExternalLink,
-  Megaphone
+  Megaphone,
+  Settings,
+  Percent,
+  Sliders
 } from 'lucide-react';
 import { exportDebtsToExcel } from '../utils/excel';
 import { getTelegramSettings, sendTelegramMessage } from '../utils/telegram';
@@ -64,6 +67,23 @@ interface CustomersScreenProps {
   onViewReceipt?: (receiptId: string) => void;
 }
 
+export interface CashbackTierConfig {
+  id: string;
+  name: string;
+  rate: number;
+  thresholdUZS: number;
+  thresholdUSD: number;
+  description: string;
+  color: 'slate' | 'blue' | 'amber' | 'purple';
+}
+
+const DEFAULT_CASHBACK_TIERS: CashbackTierConfig[] = [
+  { id: 'standard', name: 'Standard', rate: 1, thresholdUZS: 0, thresholdUSD: 0, description: "Boshlang'ich daraja", color: 'slate' },
+  { id: 'silver', name: 'Silver', rate: 2, thresholdUZS: 1500000, thresholdUSD: 120, description: "Doimiy mijozlar uchun", color: 'blue' },
+  { id: 'gold', name: 'Gold', rate: 3, thresholdUZS: 3000000, thresholdUSD: 240, description: "Yuqori faol mijozlar", color: 'amber' },
+  { id: 'vip', name: 'VIP', rate: 5, thresholdUZS: 7000000, thresholdUSD: 550, description: "Maksimal imtiyozlar", color: 'purple' },
+];
+
 export const CustomersScreen: React.FC<CustomersScreenProps> = ({
   customers,
   receipts,
@@ -78,6 +98,27 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
 }) => {
   // Main Tab: 'debts' (Qarz daftari) vs 'customers' (Mijozlar bazasi va cashback)
   const [mainTab, setMainTab] = useState<'debts' | 'customers'>('debts');
+
+  // Cashback Configuration State
+  const [cashbackTiers, setCashbackTiers] = useState<CashbackTierConfig[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sc_cashback_tiers');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return DEFAULT_CASHBACK_TIERS;
+  });
+  const [isCashbackSettingsOpen, setIsCashbackSettingsOpen] = useState(false);
+  const [isCashbackEnabled, setIsCashbackEnabled] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sc_cashback_enabled') !== 'false';
+    }
+    return true;
+  });
+  const [editTiers, setEditTiers] = useState<CashbackTierConfig[]>(cashbackTiers);
+  const [editCashbackEnabled, setEditCashbackEnabled] = useState(isCashbackEnabled);
+  const [tierCurrencyMode, setTierCurrencyMode] = useState<'UZS' | 'USD'>(baseCurrency === 'USD' ? 'USD' : 'UZS');
 
   // Sub-tabs in Debts section
   const [debtSubTab, setDebtSubTab] = useState<'debtors' | 'unpaid_receipts' | 'payment_history'>('debtors');
@@ -1254,55 +1295,86 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
         {/* ============================================================= */}
         {mainTab === 'customers' && (
           <div className="space-y-5">
-            {/* Loyalty Tiers Cards */}
+            {/* Loyalty & Cashback Header & Action Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-transparent p-4 rounded-2xl border border-purple-200 dark:border-purple-900/40">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-600/30">
+                  <Gift className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Mijozlar Sodiqlik & Cashback Tizimi
+                    </h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      isCashbackEnabled 
+                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800' 
+                        : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
+                    }`}>
+                      {isCashbackEnabled ? 'Faol (Yoqilgan)' : "O'chirilgan"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Har bir xarid summasi bo&apos;yicha avtomatik bonus foizlari va mijoz darajalari (Asosiy valyuta: {baseCurrency === 'USD' ? 'AQSH Dollari ($)' : "So'm (UZS)"})
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditTiers(cashbackTiers);
+                  setEditCashbackEnabled(isCashbackEnabled);
+                  setTierCurrencyMode(baseCurrency === 'USD' ? 'USD' : 'UZS');
+                  setIsCashbackSettingsOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition shrink-0"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>⚙️ Keshbek Sozlamalari</span>
+              </button>
+            </div>
+
+            {/* Dynamic Loyalty Tiers Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-                <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-xs font-bold uppercase tracking-wider">Standard</span>
-                  <span className="text-xs font-bold text-slate-500">1% Cashback</span>
-                </div>
-                <div className="mt-3">
-                  <div className="text-xs text-slate-500">Boshlang&apos;ich daraja</div>
-                  <div className="text-[11px] text-slate-400 mt-1">Har qanday xaridda 1% qaytadi</div>
-                </div>
-              </div>
+              {cashbackTiers.map((t, idx) => {
+                const thresholdFormatted = baseCurrency === 'USD' 
+                  ? `$${formatUSDNumber(t.thresholdUSD || (t.thresholdUZS / exchangeRate))}`
+                  : `${formatNumberWithSpaces(t.thresholdUZS || (t.thresholdUSD * exchangeRate))} so'm`;
 
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-                <div className="flex items-center justify-between text-blue-500">
-                  <span className="text-xs font-bold uppercase tracking-wider">Silver</span>
-                  <span className="text-xs font-bold text-blue-600">2% Cashback</span>
-                </div>
-                <div className="mt-3">
-                  <div className="text-xs text-slate-500">1.5 mln xariddan so&apos;ng</div>
-                  <div className="text-[11px] text-slate-400 mt-1">Doimiy mijozlar uchun</div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/60 bg-amber-50/20 shadow-sm flex flex-col justify-between">
-                <div className="flex items-center justify-between text-amber-500">
-                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-                    <Award className="w-4 h-4" /> Gold
-                  </span>
-                  <span className="text-xs font-bold text-amber-600">3% Cashback</span>
-                </div>
-                <div className="mt-3">
-                  <div className="text-xs text-slate-500">3 mln xariddan so&apos;ng</div>
-                  <div className="text-[11px] text-slate-400 mt-1">Yuqori faol mijozlar</div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-gradient-to-tr from-purple-900/90 to-indigo-900/90 text-white border border-purple-500/40 shadow-sm flex flex-col justify-between">
-                <div className="flex items-center justify-between text-purple-200">
-                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-                    <Crown className="w-4 h-4 text-amber-400" /> VIP
-                  </span>
-                  <span className="text-xs font-bold text-amber-300">5% Cashback</span>
-                </div>
-                <div className="mt-3">
-                  <div className="text-xs text-purple-200">7 mln xariddan so&apos;ng</div>
-                  <div className="text-[11px] text-purple-300 mt-1">Maksimal imtiyozlar</div>
-                </div>
-              </div>
+                return (
+                  <div 
+                    key={t.id || idx} 
+                    className={`p-4 rounded-2xl bg-white dark:bg-slate-900 border shadow-sm flex flex-col justify-between transition hover:shadow-md ${
+                      t.color === 'purple' 
+                        ? 'border-purple-500/50 bg-gradient-to-tr from-purple-900/10 to-indigo-900/10'
+                        : t.color === 'amber'
+                        ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/20'
+                        : t.color === 'blue'
+                        ? 'border-blue-300 dark:border-blue-900/60 bg-blue-50/20'
+                        : 'border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                        {t.color === 'purple' ? <Crown className="w-4 h-4 text-amber-400" /> : t.color === 'amber' ? <Award className="w-4 h-4 text-amber-500" /> : <Gift className="w-3.5 h-3.5 text-purple-500" />}
+                        {t.name}
+                      </span>
+                      <span className="text-xs font-extrabold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
+                        {t.rate}% Cashback
+                      </span>
+                    </div>
+                    <div className="mt-3">
+                      <div className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        {t.thresholdUZS === 0 && t.thresholdUSD === 0 ? "Boshlang'ich daraja" : `${thresholdFormatted} xariddan so'ng`}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-1 line-clamp-1">
+                        {t.description || "Doimiy xaridlar uchun imtiyoz"}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Search and stats bar */}
@@ -1820,6 +1892,281 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
           exchangeRate={exchangeRate}
           onClose={() => setIsBulkReminderModalOpen(false)}
         />
+      )}
+
+      {/* --------------------------------------------------------------- */}
+      {/* MODAL: CASHBACK & LOYALTY SETTINGS MODAL                        */}
+      {/* --------------------------------------------------------------- */}
+      {isCashbackSettingsOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-850 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-600/30">
+                  <Gift className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Cashback & Sodiqlik Tizimi Sozlamalari
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Mijoz xarid limitlari, bonus foizlari va valyuta sozlamalarini boshqarish
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCashbackSettingsOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* 1. Global Enable / Disable Toggle */}
+              <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                <div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Keshbek Tizimi Holati</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${editCashbackEnabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'}`}>
+                      {editCashbackEnabled ? 'Yoqilgan (Faol)' : "O'chirilgan"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    O&apos;chirilganda POS savdolarida va mijoz hisobida keshbek to&apos;planmaydi
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditCashbackEnabled(!editCashbackEnabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${editCashbackEnabled ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${editCashbackEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {/* 2. Currency Selector */}
+              <div className="p-4 rounded-xl border border-purple-200 dark:border-purple-900/40 bg-purple-50/30 dark:bg-purple-950/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Coins className="w-4 h-4 text-purple-600" />
+                    <span>Limitlar Va Valyuta Formati</span>
+                  </label>
+                  <span className="text-[11px] text-purple-600 dark:text-purple-400 font-mono font-bold">
+                    Kurs: 1$ = {formatNumberWithSpaces(exchangeRate)} so&apos;m
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Keshbek limitlarini dastur valyutasiga nisbatan belgilashingiz mumkin (Asosiy valyuta: <strong>{baseCurrency === 'USD' ? 'AQSH Dollari ($ USD)' : "O'zbek So'mi (UZS)"}</strong>):
+                </p>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setTierCurrencyMode('UZS')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${tierCurrencyMode === 'UZS' ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
+                  >
+                    <Coins className="w-3.5 h-3.5" />
+                    <span>So&apos;mda (UZS) Limitlar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTierCurrencyMode('USD')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${tierCurrencyMode === 'USD' ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
+                  >
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span>Dollarda ($ USD) Limitlar</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Tiers Editor */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                    Darajalar & Keshbek Stavkalari ({editTiers.length} ta)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newId = `tier-${Date.now()}`;
+                      setEditTiers([
+                        ...editTiers,
+                        {
+                          id: newId,
+                          name: `Yangi Daraja ${editTiers.length + 1}`,
+                          rate: 4,
+                          thresholdUZS: 5000000,
+                          thresholdUSD: Math.round(5000000 / exchangeRate),
+                          description: "Maxsus imtiyozli daraja",
+                          color: 'purple'
+                        }
+                      ]);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Daraja Qo&apos;shish</span>
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {editTiers.map((tier, idx) => (
+                    <div key={tier.id || idx} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold text-xs">
+                            {idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={tier.name}
+                            onChange={(e) => {
+                              const updated = [...editTiers];
+                              updated[idx].name = e.target.value;
+                              setEditTiers(updated);
+                            }}
+                            className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-900 dark:text-white"
+                            placeholder="Daraja nomi"
+                          />
+                        </div>
+
+                        {editTiers.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditTiers(editTiers.filter((_, i) => i !== idx));
+                            }}
+                            className="text-slate-400 hover:text-rose-500 p-1"
+                            title="O'chirish"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        {/* Rate % */}
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                            Cashback Foizi (%)
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.5"
+                              value={tier.rate}
+                              onChange={(e) => {
+                                const updated = [...editTiers];
+                                updated[idx].rate = parseFloat(e.target.value) || 0;
+                                setEditTiers(updated);
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-purple-600 dark:text-purple-400"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
+                          </div>
+                        </div>
+
+                        {/* Threshold Limit */}
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                            Qancha Xariddan So&apos;ng ({tierCurrencyMode === 'USD' ? '$ USD' : "So'm"})
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              value={tierCurrencyMode === 'USD' ? (tier.thresholdUSD || Math.round(tier.thresholdUZS / exchangeRate)) : (tier.thresholdUZS || tier.thresholdUSD * exchangeRate)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                const updated = [...editTiers];
+                                if (tierCurrencyMode === 'USD') {
+                                  updated[idx].thresholdUSD = val;
+                                  updated[idx].thresholdUZS = Math.round(val * exchangeRate);
+                                } else {
+                                  updated[idx].thresholdUZS = val;
+                                  updated[idx].thresholdUSD = Number((val / exchangeRate).toFixed(2));
+                                }
+                                setEditTiers(updated);
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-[11px]">
+                              {tierCurrencyMode === 'USD' ? '$' : "so'm"}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-1 font-mono">
+                            Ekvivalent: {tierCurrencyMode === 'USD' 
+                              ? `${formatNumberWithSpaces(tier.thresholdUZS || (tier.thresholdUSD * exchangeRate))} so'm` 
+                              : `$${formatUSDNumber(tier.thresholdUSD || (tier.thresholdUZS / exchangeRate))} USD`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <div>
+                        <input
+                          type="text"
+                          value={tier.description}
+                          onChange={(e) => {
+                            const updated = [...editTiers];
+                            updated[idx].description = e.target.value;
+                            setEditTiers(updated);
+                          }}
+                          placeholder="Daraja tavsifi (masalan: Doimiy mijozlar uchun)"
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-[11px] text-slate-700 dark:text-slate-300"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditTiers(DEFAULT_CASHBACK_TIERS);
+                  setEditCashbackEnabled(true);
+                }}
+                className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline"
+              >
+                Standart holatga qaytarish
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCashbackSettingsOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                >
+                  Bekor Qilish
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashbackTiers(editTiers);
+                    setIsCashbackEnabled(editCashbackEnabled);
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('sc_cashback_tiers', JSON.stringify(editTiers));
+                      localStorage.setItem('sc_cashback_enabled', String(editCashbackEnabled));
+                    }
+                    setIsCashbackSettingsOpen(false);
+                  }}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20 transition flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Sozlamalarni Saqlash</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

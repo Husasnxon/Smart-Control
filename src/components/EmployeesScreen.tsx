@@ -41,7 +41,8 @@ import {
   Lock,
   Shield,
   User,
-  ShieldAlert
+  ShieldAlert,
+  Printer
 } from 'lucide-react';
 import { getNormalizedDateKey } from '../utils/formatters';
 
@@ -115,9 +116,26 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   const [payrollEmployee, setPayrollEmployee] = useState<Employee | null>(null);
   const [advanceEmployee, setAdvanceEmployee] = useState<Employee | null>(null);
   const [expandedPayroll, setExpandedPayroll] = useState<string | null>(null);
+  const [reportEmployee, setReportEmployee] = useState<Employee | null>(null);
 
-  // Period filter for payroll tab
+  // Filters for payroll tab
   const [payrollPeriod, setPayrollPeriod] = useState(getCurrentPeriod());
+  const [payrollEmployeeFilter, setPayrollEmployeeFilter] = useState<string>('all');
+
+  // Keyboard Escape listener to close modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        setIsAddModalOpen(false);
+        setEditingEmployee(null);
+        setPayrollEmployee(null);
+        setAdvanceEmployee(null);
+        setReportEmployee(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // New employee form state
   const [newName, setNewName] = useState('');
@@ -194,9 +212,9 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   // Payroll tab filtered
   const filteredPayrolls = useMemo(() => {
     return payrolls
-      .filter(p => payrollPeriod === 'all' || p.periodMonth === payrollPeriod)
+      .filter(p => (payrollPeriod === 'all' || p.periodMonth === payrollPeriod) && (payrollEmployeeFilter === 'all' || p.employeeId === payrollEmployeeFilter))
       .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
-  }, [payrolls, payrollPeriod]);
+  }, [payrolls, payrollPeriod, payrollEmployeeFilter]);
 
   // Get advance already paid to employee this period
   const getAdvancePaidForPeriod = (empId: string, period: string) => {
@@ -749,6 +767,14 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                     </span>
                     <div className="flex items-center gap-1.5">
                       <button
+                        onClick={() => setReportEmployee(emp)}
+                        className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-800/40 text-indigo-700 dark:text-indigo-400 text-[10px] font-bold transition flex items-center gap-1"
+                        title="Ish haqi va daromadlar hisoboti (Otchot)"
+                      >
+                        <BarChart3 className="w-3 h-3" />
+                        Otchot
+                      </button>
+                      <button
                         onClick={() => handleOpenAdvance(emp)}
                         className="px-2.5 py-1.5 rounded-lg bg-violet-100 dark:bg-violet-900/30 hover:bg-violet-200 text-violet-700 dark:text-violet-400 text-[10px] font-bold transition flex items-center gap-1"
                         title="Avans berish"
@@ -802,19 +828,37 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       {screenTab === 'payroll' && (
         <div className="space-y-4">
           {/* Period Filter */}
-          <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <CalendarDays className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Davr:</span>
-            <select
-              value={payrollPeriod}
-              onChange={(e) => setPayrollPeriod(e.target.value)}
-              className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 dark:text-white"
-            >
-              <option value="all">Barcha davrlar</option>
-              {availablePeriods.map(p => (
-                <option key={p} value={p}>{periodLabel(p)}</option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-slate-400" />
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Davr:</span>
+              <select
+                value={payrollPeriod}
+                onChange={(e) => setPayrollPeriod(e.target.value)}
+                className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 dark:text-white"
+              >
+                <option value="all">Barcha davrlar</option>
+                {availablePeriods.map(p => (
+                  <option key={p} value={p}>{periodLabel(p)}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-slate-400" />
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Xodim:</span>
+              <select
+                value={payrollEmployeeFilter}
+                onChange={(e) => setPayrollEmployeeFilter(e.target.value)}
+                className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 dark:text-white"
+              >
+                <option value="all">Barcha xodimlar</option>
+                {employees.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.fullName} ({emp.role})</option>
+                ))}
+              </select>
+            </div>
+
             <span className="ml-auto text-[11px] text-slate-400">
               Jami to&apos;langan: <span className="font-bold text-emerald-600">{fmt(filteredPayrolls.reduce((s, p) => s + p.totalNet, 0))} so&apos;m</span>
             </span>
@@ -1605,6 +1649,215 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
           </div>
         </div>
       )}
+      {/* ── MODAL: INDIVIDUAL EMPLOYEE SALARY REPORT (OTCHOT) ── */}
+      {reportEmployee && (() => {
+        const empPayrolls = payrolls.filter(p => p.employeeId === reportEmployee.id);
+        const empAdvances = advances.filter(a => a.employeeId === reportEmployee.id);
+
+        const totalEarnedBase = empPayrolls.reduce((s, p) => s + (p.baseSalary || 0), 0);
+        const totalEarnedInstalls = empPayrolls.reduce((s, p) => s + (p.commissionTotal || 0), 0);
+        const totalInstallsCount = empPayrolls.reduce((s, p) => s + (p.installationsCount || 0), 0);
+        const totalEarnedPercent = empPayrolls.reduce((s, p) => s + (p.percentageTotal || 0), 0);
+        const totalBonus = empPayrolls.reduce((s, p) => s + (p.bonus || 0), 0);
+        const totalDeduction = empPayrolls.reduce((s, p) => s + (p.deduction || 0), 0);
+        const totalAdvance = empAdvances.reduce((s, a) => s + a.amount, 0);
+        const totalNetPaid = empPayrolls.reduce((s, p) => s + p.totalNet, 0);
+        const totalGross = empPayrolls.reduce((s, p) => s + p.totalGross, 0);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-850 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/30 font-black">
+                    {reportEmployee.fullName.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-black text-slate-900 dark:text-white">
+                        {reportEmployee.fullName}
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                        {reportEmployee.role}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Shaxsiy Ish Haqi, Montajlar & Daromadlar Otchoti · {reportEmployee.phone}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReportEmployee(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* Salary Model Banner */}
+                <div className="p-4 rounded-xl border border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/30 dark:bg-indigo-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">
+                      Hisob-kitob modeli & Stavkalar:
+                    </span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {reportEmployee.salaryType === 'fixed' && `Faqat Oklad: ${fmt(reportEmployee.baseSalary || 0)} so'm/oy`}
+                      {reportEmployee.salaryType === 'per_job' && `Faqat Ishbay (Montaj stavkasi: ${fmt(reportEmployee.commissionPerInstall || 0)} so'm/nuqta)`}
+                      {reportEmployee.salaryType === 'fixed_plus_job' && `Oklad: ${fmt(reportEmployee.baseSalary || 0)} so'm + Montaj: ${fmt(reportEmployee.commissionPerInstall || 0)} so'm/nuqta`}
+                      {reportEmployee.salaryType === 'percentage' && `Sotuvdan foiz: ${reportEmployee.percentageRate}% (${reportEmployee.percentageTarget === 'net_profit' ? 'Foydadan' : 'Savdodan'})`}
+                      {reportEmployee.salaryType === 'fixed_plus_percentage' && `Oklad: ${fmt(reportEmployee.baseSalary || 0)} so'm + ${reportEmployee.percentageRate}% Foiz`}
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-500">
+                    Boshlagan sana: <strong>{reportEmployee.joinedDate}</strong>
+                  </div>
+                </div>
+
+                {/* KPI Breakdown Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850">
+                    <span className="text-[10px] text-slate-400 block font-semibold">1. Asosiy Oklad:</span>
+                    <span className="text-sm font-black font-mono text-slate-900 dark:text-white mt-1 block">
+                      {fmt(totalEarnedBase)} so&apos;m
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">Jami oylik okladlar</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/20">
+                    <span className="text-[10px] text-amber-600 block font-semibold">2. Montaj / Ustanovka:</span>
+                    <span className="text-sm font-black font-mono text-amber-600 mt-1 block">
+                      {fmt(totalEarnedInstalls)} so&apos;m
+                    </span>
+                    <span className="text-[10px] text-amber-700/70 mt-0.5 block">{totalInstallsCount} ta obyekt/nuqta</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/20">
+                    <span className="text-[10px] text-purple-600 block font-semibold">3. Savdo / Foyda Foizi:</span>
+                    <span className="text-sm font-black font-mono text-purple-600 mt-1 block">
+                      {fmt(totalEarnedPercent)} so&apos;m
+                    </span>
+                    <span className="text-[10px] text-purple-700/70 mt-0.5 block">Savdo rejasidan %</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/20">
+                    <span className="text-[10px] text-emerald-600 block font-semibold">4. Bonuslar:</span>
+                    <span className="text-sm font-black font-mono text-emerald-600 mt-1 block">
+                      +{fmt(totalBonus)} so&apos;m
+                    </span>
+                    <span className="text-[10px] text-emerald-700/70 mt-0.5 block">Mukofot pullari</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/20">
+                    <span className="text-[10px] text-rose-600 block font-semibold">5. Avans & Ushlanmalar:</span>
+                    <span className="text-sm font-black font-mono text-rose-600 mt-1 block">
+                      -{fmt(totalAdvance + totalDeduction)} so&apos;m
+                    </span>
+                    <span className="text-[10px] text-rose-700/70 mt-0.5 block">Avans: {fmt(totalAdvance)} | Jarima: {fmt(totalDeduction)}</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-emerald-500/50 bg-gradient-to-tr from-emerald-500/10 to-teal-500/10">
+                    <span className="text-[10px] text-emerald-700 dark:text-emerald-300 block font-bold uppercase">6. Jami To&apos;langan (Netto):</span>
+                    <span className="text-base font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">
+                      {fmt(totalNetPaid)} so&apos;m
+                    </span>
+                    <span className="text-[10px] text-emerald-600/70 mt-0.5 block">Brutto: {fmt(totalGross)} so&apos;m</span>
+                  </div>
+                </div>
+
+                {/* History Table */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                      Oyma-Oy Ish Haqi To&apos;lovlari Tarixi ({empPayrolls.length} ta)
+                    </span>
+                  </div>
+
+                  {empPayrolls.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                      Ushbu xodimga hali maosh hisoblanmagan
+                    </div>
+                  ) : (
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
+                          <tr>
+                            <th className="py-2.5 px-3">Davr</th>
+                            <th className="py-2.5 px-3 text-right">Oklad</th>
+                            <th className="py-2.5 px-3 text-right">Montaj</th>
+                            <th className="py-2.5 px-3 text-right">Foiz</th>
+                            <th className="py-2.5 px-3 text-right">Bonus/Jarima</th>
+                            <th className="py-2.5 px-3 text-right">Ushlangan Avans</th>
+                            <th className="py-2.5 px-3 text-right">Netto (Qo&apos;lga)</th>
+                            <th className="py-2.5 px-3 text-center">To&apos;lov Sanasi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
+                          {empPayrolls.map((p) => (
+                            <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                              <td className="py-2.5 px-3 font-sans font-bold text-slate-800 dark:text-slate-200">
+                                {p.periodLabel}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-bold text-slate-700 dark:text-slate-300">
+                                {fmt(p.baseSalary)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-amber-600 font-bold">
+                                {p.commissionTotal > 0 ? `${fmt(p.commissionTotal)} (${p.installationsCount} ta)` : '-'}
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-purple-600 font-bold">
+                                {(p.percentageTotal || 0) > 0 ? fmt(p.percentageTotal || 0) : '-'}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                <span className="text-emerald-600 font-bold">+{fmt(p.bonus)}</span> / <span className="text-rose-500 font-bold">-{fmt(p.deduction)}</span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-violet-600 font-bold">
+                                {p.advancePaid > 0 ? `-${fmt(p.advancePaid)}` : '0'}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                {fmt(p.totalNet)} so&apos;m
+                              </td>
+                              <td className="py-2.5 px-3 text-center text-[10px] text-slate-400 font-sans">
+                                {p.paidAt} ({p.paymentMethod === 'cash' ? 'Naqd' : 'Karta'})
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between shrink-0">
+                <span className="text-xs text-slate-500">
+                  {reportEmployee.fullName} bo&apos;yicha hisobot shakllantirildi
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReportEmployee(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                  >
+                    Yopish
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Otchotni Chop Etish</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

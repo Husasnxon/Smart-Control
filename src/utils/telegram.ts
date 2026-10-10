@@ -21,6 +21,8 @@ export interface TelegramSettings {
   notifyNewDebts: boolean;
   notifyServiceTickets: boolean;
   lastSentAt?: string;
+  scheduledSendTime?: string; // e.g. "21:00"
+  autoSchedulerEnabled?: boolean; // Avtomatik belgilangan vaqtda yuborish
 }
 
 export const DEFAULT_TELEGRAM_SETTINGS: TelegramSettings = {
@@ -34,6 +36,8 @@ export const DEFAULT_TELEGRAM_SETTINGS: TelegramSettings = {
   notifyLowStock: true,
   notifyNewDebts: true,
   notifyServiceTickets: true,
+  scheduledSendTime: '21:00',
+  autoSchedulerEnabled: false,
 };
 
 const STORAGE_KEY = 'sc_telegram_settings';
