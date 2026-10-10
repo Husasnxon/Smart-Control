@@ -233,15 +233,15 @@ Rahmat!`;
               </button>
             </div>
 
-            {/* USB Direct Print (WebUSB) */}
+            {/* Main Primary Direct Print Button */}
             <button
               type="button"
               onClick={handleUsbPrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold text-xs shadow-sm transition"
-              title="USB kabel orqali to'g'ridan-to'g'ri chop etish (Brauzer darchasisiz ESC/POS)"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition active:scale-95"
+              title="Ikkinchi darchaga o'tmasdan to'g'ridan-to'g'ri printerga yuborish"
             >
-              <Usb className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span className="hidden sm:inline">USB To&apos;g&apos;ridan-to&apos;g&apos;ri</span>
+              <Usb className="w-3.5 h-3.5" />
+              <span>To&apos;g&apos;ridan-to&apos;g&apos;ri Chop Etish</span>
             </button>
 
             {/* Bluetooth Direct Print */}
@@ -255,16 +255,16 @@ Rahmat!`;
               <span className="hidden sm:inline">Bluetooth</span>
             </button>
 
-            {/* Standard Driver / USB Print */}
+            {/* Standard Driver Dialog (Fallback) */}
             <button
               type="button"
               onClick={handlePrint}
               disabled={isPrinting}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold text-xs shadow-md transition disabled:opacity-50"
-              title="USB drayver yoki standart chop etish darchasi"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition"
+              title="Standart brauzer darchasini ochish (Drayver orqali)"
             >
               {isPrinting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
-              <span>Chop Etish</span>
+              <span className="hidden sm:inline">Brauzer darchasi</span>
             </button>
 
             {/* Settings Toggle */}
@@ -712,33 +712,34 @@ Rahmat!`;
             <button
               type="button"
               onClick={handleUsbPrint}
-              className="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5"
-              title="USB kabel orqali to'g'ridan-to'g'ri chop etish (Brauzer darchasisiz ESC/POS)"
+              className="px-4 py-2 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 transition active:scale-95 flex items-center gap-2"
+              title="Ikkinchi darchaga o'tmasdan to'g'ridan-to'g'ri USB printerdan chiqarish"
             >
-              <Usb className="w-3.5 h-3.5" />
-              <span>USB Chop Etish</span>
+              <Usb className="w-4 h-4" />
+              <span>To&apos;g&apos;ridan-to&apos;g&apos;ri Chop Etish ({paperWidth}mm)</span>
             </button>
             <button
               type="button"
               onClick={handleBluetoothPrint}
-              className="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20 transition flex items-center gap-1.5"
+              className="px-3.5 py-2 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20 transition flex items-center gap-1.5"
               title="Portativ Bluetooth printer orqali to'g'ridan-to'g'ri chiqarish"
             >
               <Bluetooth className="w-3.5 h-3.5" />
-              <span>Bluetooth Chop Etish</span>
+              <span>Bluetooth</span>
             </button>
             <button
               type="button"
               onClick={handlePrint}
               disabled={isPrinting}
-              className="px-4 py-1.5 rounded-xl font-bold text-xs bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/20 transition flex items-center gap-1.5 disabled:opacity-50"
+              className="px-3 py-2 rounded-xl font-semibold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1.5 disabled:opacity-50"
+              title="Standart brauzer darchasini ochish"
             >
               {isPrinting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
-              <span>Chop Etish ({paperWidth}mm)</span>
+              <span>Darcha orqali</span>
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-1.5 rounded-xl font-bold text-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 transition"
+              className="px-4 py-2 rounded-xl font-bold text-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 transition"
             >
               Yopish
             </button>

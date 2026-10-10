@@ -771,23 +771,38 @@ export async function printReceiptViaWebUSB(
   }
 
   try {
-    onStatusUpdate?.("USB printer tanlanmoqda...");
     const navUsb = (navigator as any).usb;
     
-    // Request any USB device or filter by printer class (0x07)
-    const device = await navUsb.requestDevice({
-      filters: []
-    });
+    // 1. Try previously paired USB devices first for instant 1-click zero-popup print
+    const pairedDevices = await navUsb.getDevices();
+    let device = pairedDevices.length > 0 ? pairedDevices[0] : null;
 
-    onStatusUpdate?.(`${device.productName || 'USB Printer'} ochilmoqda...`);
-    await device.open();
-
-    // Select configuration 1
-    if (device.configuration === null) {
-      await device.selectConfiguration(1);
+    if (!device) {
+      onStatusUpdate?.("USB printer tanlanmoqda...");
+      device = await navUsb.requestDevice({
+        filters: []
+      });
     }
 
-    // Find printer interface (Interface class 7 is printer) or first available interface
+    if (!device) {
+      return { success: false, message: "Printer topilmadi." };
+    }
+
+    onStatusUpdate?.(`${device.productName || 'USB Printer'} ochilmoqda...`);
+    if (!device.opened) {
+      await device.open();
+    }
+
+    // Select configuration 1 if needed
+    if (device.configuration === null) {
+      try {
+        await device.selectConfiguration(1);
+      } catch {
+        // ignore
+      }
+    }
+
+    // Find printer interface (Interface class 7 is printer) or first available OUT endpoint
     let interfaceNumber = 0;
     let endpointNumber = 1;
 
@@ -795,7 +810,6 @@ export async function printReceiptViaWebUSB(
     if (configuration && configuration.interfaces) {
       for (const iface of configuration.interfaces) {
         for (const alt of iface.alternates) {
-          // Check for OUT endpoint (direction: 'out')
           const outEndpoint = alt.endpoints.find((ep: any) => ep.direction === 'out');
           if (outEndpoint) {
             interfaceNumber = iface.interfaceNumber;
@@ -806,25 +820,32 @@ export async function printReceiptViaWebUSB(
       }
     }
 
-    await device.claimInterface(interfaceNumber);
-    onStatusUpdate?.("Chek USB orqali yuborilmoqda...");
+    try {
+      await device.claimInterface(interfaceNumber);
+    } catch {
+      // interface may already be claimed
+    }
+
+    onStatusUpdate?.("Chek USB orqali chop etilmoqda...");
 
     const escPosData = generateEscPosReceiptBytes(receipt, width, customFooter);
     await device.transferOut(endpointNumber, escPosData);
 
-    onStatusUpdate?.("Chop etildi!");
+    onStatusUpdate?.("Muvaffaqiyatli chop etildi!");
     
     // Release and close cleanly
-    try {
-      await device.releaseInterface(interfaceNumber);
-      await device.close();
-    } catch {
-      // ignore
-    }
+    setTimeout(async () => {
+      try {
+        await device.releaseInterface(interfaceNumber);
+        await device.close();
+      } catch {
+        // ignore
+      }
+    }, 500);
 
     return {
       success: true,
-      message: "Chek USB orqali to'g'ridan-to'g'ri chop etildi!",
+      message: "Chek to'g'ridan-to'g'ri chop etildi!",
       deviceName: device.productName || 'USB Printer'
     };
 
@@ -835,7 +856,7 @@ export async function printReceiptViaWebUSB(
     }
     return {
       success: false,
-      message: error.message || "USB printerga ulanishda xatolik yuz berdi. (Windows drayveri band qilgan bo'lishi mumkin)."
+      message: error.message || "USB printerga ulanishda xatolik yuz berdi."
     };
   }
 }
