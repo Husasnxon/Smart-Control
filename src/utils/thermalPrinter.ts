@@ -186,8 +186,22 @@ export function generateThermalReceiptHtml(
         <title>Chek: ${receipt.receiptNumber}</title>
         <style>
           @page {
-            size: ${is58 ? `58mm ${approxHeightMm}mm` : `80mm ${approxHeightMm}mm`};
+            size: portrait;
             margin: 0mm;
+          }
+          @media print {
+            @page {
+              size: portrait;
+              margin: 0mm;
+            }
+            html, body {
+              width: ${is58 ? '48mm' : '72mm'} !important;
+              max-width: ${is58 ? '48mm' : '72mm'} !important;
+              min-width: ${is58 ? '48mm' : '72mm'} !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              overflow: visible !important;
+            }
           }
           * {
             box-sizing: border-box !important;
@@ -195,9 +209,10 @@ export function generateThermalReceiptHtml(
             print-color-adjust: exact !important;
           }
           html, body {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 auto !important;
+            width: ${is58 ? '48mm' : '72mm'} !important;
+            max-width: ${is58 ? '48mm' : '72mm'} !important;
+            min-width: ${is58 ? '48mm' : '72mm'} !important;
+            margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
             color: #000000 !important;
@@ -207,8 +222,8 @@ export function generateThermalReceiptHtml(
           }
           .receipt-box {
             width: 100% !important;
-            padding: 4px 6px;
-            margin: 0 auto;
+            padding: 1mm 1.5mm;
+            margin: 0;
           }
         </style>
       </head>
@@ -407,8 +422,8 @@ export function printRawHtmlInIframe(htmlContent: string): Promise<boolean> {
       iframe.style.position = 'fixed';
       iframe.style.top = '0';
       iframe.style.left = '0';
-      iframe.style.width = '100vw';
-      iframe.style.height = '100vh';
+      iframe.style.width = '380px';
+      iframe.style.height = '600px';
       iframe.style.border = 'none';
       iframe.style.opacity = '0';
       iframe.style.pointerEvents = 'none';
