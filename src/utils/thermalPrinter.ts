@@ -18,29 +18,29 @@ export function generateThermalReceiptHtml(
 ): string {
   const { width = '58', customFooter = "Xaridingiz uchun tashakkur! Barakali bo'lsin!", showQR = true, branchName = 'Asosiy Filial', storePhone = '+998 90 123-45-67' } = options;
   const is58 = width === '58';
-  const paperWidthPx = is58 ? '48mm' : '72mm';
-  const fontSize = is58 ? '10.5px' : '12px';
-  const titleSize = is58 ? '13px' : '15px';
-  const smallSize = is58 ? '9px' : '10px';
+  const fontSize = is58 ? '12.5px' : '14px';
+  const titleSize = is58 ? '16px' : '18px';
+  const subTitleSize = is58 ? '11.5px' : '13px';
+  const smallSize = is58 ? '11px' : '12px';
 
   const netTotal = receipt.totalAmount - (receipt.totalRefunded || 0);
 
   const itemsRows = receipt.items.map((it, idx) => {
     const itemTotal = it.quantity * it.appliedPrice;
     const serialsHtml = it.selectedSerialNumbers && it.selectedSerialNumbers.length > 0 
-      ? `<div style="font-size:${smallSize};font-weight:bold;margin:1px 0;padding:1px 3px;border:1px dashed #000;">S/N: ${it.selectedSerialNumbers.join(', ')}</div>`
+      ? `<div style="font-size:${smallSize};font-weight:bold;margin:2px 0;padding:1px 3px;border:1px dashed #000;">S/N: ${it.selectedSerialNumbers.join(', ')}</div>`
       : '';
     const returnHtml = it.returnedQuantity && it.returnedQuantity > 0 
-      ? `<div style="font-size:8px;font-weight:bold;font-style:italic;">[Qaytarildi: ${it.returnedQuantity} ${it.product.unit}]</div>`
+      ? `<div style="font-size:10px;font-weight:bold;font-style:italic;">[Qaytarildi: ${it.returnedQuantity} ${it.product.unit}]</div>`
       : '';
 
     return `
-      <div style="margin-bottom: 5px; page-break-inside: avoid;">
-        <div style="font-weight: bold; line-height: 1.15;">${idx + 1}. ${escapeHtml(it.product.name)}</div>
+      <div style="margin-bottom: 6px; page-break-inside: avoid; border-bottom: 1px dotted #ccc; padding-bottom: 4px;">
+        <div style="font-weight: 900; line-height: 1.2; font-size: ${fontSize};">${idx + 1}. ${escapeHtml(it.product.name)}</div>
         ${serialsHtml}
-        <div style="display: flex; justify-content: space-between; font-size: ${smallSize}; margin-top: 1px;">
+        <div style="display: flex; justify-content: space-between; font-size: ${smallSize}; margin-top: 2px;">
           <span>${it.quantity} ${it.product.unit} × ${formatNumberWithSpaces(it.appliedPrice)}</span>
-          <span style="font-weight: bold;">${formatNumberWithSpaces(itemTotal)}</span>
+          <span style="font-weight: 900; font-size: ${fontSize};">${formatNumberWithSpaces(itemTotal)}</span>
         </div>
         ${returnHtml}
       </div>
@@ -48,22 +48,22 @@ export function generateThermalReceiptHtml(
   }).join('');
 
   const statusStamp = receipt.status === 'returned'
-    ? `<div style="margin-top:4px;padding:2px;background:#000;color:#fff;font-weight:bold;font-size:9px;text-align:center;">[ BEKOR QILINDI / VOZVRAT ]</div>`
+    ? `<div style="margin-top:4px;padding:3px;background:#000;color:#fff;font-weight:900;font-size:11px;text-align:center;">[ BEKOR QILINDI / VOZVRAT ]</div>`
     : receipt.status === 'partially_returned'
-    ? `<div style="margin-top:4px;padding:2px;background:#000;color:#fff;font-weight:bold;font-size:9px;text-align:center;">[ QISMAN QAYTARILGAN ]</div>`
+    ? `<div style="margin-top:4px;padding:3px;background:#000;color:#fff;font-weight:900;font-size:11px;text-align:center;">[ QISMAN QAYTARILGAN ]</div>`
     : receipt.status === 'edited'
-    ? `<div style="margin-top:4px;padding:2px;border:1px solid #000;font-weight:bold;font-size:9px;text-align:center;">[ TAHRIRLANGAN CHEK ]</div>`
+    ? `<div style="margin-top:4px;padding:3px;border:1px solid #000;font-weight:bold;font-size:11px;text-align:center;">[ TAHRIRLANGAN CHEK ]</div>`
     : '';
 
   const returnedBox = receipt.returnedItems && receipt.returnedItems.length > 0
     ? `
-      <div style="border: 1px dashed #000; padding: 4px; margin: 5px 0; font-size: ${smallSize};">
-        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+      <div style="border: 1px dashed #000; padding: 4px; margin: 6px 0; font-size: ${smallSize};">
+        <div style="display:flex;justify-content:space-between;font-weight:900;">
           <span>Qaytarilganlar (Vozvrat):</span>
           <span>-${formatNumberWithSpaces(receipt.totalRefunded || 0)}</span>
         </div>
         ${receipt.returnedItems.map(r => `
-          <div style="display:flex;justify-content:space-between;border-top:1px dotted #666;padding-top:2px;font-size:8px;">
+          <div style="display:flex;justify-content:space-between;border-top:1px dotted #666;padding-top:2px;font-size:10px;">
             <span>• ${escapeHtml(r.productName)} (${r.quantity} ta)</span>
             <span style="font-weight:bold;">-${formatNumberWithSpaces(r.totalRefund)}</span>
           </div>
@@ -73,7 +73,7 @@ export function generateThermalReceiptHtml(
     : '';
 
   const paymentsHtml = `
-    <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; font-size: ${smallSize};">
+    <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 5px; font-size: ${smallSize};">
       ${receipt.payments.cashUSD && receipt.payments.cashUSD > 0 ? `
         <div style="display:flex;justify-content:space-between;font-weight:bold;">
           <span>Naqd Dollar ($ USD):</span>
@@ -83,19 +83,19 @@ export function generateThermalReceiptHtml(
       ${receipt.payments.cash > 0 ? `
         <div style="display:flex;justify-content:space-between;">
           <span>Naqd So'm:</span>
-          <span>${formatNumberWithSpaces(receipt.payments.cash)} so'm</span>
+          <span style="font-weight:bold;">${formatNumberWithSpaces(receipt.payments.cash)} so'm</span>
         </div>
       ` : ''}
       ${receipt.payments.card > 0 ? `
         <div style="display:flex;justify-content:space-between;">
-          <span>Karta:</span>
-          <span>${formatNumberWithSpaces(receipt.payments.card)} so'm</span>
+          <span>Karta (Uzcard/Humo):</span>
+          <span style="font-weight:bold;">${formatNumberWithSpaces(receipt.payments.card)} so'm</span>
         </div>
       ` : ''}
       ${receipt.payments.debt > 0 ? `
-        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+        <div style="display:flex;justify-content:space-between;font-weight:900;">
           <span>Nasiya / Qarz:</span>
-          <span>${formatNumberWithSpaces(receipt.payments.debt)} so'm</span>
+          <span style="font-weight:900;">${formatNumberWithSpaces(receipt.payments.debt)} so'm</span>
         </div>
       ` : ''}
     </div>
@@ -103,12 +103,12 @@ export function generateThermalReceiptHtml(
 
   const warrantyHtml = receipt.warrantyMonths && receipt.warrantyMonths > 0
     ? `
-      <div style="border: 1px solid #000; padding: 4px; margin: 5px 0; font-size: ${smallSize};">
-        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+      <div style="border: 1px solid #000; padding: 5px; margin: 6px 0; font-size: ${smallSize};">
+        <div style="display:flex;justify-content:space-between;font-weight:900;">
           <span>KAFOLAT TALONI:</span>
           <span>${receipt.warrantyMonths} OY</span>
         </div>
-        <div style="font-size:8px;line-height:1.15;margin-top:2px;">
+        <div style="font-size:10px;line-height:1.2;margin-top:2px;">
           Kafolat uskuna S/N seriya raqami va ushbu chek orqali servis markazida amal qiladi. Plomba butunligi shart.
         </div>
       </div>
@@ -117,14 +117,14 @@ export function generateThermalReceiptHtml(
 
   const cashbackHtml = receipt.customer
     ? `
-      <div style="border: 1px dotted #000; padding: 3px; margin: 4px 0; font-size: ${smallSize};">
+      <div style="border: 1px dotted #000; padding: 4px; margin: 5px 0; font-size: ${smallSize};">
         <div style="display:flex;justify-content:space-between;font-weight:bold;">
           <span>Cashback qo'shildi:</span>
           <span>+${(receipt.cashbackEarned || 0).toLocaleString()} so'm</span>
         </div>
         <div style="display:flex;justify-content:space-between;">
           <span>Jami Cashback balansingiz:</span>
-          <span style="font-weight:bold;">${((receipt.customer.cashbackBalance || 0) - (receipt.payments.cashbackUsed || 0) + (receipt.cashbackEarned || 0)).toLocaleString()} so'm</span>
+          <span style="font-weight:900;">${((receipt.customer.cashbackBalance || 0) - (receipt.payments.cashbackUsed || 0) + (receipt.cashbackEarned || 0)).toLocaleString()} so'm</span>
         </div>
       </div>
     `
@@ -132,8 +132,8 @@ export function generateThermalReceiptHtml(
 
   // SVG QR Code representation
   const qrSvg = showQR ? `
-    <div style="text-align: center; margin: 5px 0;">
-      <svg width="70" height="70" viewBox="0 0 100 100" style="margin: 0 auto; display: block;">
+    <div style="text-align: center; margin: 6px 0;">
+      <svg width="80" height="80" viewBox="0 0 100 100" style="margin: 0 auto; display: block;">
         <rect width="100" height="100" fill="#ffffff" />
         <!-- Corner 1 -->
         <rect x="5" y="5" width="30" height="30" fill="#000000" />
@@ -162,7 +162,7 @@ export function generateThermalReceiptHtml(
         <rect x="70" y="65" width="15" height="15" fill="#000000" />
         <rect x="75" y="70" width="5" height="5" fill="#ffffff" />
       </svg>
-      <div style="font-size: 8px; font-family: monospace; margin-top: 2px;">${escapeHtml(receipt.receiptNumber)}</div>
+      <div style="font-size: 10px; font-family: monospace; font-weight: bold; margin-top: 2px;">${escapeHtml(receipt.receiptNumber)}</div>
     </div>
   ` : '';
 
@@ -174,41 +174,27 @@ export function generateThermalReceiptHtml(
         <title>Chek: ${receipt.receiptNumber}</title>
         <style>
           @page {
-            size: portrait;
+            size: auto;
             margin: 0mm;
           }
-          @media print {
-            @page {
-              size: portrait;
-              margin: 0mm;
-            }
-            html, body {
-              width: 100% !important;
-              max-width: ${paperWidthPx} !important;
-              margin: 0 auto !important;
-              padding: 0 !important;
-            }
-          }
           * {
-            box-sizing: border-box;
+            box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
           html, body {
-            width: 100%;
-            max-width: ${paperWidthPx};
-            margin: 0 auto;
-            padding: 0;
-            background: #ffffff;
-            color: #000000;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Courier New", Courier, monospace;
             font-size: ${fontSize};
-            line-height: 1.2;
+            line-height: 1.25;
           }
           .receipt-box {
-            width: 100%;
-            max-width: ${paperWidthPx};
-            padding: ${is58 ? '4px 3px' : '8px 6px'};
+            width: 100% !important;
+            padding: 4px 6px;
             margin: 0 auto;
           }
         </style>
@@ -216,9 +202,9 @@ export function generateThermalReceiptHtml(
       <body>
         <div class="receipt-box">
           <!-- Store Header -->
-          <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px;">
+          <div style="text-align: center; border-bottom: 2px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
             <div style="font-weight: 900; font-size: ${titleSize}; letter-spacing: 0.5px;">SMART CONTROL</div>
-            <div style="font-weight: bold; font-size: ${smallSize}; text-transform: uppercase;">Xavfsizlik & Tarmoq Tizimlari</div>
+            <div style="font-weight: bold; font-size: ${subTitleSize}; text-transform: uppercase;">Xavfsizlik & Tarmoq Tizimlari</div>
             <div style="font-size: ${smallSize};">Kameralar · Domofon · Tarmoq · Montaj</div>
             <div style="font-size: ${smallSize}; font-weight: bold; margin-top: 2px;">${escapeHtml(receipt.branchName || branchName)}</div>
             <div style="font-size: ${smallSize}; font-family: monospace;">Tel: ${escapeHtml(storePhone)}</div>
@@ -226,10 +212,10 @@ export function generateThermalReceiptHtml(
           </div>
 
           <!-- Metadata -->
-          <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; font-size: ${smallSize};">
+          <div style="border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; font-size: ${smallSize};">
             <div style="display:flex; justify-content:space-between;">
               <span>Chek raqami:</span>
-              <span style="font-weight:bold;">${escapeHtml(receipt.receiptNumber)}</span>
+              <span style="font-weight:900;">${escapeHtml(receipt.receiptNumber)}</span>
             </div>
             <div style="display:flex; justify-content:space-between;">
               <span>Sana / Vaqt:</span>
@@ -240,7 +226,7 @@ export function generateThermalReceiptHtml(
               <span>${escapeHtml(receipt.cashierName)}</span>
             </div>
             ${receipt.customer ? `
-              <div style="display:flex; justify-content:space-between; font-weight:bold; border-top:1px dotted #999; margin-top:2px; padding-top:2px;">
+              <div style="display:flex; justify-content:space-between; font-weight:900; border-top:1px dotted #999; margin-top:3px; padding-top:3px;">
                 <span>Mijoz:</span>
                 <span>${escapeHtml(receipt.customer.fullName)}</span>
               </div>
@@ -262,8 +248,8 @@ export function generateThermalReceiptHtml(
           </div>
 
           <!-- Items Table -->
-          <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px;">
-            <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:${smallSize}; border-bottom:1px solid #000; padding-bottom:2px; margin-bottom:3px; text-transform:uppercase;">
+          <div style="border-bottom: 2px dashed #000; padding-bottom: 5px; margin-bottom: 5px;">
+            <div style="display:flex; justify-content:space-between; font-weight:900; font-size:${smallSize}; border-bottom:1px solid #000; padding-bottom:3px; margin-bottom:4px; text-transform:uppercase;">
               <span>Tovar / Xizmat</span>
               <span>Summa</span>
             </div>
@@ -273,7 +259,7 @@ export function generateThermalReceiptHtml(
           ${returnedBox}
 
           <!-- Totals -->
-          <div style="border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; font-size: ${smallSize};">
+          <div style="border-bottom: 2px dashed #000; padding-bottom: 5px; margin-bottom: 5px; font-size: ${smallSize};">
             <div style="display:flex; justify-content:space-between;">
               <span>Oraliq jami:</span>
               <span>${formatNumberWithSpaces(receipt.subtotal)} so'm</span>
@@ -290,18 +276,18 @@ export function generateThermalReceiptHtml(
                 <span>-${formatNumberWithSpaces(receipt.payments.cashbackUsed)} so'm</span>
               </div>
             ` : ''}
-            <div style="display:flex; justify-content:space-between; font-weight:900; font-size:${fontSize}; border-top:1px solid #000; padding-top:2px; margin-top:2px;">
+            <div style="display:flex; justify-content:space-between; font-weight:900; font-size:${titleSize}; border-top:1.5px solid #000; padding-top:3px; margin-top:3px;">
               <span>JAMI TO'LOV:</span>
               <span>${formatNumberWithSpaces(receipt.totalAmount)} so'm</span>
             </div>
             ${receipt.totalRefunded && receipt.totalRefunded > 0 ? `
-              <div style="display:flex; justify-content:space-between; font-weight:bold; border-top:1px dashed #000; padding-top:2px;">
+              <div style="display:flex; justify-content:space-between; font-weight:900; border-top:1px dashed #000; padding-top:3px;">
                 <span>SOF SUMMA:</span>
                 <span>${formatNumberWithSpaces(netTotal)} so'm</span>
               </div>
             ` : ''}
             ${receipt.exchangeRate ? `
-              <div style="display:flex; justify-content:space-between; font-size:8.5px; font-weight:bold; margin-top:2px;">
+              <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:bold; margin-top:2px;">
                 <span>Valyutada ($ USD):</span>
                 <span>$${formatUSDNumber(receipt.totalAmountUSD || Number(receipt.totalAmount / receipt.exchangeRate))} (1$=${formatNumberWithSpaces(receipt.exchangeRate)})</span>
               </div>
@@ -311,7 +297,7 @@ export function generateThermalReceiptHtml(
           ${paymentsHtml}
 
           ${receipt.notes ? `
-            <div style="border: 1px dotted #999; padding: 3px; margin: 4px 0; font-size: 8.5px;">
+            <div style="border: 1px dotted #999; padding: 4px; margin: 5px 0; font-size: 10px;">
               <strong>Izoh:</strong> ${escapeHtml(receipt.notes)}
             </div>
           ` : ''}
@@ -320,12 +306,12 @@ export function generateThermalReceiptHtml(
           ${cashbackHtml}
 
           <!-- Footer & QR -->
-          <div style="text-align: center; margin-top: 5px; font-size: ${smallSize};">
+          <div style="text-align: center; margin-top: 6px; font-size: ${smallSize};">
             ${qrSvg}
-            <div style="letter-spacing: 4px; font-weight: bold; font-family: monospace; font-size: 11px; margin: 3px 0;">||| | |||| || ||| ||||</div>
-            <div style="font-weight: bold; margin: 3px 0;">${escapeHtml(customFooter)}</div>
-            <div style="font-size: 8px; color: #333;">Smart Control Security Systems</div>
-            <div style="font-size: 7.5px; color: #555;">${receipt.isOffline ? '[Oflayn chek]' : '✓ Tizimda tasdiqlangan'}</div>
+            <div style="letter-spacing: 4px; font-weight: 900; font-family: monospace; font-size: 13px; margin: 4px 0;">||| | |||| || ||| ||||</div>
+            <div style="font-weight: 900; margin: 4px 0; font-size: ${subTitleSize};">${escapeHtml(customFooter)}</div>
+            <div style="font-size: 9px; color: #333;">Smart Control Security Systems</div>
+            <div style="font-size: 8.5px; color: #555;">${receipt.isOffline ? '[Oflayn chek]' : '✓ Tizimda tasdiqlangan'}</div>
           </div>
         </div>
       </body>
