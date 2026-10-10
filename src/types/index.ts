@@ -747,18 +747,24 @@ export interface CrmObjectInstalledItem {
   quantity: number;
 }
 
+export type FloorPlanPinCategory = 'cctv' | 'intercom' | 'network' | 'alarm_fire' | 'power';
+
 export type FloorPlanPinType = 
   | 'camera_bullet' 
   | 'camera_dome' 
   | 'camera_ptz' 
+  | 'nvr_server' 
   | 'intercom_outdoor' 
   | 'intercom_monitor' 
-  | 'nvr_server' 
-  | 'switch_poe' 
+  | 'smart_lock' 
+  | 'wifi_router'
   | 'wifi_ap' 
+  | 'switch_poe' 
+  | 'siren_strobe'
   | 'motion_sensor' 
   | 'smoke_sensor' 
-  | 'smart_lock' 
+  | 'gas_sensor'
+  | 'ups_battery'
   | 'power_box' 
   | 'other';
 
