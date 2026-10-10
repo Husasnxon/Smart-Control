@@ -185,7 +185,6 @@ export const POSScreen: React.FC<POSScreenProps> = ({
   // Auto focus S/N scanner input when modal opens
   useEffect(() => {
     if (snPickerProduct) {
-      setSnSearchQuery('');
       const timer = setTimeout(() => {
         snInputRef.current?.focus();
       }, 100);
@@ -242,6 +241,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
       if (availableSerials.length === 1) {
         addSerializedItemToCart(product, availableSerials[0]);
       } else {
+        setSnSearchQuery('');
         setSnPickerProduct(product);
         setSnPickerSelected(availableSerials[0]);
       }
@@ -672,11 +672,16 @@ export const POSScreen: React.FC<POSScreenProps> = ({
   };
 
   // Keyboard shortcut listener (F2 for quick cash, F4 for detailed payment)
+  const handleQuickCashSaleRef = useRef(handleQuickCashSale);
+  useEffect(() => {
+    handleQuickCashSaleRef.current = handleQuickCashSale;
+  });
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2' && cart.length > 0) {
         e.preventDefault();
-        handleQuickCashSale();
+        handleQuickCashSaleRef.current();
       } else if (e.key === 'F4' && cart.length > 0) {
         e.preventDefault();
         setIsPaymentModalOpen(true);
@@ -684,7 +689,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, totalAmount]);
+  }, [cart.length]);
 
   return (
     <div className="flex-1 flex overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -1736,7 +1741,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                   className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                 />
                 <label htmlFor="posNoCashbackCheck" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer select-none">
-                  Keshbekni o'chirish (0% keshbek va 0 bonus)
+                  Keshbekni o&apos;chirish (0% keshbek va 0 bonus)
                 </label>
               </div>
 
@@ -1748,7 +1753,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                   <select
                     value={newCustTier}
                     onChange={(e) => {
-                      const val = e.target.value as any;
+                      const val = e.target.value as Customer['tier'];
                       setNewCustTier(val);
                       if (val === 'None') {
                         setNewCustNoCashback(true);

@@ -111,10 +111,14 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
   const [actualCashUZSInput, setActualCashUZSInput] = useState<string>(stats.expectedCashUZS.toString());
   const [actualCashUSDInput, setActualCashUSDInput] = useState<string>(stats.expectedCashUSD.toString());
 
-  useEffect(() => {
+  const [prevExpectedUZS, setPrevExpectedUZS] = useState(stats.expectedCashUZS);
+  const [prevExpectedUSD, setPrevExpectedUSD] = useState(stats.expectedCashUSD);
+  if (stats.expectedCashUZS !== prevExpectedUZS || stats.expectedCashUSD !== prevExpectedUSD) {
+    setPrevExpectedUZS(stats.expectedCashUZS);
+    setPrevExpectedUSD(stats.expectedCashUSD);
     setActualCashUZSInput(stats.expectedCashUZS.toString());
     setActualCashUSDInput(stats.expectedCashUSD.toString());
-  }, [stats.expectedCashUZS, stats.expectedCashUSD]);
+  }
 
   const actualCashUZS = Number(actualCashUZSInput) || 0;
   const actualCashUSD = Number(actualCashUSDInput) || 0;

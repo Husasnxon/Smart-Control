@@ -47,7 +47,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({
       };
       img.src = value;
     }
-  }, [value]);
+  }, [value, hasDrawn]);
 
   const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;

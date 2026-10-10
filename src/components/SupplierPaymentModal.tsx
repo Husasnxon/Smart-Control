@@ -31,6 +31,8 @@ interface SupplierPaymentModalProps {
   onConfirmPayment: (payment: PurchasePaymentRecord, updatedInvoice: PurchaseInvoice) => void;
 }
 
+const generateSupplierPaymentId = () => `ppay-${Date.now()}`;
+
 export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
   isOpen,
   onClose,
@@ -150,7 +152,8 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
 
   // Setup initial selection on open
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
       const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
       setPaymentDate(now);
       setNotes('');
@@ -214,7 +217,8 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           setPaymentAmount('');
         }
       }
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [isOpen, preselectedPurchaseId, preselectedSupplierName, activePurchases, suppliersWithDebtInfo, exchangeRate]);
 
   // Selected supplier object
@@ -314,7 +318,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
     }
 
     const paymentRecord: PurchasePaymentRecord = {
-      id: `ppay-${Date.now()}`,
+      id: generateSupplierPaymentId(),
       purchaseId: selectedInvoice.id,
       invoiceNumber: selectedInvoice.invoiceNumber,
       supplierName: selectedInvoice.supplierName,
@@ -717,7 +721,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               </label>
               <select
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as any)}
+                onChange={(e) => setPaymentMethod(e.target.value as PurchasePaymentRecord['paymentMethod'])}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="usd">Dollar ($ USD - Naqd)</option>

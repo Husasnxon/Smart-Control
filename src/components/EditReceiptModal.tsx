@@ -24,9 +24,7 @@ import {
   Coins, 
   Banknote, 
   CreditCard,
-  User,
-  CheckCircle2,
-  AlertCircle
+  User
 } from 'lucide-react';
 
 interface EditReceiptModalProps {
@@ -47,7 +45,11 @@ interface EditReceiptModalProps {
   ) => void;
 }
 
-export const EditReceiptModal: React.FC<EditReceiptModalProps> = ({
+interface EditReceiptModalContentProps extends EditReceiptModalProps {
+  receipt: SaleReceipt;
+}
+
+const EditReceiptModalContent: React.FC<EditReceiptModalContentProps> = ({
   receipt,
   products,
   customers,
@@ -56,8 +58,6 @@ export const EditReceiptModal: React.FC<EditReceiptModalProps> = ({
   onClose,
   onSaveEdit
 }) => {
-  if (!receipt) return null;
-
   // Active Tab
   const [activeTab, setActiveTab] = useState<'add_items' | 'edit_details'>('add_items');
 
@@ -853,4 +853,9 @@ export const EditReceiptModal: React.FC<EditReceiptModalProps> = ({
       </div>
     </div>
   );
+};
+
+export const EditReceiptModal: React.FC<EditReceiptModalProps> = (props) => {
+  if (!props.receipt) return null;
+  return <EditReceiptModalContent {...props} receipt={props.receipt} />;
 };

@@ -87,6 +87,23 @@ interface ExpensesScreenProps {
   initialSubTab?: 'all' | 'incomes' | 'expenses' | 'employees';
 }
 
+interface ReceiptLineItem {
+  name: string;
+  quantity: number;
+  unit: string;
+  price: number;
+  total: number;
+  serials?: string[];
+}
+
+interface ReceiptTransaction extends Expense {
+  isReceipt: true;
+  itemsList: ReceiptLineItem[];
+}
+
+type ExpenseTransaction = Expense & { isReceipt?: false; itemsList?: never };
+type TransactionRecord = ExpenseTransaction | ReceiptTransaction;
+
 export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   expenses,
   categories,
@@ -127,7 +144,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
   const [isCategoryManageModalOpen, setIsCategoryManageModalOpen] = useState(false);
   const [selectedVoucherExpense, setSelectedVoucherExpense] = useState<Expense | null>(null);
-  const [selectedReceiptForItems, setSelectedReceiptForItems] = useState<(Expense & { itemsList?: any[] }) | null>(null);
+  const [selectedReceiptForItems, setSelectedReceiptForItems] = useState<ReceiptTransaction | null>(null);
 
   // Keyboard Escape listener to close modals
   useEffect(() => {
@@ -461,17 +478,14 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   };
 
   // Synthesize POS Sales & Receipts into Cash Flow Transactions (so all sold goods & cash payments appear in finance)
-  const receiptTransactions: (Expense & { 
-    isReceipt?: boolean; 
-    itemsList?: { name: string; quantity: number; unit: string; price: number; total: number; serials?: string[] }[] 
-  })[] = useMemo(() => {
+  const receiptTransactions = useMemo<ReceiptTransaction[]>(() => {
     const existingLinkedReceiptIds = new Set(
       expenses.filter(e => e.linkedDocType === 'receipt' && e.linkedDocId).map(e => e.linkedDocId)
     );
 
     return (receipts || [])
       .filter(r => r.status !== 'returned' && !existingLinkedReceiptIds.has(r.id))
-      .map(r => {
+      .map((r): ReceiptTransaction => {
         const cashUZS = r.payments?.cash || 0;
         const cardUZS = r.payments?.card || 0;
         const usdPaid = r.payments?.cashUSD || 0;
@@ -526,7 +540,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   }, [receipts, expenses, exchangeRate]);
 
   // Combined transactions ledger
-  const allTransactions = useMemo(() => {
+  const allTransactions = useMemo<TransactionRecord[]>(() => {
     return [...receiptTransactions, ...expenses].sort((a, b) => {
       const timeA = new Date(a.createdAt).getTime() || 0;
       const timeB = new Date(b.createdAt).getTime() || 0;
@@ -589,7 +603,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
         const matchCategory = e.category?.toLowerCase().includes(q);
         const matchDoc = e.linkedDocNumber?.toLowerCase().includes(q);
         const matchCustomer = e.customerName?.toLowerCase().includes(q);
-        const matchItems = (e as any).itemsList?.some((it: any) => it.name?.toLowerCase().includes(q));
+        const matchItems = 'itemsList' in e && e.itemsList?.some((item) => item.name.toLowerCase().includes(q));
         if (!matchNotes && !matchPaidTo && !matchPaidBy && !matchCategory && !matchDoc && !matchCustomer && !matchItems) {
           return false;
         }
@@ -1121,18 +1135,18 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if ((trx as any).itemsList) {
+                                  if (trx.isReceipt) {
                                     setSelectedReceiptForItems(trx);
                                   }
                                 }}
                                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono font-bold text-[11px] transition ${
-                                  (trx as any).isReceipt
+                                  trx.isReceipt
                                     ? 'bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-700 dark:text-purple-300 cursor-pointer'
                                     : 'bg-teal-500/10 border-teal-500/30 text-teal-700 dark:text-teal-300'
                                 }`}
-                                title={(trx as any).itemsList ? "Sotilgan tovarlar ro'yxatini ko'rish" : undefined}
+                                title={trx.isReceipt ? "Sotilgan tovarlar ro'yxatini ko'rish" : undefined}
                               >
-                                {(trx as any).isReceipt ? (
+                                {trx.isReceipt ? (
                                   <Receipt className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
                                 ) : (
                                   <Package className="w-3.5 h-3.5 text-teal-500 shrink-0" />
@@ -1155,14 +1169,14 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                               <span className="text-slate-700 dark:text-slate-200 font-medium block truncate" title={trx.notes}>
                                 {trx.notes}
                               </span>
-                              {(trx as any).itemsList && (trx as any).itemsList.length > 0 && (
+                              {trx.isReceipt && trx.itemsList.length > 0 && (
                                 <button
                                   type="button"
                                   onClick={() => setSelectedReceiptForItems(trx)}
                                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 hover:bg-purple-200 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[10px] font-bold transition"
                                 >
                                   <Package className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                                  <span>📦 {(trx as any).itemsList.length} ta sotilgan tovar ro&apos;yxati</span>
+                                  <span>📦 {trx.itemsList.length} ta sotilgan tovar ro&apos;yxati</span>
                                 </button>
                               )}
                             </div>
@@ -1218,7 +1232,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                           {/* 10. Actions / Voucher Print */}
                           <td className="py-3 px-4 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1">
-                              {(trx as any).itemsList ? (
+                              {trx.isReceipt ? (
                                 <button
                                   type="button"
                                   onClick={() => setSelectedReceiptForItems(trx)}
@@ -1237,7 +1251,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                                   <Printer className="w-3.5 h-3.5" />
                                 </button>
                               )}
-                              {onDeleteExpense && !(trx as any).isReceipt && (
+                              {onDeleteExpense && !trx.isReceipt && (
                                 <button
                                   onClick={() => {
                                     if (window.confirm("Rostdan ham ushbu moliya yozuvini o'chirmoqchimisiz?")) {
@@ -2652,7 +2666,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-sans">
-                        {(selectedReceiptForItems.itemsList || []).map((it: any, idx: number) => (
+                        {selectedReceiptForItems.itemsList.map((it, idx) => (
                           <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                             <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
                             <td className="py-2.5 px-3">

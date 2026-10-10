@@ -385,7 +385,7 @@ export const PIN_CONFIG: Record<FloorPlanPinType, PinConfigItem> = {
   other: { label: 'Boshqa Nuqta', category: 'cctv', color: 'text-slate-300', bgColor: 'bg-slate-600', borderColor: 'border-slate-400', defaultCoverage: 0, isDirectional: false }
 };
 
-export const CATEGORIES_CONFIG: Record<FloorPlanPinCategory, { title: string; icon: any; color: string; bg: string }> = {
+export const CATEGORIES_CONFIG: Record<FloorPlanPinCategory, { title: string; icon: React.ElementType; color: string; bg: string }> = {
   cctv: { title: '📹 Videokuzatuv', icon: Video, color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/30' },
   intercom: { title: '🚪 Domofoniya', icon: DoorClosed, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' },
   network: { title: '🌐 Tarmoq & Wi-Fi', icon: Wifi, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/30' },
@@ -407,7 +407,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
   onClose,
   isReadOnly = false
 }) => {
-  const [floorPlans, setFloorPlans] = useState<ObjectFloorPlan[]>(
+  const [floorPlans, setFloorPlans] = useState<ObjectFloorPlan[]>(() =>
     objectPassport.floorPlans && objectPassport.floorPlans.length > 0 
       ? objectPassport.floorPlans 
       : [{
@@ -418,7 +418,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
           pins: []
         }]
   );
-  const [activePlanId, setActivePlanId] = useState<string>(floorPlans[0]?.id || '');
+  const [activePlanId, setActivePlanId] = useState<string>(() => floorPlans[0]?.id || '');
   const [selectedPin, setSelectedPin] = useState<FloorPlanPin | null>(null);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   
@@ -446,14 +446,8 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
-  const activePlan = floorPlans.find(p => p.id === activePlanId) || floorPlans[0];
-
-  // Sync active plan id
-  useEffect(() => {
-    if (!floorPlans.some(p => p.id === activePlanId) && floorPlans.length > 0) {
-      setActivePlanId(floorPlans[0].id);
-    }
-  }, [floorPlans, activePlanId]);
+  const effectiveActivePlanId = floorPlans.some(p => p.id === activePlanId) ? activePlanId : (floorPlans[0]?.id || '');
+  const activePlan = floorPlans.find(p => p.id === effectiveActivePlanId) || floorPlans[0];
 
   // ============================================================================
   // MOUSE WHEEL ZOOM (SCROLL TO ZOOM IN/OUT)
@@ -892,7 +886,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
             {/* Category Tabs */}
             <div>
               <p className="text-[11px] uppercase tracking-wider font-extrabold text-slate-400 mb-1.5 flex items-center justify-between">
-                <span>1. Bo'limni tanlang:</span>
+                <span>1. Bo&apos;limni tanlang:</span>
                 <span className="text-[10px] text-sky-400 font-mono">5 ta kategoriya</span>
               </p>
 
@@ -1009,7 +1003,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span>2-Bosqich (O'rnatildi):</span>
+                <span>2-Bosqich (O&apos;rnatildi):</span>
                 <span className="font-mono font-bold text-emerald-400">
                   {activePlan?.pins?.filter(p => p.status === 'installed' || p.status === 'tested').length || 0} ta
                 </span>
@@ -1033,7 +1027,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
                   className="w-full flex items-center justify-center gap-2 py-1.5 px-3 bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 rounded-xl font-bold border border-rose-800/40 transition text-[11px]"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Ushbu Qavatni O'chirish</span>
+                  <span>Ushbu Qavatni O&apos;chirish</span>
                 </button>
               )}
             </div>
@@ -1092,9 +1086,9 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
 
           {/* Mouse Wheel & Drag Helper Hint */}
           <div className="absolute bottom-4 right-4 z-20 hidden md:flex items-center gap-2 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-[10px] text-slate-400">
-            <span>🖱️ G'ildirak = Zoom</span>
+            <span>🖱️ G&apos;ildirak = Zoom</span>
             <span>•</span>
-            <span>👆 Nuqtani ushlab tortish = Joyini o'zgartirish</span>
+            <span>👆 Nuqtani ushlab tortish = Joyini o&apos;zgartirish</span>
             <span>•</span>
             <span>🔄 Konus uchi = Burchakni burish</span>
           </div>
@@ -1386,7 +1380,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
               <div className="flex items-center gap-2">
                 <span className="text-base">🔌</span>
                 <h4 className="text-xs font-black uppercase tracking-wider text-sky-400">
-                  1-Bosqich (Chernovoy): Kabel & Trassa Ma'lumotlari
+                  1-Bosqich (Chernovoy): Kabel & Trassa Ma&apos;lumotlari
                 </h4>
               </div>
 
@@ -1422,7 +1416,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Trassa Yo'nalishi & Zaxira Izohi</label>
+                <label className="block text-slate-300 font-bold mb-1">Trassa Yo&apos;nalishi & Zaxira Izohi</label>
                 <input
                   disabled={isReadOnly}
                   value={selectedPin.cableRouteNotes || ''}
@@ -1438,13 +1432,13 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
               <div className="flex items-center gap-2">
                 <span className="text-base">📹</span>
                 <h4 className="text-xs font-black uppercase tracking-wider text-emerald-400">
-                  2-Bosqich (Chistovoy): Qurilma & Yo'nalish Burchagi
+                  2-Bosqich (Chistovoy): Qurilma & Yo&apos;nalish Burchagi
                 </h4>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Rejadagi / O'rnatilgan Qurilma Modeli</label>
+                  <label className="block text-slate-300 font-bold mb-1">Rejadagi / O&apos;rnatilgan Qurilma Modeli</label>
                   <input
                     disabled={isReadOnly}
                     value={selectedPin.plannedProduct || ''}
@@ -1470,7 +1464,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
                 <div>
                   <div className="flex items-center justify-between text-slate-300 font-bold mb-1">
-                    <span>Yo'nalish burchagi (Azimut):</span>
+                    <span>Yo&apos;nalish burchagi (Azimut):</span>
                     <span className="font-mono text-emerald-400 font-bold">{selectedPin.rotationAngle || 0}°</span>
                   </div>
                   <input
@@ -1627,7 +1621,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
             <h3 className="text-sm font-black text-white flex items-center gap-2">
               <Layers className="w-4 h-4 text-sky-400" />
-              Yangi Qavat yoki Sxema Qo'shish
+              Yangi Qavat yoki Sxema Qo&apos;shish
             </h3>
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1">Qavat / Zona Nomi:</label>
@@ -1649,7 +1643,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
                 onClick={handleAddNewFloor}
                 className="px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-lg"
               >
-                Qo'shish
+                Qo&apos;shish
               </button>
             </div>
           </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Product, ProductCategory, PurchaseInvoice, PurchaseItem, Currency, Employee } from '../types';
+import { Product, ProductCategory, PurchaseInvoice, PurchaseItem, PurchasePaymentRecord, Currency, Employee } from '../types';
 import { DEFAULT_SUPPLIERS } from '../data/mockData';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { 
@@ -67,6 +67,9 @@ interface DraftPurchaseItem {
   isBulkPasteOpen?: boolean;
   bulkPasteText?: string;
 }
+
+const generatePurchaseInvoiceNumber = () => `PR-${1000 + Math.floor(Math.random() * 9000)}`;
+const generatePurchaseInvoiceId = () => `purch-${Date.now()}`;
 
 export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
   isOpen,
@@ -166,8 +169,8 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
 
   // Sync initial state when modal opens or editingPurchase changes
   useEffect(() => {
-    if (isOpen) {
-      setIsSupplierDropdownOpen(false);
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
       if (editingPurchase) {
         // Populate existing purchase data for editing
         setSupplierName(editingPurchase.supplierName);
@@ -237,7 +240,8 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
       }
       setProductSearchText('');
       setIsSearchDropdownOpen(false);
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [isOpen, editingPurchase, baseCurrency, exchangeRate, categories, loggedInUserFormatted]);
 
   // Add new custom supplier to list and select it
@@ -398,7 +402,11 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
   };
 
   // Update item field
-  const handleUpdateItem = (index: number, field: keyof DraftPurchaseItem, value: any) => {
+  const handleUpdateItem = <K extends keyof DraftPurchaseItem,>(
+    index: number,
+    field: K,
+    value: DraftPurchaseItem[K]
+  ) => {
     setItems((prev) => {
       const updated = [...prev];
       const item = { ...updated[index], [field]: value };
@@ -547,7 +555,7 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
     }
 
     const finalSupplier = (supplierSearchText.trim() || supplierName.trim() || (isCustomSupplier ? customSupplier.trim() : '') || 'Noma\'lum Yetkazib beruvchi');
-    const invNumber = editingPurchase ? editingPurchase.invoiceNumber : `PR-${1000 + Math.floor(Math.random() * 9000)}`;
+    const invNumber = editingPurchase ? editingPurchase.invoiceNumber : generatePurchaseInvoiceNumber();
 
     const purchaseItems: PurchaseItem[] = items.map((it) => ({
       productId: it.productId,
@@ -566,7 +574,7 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
     }));
 
     const finalInvoice: PurchaseInvoice = {
-      id: editingPurchase ? editingPurchase.id : `purch-${Date.now()}`,
+      id: editingPurchase ? editingPurchase.id : generatePurchaseInvoiceId(),
       invoiceNumber: invNumber,
       supplierInvoiceNumber: supplierInvoiceNumber.trim() || undefined,
       supplierName: finalSupplier,
@@ -593,7 +601,7 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
     };
 
     // Calculate updated products state
-    let updatedProducts = [...products];
+    const updatedProducts = [...products];
 
     // If editing an existing purchase invoice, first revert its old items from inventory
     if (editingPurchase) {
@@ -918,7 +926,7 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
               </label>
               <select
                 value={paymentStatus}
-                onChange={(e) => handlePaymentStatusChange(e.target.value as any)}
+                onChange={(e) => handlePaymentStatusChange(e.target.value as 'paid' | 'debt' | 'partial')}
                 className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
               >
                 <option value="paid">✓ To&apos;liq to&apos;landi</option>
@@ -934,7 +942,7 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
               </label>
               <select
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as any)}
+                onChange={(e) => setPaymentMethod(e.target.value as PurchasePaymentRecord['paymentMethod'])}
                 className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none"
               >
                 {invoiceCurrency === 'UZS' ? (

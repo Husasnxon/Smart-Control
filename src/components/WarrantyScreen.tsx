@@ -125,7 +125,7 @@ export const WarrantyScreen: React.FC<WarrantyScreenProps> = ({
 
     // A. Check in sold receipts
     let foundReceipt: SaleReceipt | null = null;
-    let foundItem: any = null;
+    let foundItem: SaleReceipt['items'][number] | null = null;
 
     for (const r of receipts) {
       for (const it of r.items) {
@@ -805,7 +805,7 @@ export const WarrantyScreen: React.FC<WarrantyScreenProps> = ({
                   <button
                     key={st.id}
                     type="button"
-                    onClick={() => setTicketStatusFilter(st.id as any)}
+                    onClick={() => setTicketStatusFilter(st.id as 'all' | ServiceTicketStatus)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition ${
                       ticketStatusFilter === st.id
                         ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm'
@@ -1358,7 +1358,7 @@ export const WarrantyScreen: React.FC<WarrantyScreenProps> = ({
                   </label>
                   <select
                     value={editingTicket.status}
-                    onChange={(e) => setEditingTicket({ ...editingTicket, status: e.target.value as any })}
+                    onChange={(e) => setEditingTicket({ ...editingTicket, status: e.target.value as ServiceTicketStatus })}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="received">Qabul qilindi</option>

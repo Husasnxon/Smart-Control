@@ -4,6 +4,7 @@
  * Sends raw ESC/POS bytes directly to Windows Print Spooler without browser dialogs.
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports -- This standalone Node service uses CommonJS. */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -72,7 +73,7 @@ const server = http.createServer((req, res) => {
           (error, stdout, stderr) => {
             try {
               if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-            } catch (e) {}
+            } catch {}
 
             if (error) {
               console.error('Print spooler error:', stderr || error.message);

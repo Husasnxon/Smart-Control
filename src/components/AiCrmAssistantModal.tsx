@@ -31,6 +31,24 @@ import {
 } from 'lucide-react';
 import { getTelegramSettings, sendTelegramMessage } from '../utils/telegram';
 
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onstart: ((event: Event) => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onend: ((event: Event) => void) | null;
+  start(): void;
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
 const subscribeToGeminiApiKey = (onStoreChange: () => void) => {
   window.addEventListener('storage', onStoreChange);
   window.addEventListener('focus', onStoreChange);
@@ -98,7 +116,11 @@ export const AiCrmAssistantModal: React.FC<AiCrmAssistantModalProps> = ({
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const speechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    const SpeechRecognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Brauzeringiz ovozli yozishni (Web Speech) to'liq qo'llab-quvvatlamaydi. Iltimos matnni qo'lda yozing yoki Chrome brauzeridan foydalaning.");
       return;
@@ -114,7 +136,7 @@ export const AiCrmAssistantModal: React.FC<AiCrmAssistantModalProps> = ({
         setIsListening(true);
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event) => {
         let transcript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           transcript += event.results[i][0].transcript;
@@ -122,7 +144,7 @@ export const AiCrmAssistantModal: React.FC<AiCrmAssistantModalProps> = ({
         setInputText(prev => (prev ? `${prev} ${transcript}` : transcript));
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = (event) => {
         console.error("Speech error", event);
         setIsListening(false);
       };
@@ -238,8 +260,8 @@ export const AiCrmAssistantModal: React.FC<AiCrmAssistantModalProps> = ({
         {/* Input Area */}
         <div className="space-y-2">
           <label className="block text-xs font-bold text-slate-300 flex items-center justify-between">
-            <span>Ovozli xabar matni yoki mijoz so'rovi:</span>
-            <span className="text-[10px] text-slate-500 font-normal">O'zbekcha / Ruscha / Inglizcha</span>
+            <span>Ovozli xabar matni yoki mijoz so&apos;rovi:</span>
+            <span className="text-[10px] text-slate-500 font-normal">O&apos;zbekcha / Ruscha / Inglizcha</span>
           </label>
 
           <div className="relative">
@@ -267,7 +289,7 @@ export const AiCrmAssistantModal: React.FC<AiCrmAssistantModalProps> = ({
           <div className="flex items-center justify-between pt-1">
             <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>Namuna: "Otabek aka 93 987 65 43, 8 ta kamera, magazinga..."</span>
+              <span>Namuna: &quot;Otabek aka 93 987 65 43, 8 ta kamera, magazinga...&quot;</span>
             </div>
 
             <button

@@ -46,30 +46,31 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   onOpenReturn,
   onOpenEdit
 }) => {
-  const [paperWidth, setPaperWidth] = useState<'58' | '80'>('58');
+  const [paperWidth, setPaperWidth] = useState<'58' | '80'>(() => {
+    if (typeof window === 'undefined') return '58';
+    try {
+      const savedWidth = localStorage.getItem('sc_receipt_width');
+      return (savedWidth === '58' || savedWidth === '80') ? savedWidth : '58';
+    } catch {
+      return '58';
+    }
+  });
   const [showSettings, setShowSettings] = useState(false);
   const [showQR, setShowQR] = useState(true);
-  const [customFooter, setCustomFooter] = useState("Xaridingiz uchun tashakkur! Barakali bo'lsin!");
+  const [customFooter, setCustomFooter] = useState<string>(() => {
+    if (typeof window === 'undefined') return "Xaridingiz uchun tashakkur! Barakali bo'lsin!";
+    try {
+      const savedFooter = localStorage.getItem('sc_receipt_footer');
+      return savedFooter || "Xaridingiz uchun tashakkur! Barakali bo'lsin!";
+    } catch {
+      return "Xaridingiz uchun tashakkur! Barakali bo'lsin!";
+    }
+  });
   const [isCopied, setIsCopied] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [btStatus, setBtStatus] = useState<string | null>(null);
   const [btError, setBtError] = useState<string | null>(null);
   const [usbStatus, setUsbStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const savedWidth = localStorage.getItem('sc_receipt_width');
-      if (savedWidth === '58' || savedWidth === '80') {
-        setPaperWidth(savedWidth);
-      }
-      const savedFooter = localStorage.getItem('sc_receipt_footer');
-      if (savedFooter) {
-        setCustomFooter(savedFooter);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
 
   // ESC key listener to quickly close receipt modal
   useEffect(() => {
@@ -147,8 +148,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         setBtStatus(res.message);
         setTimeout(() => setBtStatus(null), 4000);
       }
-    } catch (e: any) {
-      setBtError(e.message || "Bluetooth printerga ulanib bo'lmadi.");
+    } catch (e: unknown) {
+      setBtError(e instanceof Error ? e.message : "Bluetooth printerga ulanib bo'lmadi.");
       setTimeout(() => setBtError(null), 6000);
     }
   };
@@ -175,8 +176,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         setUsbStatus(res.message);
         setTimeout(() => setUsbStatus(null), 4000);
       }
-    } catch (e: any) {
-      setBtError(e.message || "Printerga ulanib bo'lmadi.");
+    } catch (e: unknown) {
+      setBtError(e instanceof Error ? e.message : "Printerga ulanib bo'lmadi.");
       setTimeout(() => setBtError(null), 7000);
       handlePrint();
     } finally {

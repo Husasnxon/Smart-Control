@@ -61,8 +61,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       const result = await parseProductsFromExcel(file);
       setParsedProducts(result.products);
       setParseErrors(result.errors);
-    } catch (err: any) {
-      setParseErrors([err.message || "Faylni o'qishda xatolik yuz berdi. Iltimos, shablon formatiga mosligini tekshiring."]);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Faylni o'qishda xatolik yuz berdi. Iltimos, shablon formatiga mosligini tekshiring.";
+      setParseErrors([message]);
       setParsedProducts([]);
     } finally {
       setIsParsing(false);

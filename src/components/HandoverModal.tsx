@@ -448,7 +448,7 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
 
   const handoverData = existingHandover || {
     id: 'temp',
-    handoverNumber: `AKT-${Date.now().toString().slice(-4)}`,
+    handoverNumber: order?.orderNumber ? `AKT-${order.orderNumber}` : 'AKT-YANGI',
     customerName: clientName || order?.customerName || 'Hurmatli Mijoz',
     customerPhone: order?.customerPhone || '',
     installationAddress: address || order?.deliveryAddress || 'Kiritilmagan',

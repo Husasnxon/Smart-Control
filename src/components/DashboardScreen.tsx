@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Product, Customer, SaleReceipt, AIInsight, Expense, Currency } from '../types';
+import { Product, Customer, SaleReceipt, AIInsight, Expense, Currency, ActiveTab } from '../types';
 import { formatDualMoney, formatMoney, formatNumberWithSpaces, formatUSDNumber, isTodayDate, getNormalizedDateKey } from '../utils/formatters';
 import { 
   TrendingUp, 
@@ -37,7 +37,7 @@ interface DashboardScreenProps {
   receipts: SaleReceipt[];
   expenses: Expense[];
   aiInsights: AIInsight[];
-  onNavigateTab: (tab: any) => void;
+  onNavigateTab: (tab: ActiveTab) => void;
   isOffline: boolean;
   baseCurrency?: Currency;
   exchangeRate?: number;

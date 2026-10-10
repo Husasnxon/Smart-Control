@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ActiveTab, Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, AssignedTechnician, PaymentDetails, CartItem, Currency, PurchaseInvoice, PurchasePaymentRecord, ServiceTicket, CustomerDebtPayment, ZReport, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_TABS } from '../types';
 import { 
   INITIAL_PRODUCTS, 
@@ -49,6 +49,34 @@ import { isTodayDate, getNowFormatted } from '../utils/formatters';
 import { playOrderNotificationSound } from '../utils/sound';
 import { CheckCircle2, CloudLightning, X } from 'lucide-react';
 
+interface CloudSyncPayload {
+  products?: Product[];
+  productCategories?: ProductCategory[];
+  customers?: Customer[];
+  receipts?: SaleReceipt[];
+  expenses?: Expense[];
+  expenseCategories?: ExpenseCategory[];
+  employees?: Employee[];
+  customerOrders?: CustomerOrder[];
+  shipments?: ShipmentOrder[];
+  purchases?: PurchaseInvoice[];
+  serviceTickets?: ServiceTicket[];
+  customerDebtPayments?: CustomerDebtPayment[];
+  payrolls?: PayrollRecord[];
+  advances?: EmployeeAdvance[];
+  handovers?: ObjectHandover[];
+  crmLeads?: CrmLead[];
+  crmObjectPassports?: CrmObjectPassport[];
+  crmReminders?: CrmReminder[];
+  exchangeRate?: number;
+  baseCurrency?: Currency;
+}
+
+interface CloudSyncResponse {
+  timestamp: number;
+  data: CloudSyncPayload | null;
+}
+
 export default function Home() {
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const [isSwitchUserModalOpen, setIsSwitchUserModalOpen] = useState<boolean>(false);
@@ -84,13 +112,23 @@ export default function Home() {
   const [activeModalReceipt, setActiveModalReceipt] = useState<SaleReceipt | null>(null);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
+  const pushDataToCloudRef = useRef<((overrideData?: Record<string, unknown>) => Promise<void>) | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  }, []);
+
   // Ustalardan kelgan tasdiqlash kutilayotgan smetalar soni
   const pendingEstimatesCount = (customerOrders || []).filter(o => o.status === 'pending_cashier_approval').length;
 
   // 1. Dastur ochilganda kompyuterning lokal xotirasidan ma'lumotlarni yuklash
   useEffect(() => {
-    try {
-      const savedRate = localStorage.getItem('sc_exchange_rate');
+    const timer = setTimeout(() => {
+      try {
+        const savedRate = localStorage.getItem('sc_exchange_rate');
       if (savedRate && !isNaN(Number(savedRate))) {
         setExchangeRate(Number(savedRate));
       }
@@ -274,14 +312,14 @@ export default function Home() {
         localStorage.setItem('sc_service_tickets', JSON.stringify([]));
         localStorage.setItem('sc_service_tickets_clean_v1', 'true');
         setServiceTickets([]);
-        pushDataToCloud({ serviceTickets: [] });
+        pushDataToCloudRef.current?.({ serviceTickets: [] });
       } else {
         const savedTickets = localStorage.getItem('sc_service_tickets');
         if (savedTickets) {
           try {
             const parsed = JSON.parse(savedTickets);
             if (Array.isArray(parsed)) {
-              const cleaned = parsed.filter((t: any) => t.id !== 'srv-101' && t.id !== 'srv-102');
+              const cleaned = (parsed as ServiceTicket[]).filter((ticket) => ticket.id !== 'srv-101' && ticket.id !== 'srv-102');
               setServiceTickets(cleaned);
               localStorage.setItem('sc_service_tickets', JSON.stringify(cleaned));
             }
@@ -346,6 +384,8 @@ export default function Home() {
     } finally {
       setIsLoaded(true);
     }
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const lastSyncedTimestampRef = useRef<number>(0);
@@ -361,7 +401,7 @@ export default function Home() {
   };
 
   // Helper to push central snapshot to server
-  const pushDataToCloud = async (overrideData?: any) => {
+  const pushDataToCloud = async (overrideData?: Partial<CloudSyncPayload>) => {
     try {
       const payload = {
         products,
@@ -389,7 +429,7 @@ export default function Home() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        const json = await res.json();
+        const json: CloudSyncResponse = await res.json();
         if (json.timestamp) {
           lastSyncedTimestampRef.current = json.timestamp;
         }
@@ -398,6 +438,10 @@ export default function Home() {
       console.warn('Cloud sync push error', e);
     }
   };
+
+  useEffect(() => {
+    pushDataToCloudRef.current = pushDataToCloud;
+  });
 
   // 2. Har bir o'zgarishni darhol kompyuter xotirasiga va bulutga yozib borish
   useEffect(() => {
@@ -421,7 +465,7 @@ export default function Home() {
       localStorage.setItem('sc_base_currency', baseCurrency);
 
       // Push to central cloud sync
-      pushDataToCloud();
+      pushDataToCloudRef.current?.();
     } catch (e) {
       console.error("Local storage save error", e);
     }
@@ -451,11 +495,11 @@ export default function Home() {
           isSyncingRef.current = false;
           return;
         }
-        const json = await res.json();
+        const json: CloudSyncResponse = await res.json();
         
         // If server is empty, push local state to initialize server
         if (!json.data || !json.timestamp) {
-          pushDataToCloud();
+          pushDataToCloudRef.current?.();
           isSyncingRef.current = false;
           return;
         }
@@ -466,7 +510,7 @@ export default function Home() {
           const remote = json.data;
 
           if (remote.customerOrders) {
-            const rawOrders: CustomerOrder[] = remote.customerOrders;
+            const rawOrders = remote.customerOrders;
             const deduped: CustomerOrder[] = [];
             const seenNums = new Set<string>();
             rawOrders.forEach(o => {
@@ -483,10 +527,10 @@ export default function Home() {
 
               // 1. Check if a new order was assigned to the currently logged in technician OR if their estimate was rejected
               if (currentUser?.systemRole === 'technician' || currentUser?.role?.toLowerCase().includes('usta')) {
-                const newAssignedJob = deduped.find((o: any) => 
+                const newAssignedJob = deduped.find((o) =>
                   !prevIds.has(o.id) && (
                     o.technicianId === currentUser.id ||
-                    (o.technicians && o.technicians.some((t: any) => t.id === currentUser.id || t.fullName?.toLowerCase().includes(currentUser.fullName.toLowerCase())))
+                    (o.technicians && o.technicians.some((technician) => technician.id === currentUser.id || technician.fullName?.toLowerCase().includes(currentUser.fullName.toLowerCase())))
                   )
                 );
                 if (newAssignedJob) {
@@ -495,8 +539,8 @@ export default function Home() {
                 }
 
                 // Check if any estimate created by or assigned to this technician was REJECTED by cashier
-                const newlyRejectedEstimate = deduped.find((o: any) => {
-                  const prevOrd = prevOrders.find((p: any) => p.id === o.id || p.orderNumber === o.orderNumber);
+                const newlyRejectedEstimate = deduped.find((o) => {
+                  const prevOrd = prevOrders.find((previousOrder) => previousOrder.id === o.id || previousOrder.orderNumber === o.orderNumber);
                   const isMyOrder = 
                     o.requestedByTechnicianId === currentUser.id ||
                     o.technicianId === currentUser.id ||
@@ -514,7 +558,7 @@ export default function Home() {
 
               // 2. Check if a new on-site estimate was submitted by technician for cashier approval
               if (currentUser?.systemRole !== 'technician') {
-                const newPendingEstimate = deduped.find((o: any) => 
+                const newPendingEstimate = deduped.find((o) =>
                   o.status === 'pending_cashier_approval' && !prevPendingIds.has(o.id)
                 );
                 if (newPendingEstimate) {
@@ -610,7 +654,7 @@ export default function Home() {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [isLoaded, currentUser]);
+  }, [isLoaded, currentUser, showToast]);
 
   // 3. Avtomatik 23:59 da Z-Hisobotni yopish va Telegramga yuborish
   useEffect(() => {
@@ -694,18 +738,11 @@ export default function Home() {
     checkAutoCloseShift();
 
     return () => clearInterval(interval);
-  }, [isLoaded, receipts, expenses, exchangeRate]);
+  }, [isLoaded, receipts, expenses, exchangeRate, showToast]);
 
   // Offline receipts count
   const offlineReceipts = receipts.filter((r) => r.isOffline && !r.synced);
   const offlineCount = offlineReceipts.length;
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
-  };
 
   // Universal Global Capture-Phase Escape Key listener for all sections & modals
   useEffect(() => {
@@ -1093,7 +1130,7 @@ export default function Home() {
         if (returnedMatch) {
           const newQty = prod.isService ? prod.stockQuantity : prod.stockQuantity + returnedMatch.quantity;
           
-          let updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
+          const updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
           if (returnedMatch.serialNumbers && returnedMatch.serialNumbers.length > 0) {
             returnedMatch.serialNumbers.forEach((sn) => {
               if (!updatedSerials.includes(sn)) {
@@ -2319,7 +2356,7 @@ export default function Home() {
           if (retMatch) {
             if (prod.isService) return prod;
             const newStock = prod.stockQuantity + retMatch.quantity;
-            let updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
+            const updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
             if (retMatch.serialNumbers && retMatch.serialNumbers.length > 0) {
               retMatch.serialNumbers.forEach((sn) => {
                 if (!updatedSerials.includes(sn)) {

@@ -9,6 +9,71 @@ export interface ThermalPrintOptions {
   storePhone?: string;
 }
 
+interface BluetoothPrinterCharacteristic {
+  properties: {
+    write: boolean;
+    writeWithoutResponse: boolean;
+  };
+  writeValueWithResponse?: (value: Uint8Array) => Promise<void>;
+  writeValue: (value: Uint8Array) => Promise<void>;
+}
+
+interface BluetoothPrinterService {
+  getCharacteristics(): Promise<BluetoothPrinterCharacteristic[]>;
+}
+
+interface BluetoothPrinterDevice {
+  name?: string;
+  gatt?: {
+    connect(): Promise<{
+      getPrimaryServices(): Promise<BluetoothPrinterService[]>;
+    }>;
+    disconnect(): void;
+  };
+}
+
+interface UsbPrinterDevice {
+  productName?: string;
+  opened: boolean;
+  configuration: {
+    interfaces: Array<{
+      interfaceNumber: number;
+      alternates: Array<{
+        endpoints: Array<{ direction: string; endpointNumber: number }>;
+      }>;
+    }> | null;
+  } | null;
+  open(): Promise<void>;
+  selectConfiguration(configurationValue: number): Promise<void>;
+  claimInterface(interfaceNumber: number): Promise<void>;
+  transferOut(endpointNumber: number, data: Uint8Array): Promise<unknown>;
+  releaseInterface(interfaceNumber: number): Promise<void>;
+  close(): Promise<void>;
+}
+
+interface PrinterNavigator extends Navigator {
+  bluetooth?: {
+    requestDevice(options: { acceptAllDevices: boolean; optionalServices: string[] }): Promise<BluetoothPrinterDevice>;
+  };
+  usb?: {
+    getDevices(): Promise<UsbPrinterDevice[]>;
+    requestDevice(options: { filters: Array<Record<string, number>> }): Promise<UsbPrinterDevice>;
+  };
+  serial?: {
+    requestPort(): Promise<{
+      open(options: { baudRate: number }): Promise<void>;
+      writable: WritableStream<Uint8Array> | null;
+      close(): Promise<void>;
+    }>;
+  };
+}
+
+const getPrintErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message : fallback;
+
+const getPrintErrorName = (error: unknown): string =>
+  error instanceof Error ? error.name : '';
+
 /**
  * Generates clean, high-contrast, zero-margin HTML specifically formatted for 58mm / 80mm thermal receipts.
  */
@@ -756,7 +821,7 @@ export async function printReceiptViaBluetooth(
   customFooter?: string,
   onStatusUpdate?: (status: string) => void
 ): Promise<{ success: boolean; message: string; deviceName?: string }> {
-  if (typeof navigator === 'undefined' || !(navigator as any).bluetooth) {
+  if (typeof navigator === 'undefined' || !(navigator as PrinterNavigator).bluetooth) {
     return {
       success: false,
       message: "Brauzeringiz Bluetooth to'g'ridan-to'g'ri chop etishni qo'llab-quvvatlamaydi (Chrome yoki Edge brauzeridan foydalaning)."
@@ -767,7 +832,10 @@ export async function printReceiptViaBluetooth(
     onStatusUpdate?.("Bluetooth printer qidirilmoqda...");
 
     // Standard Thermal Printer Bluetooth Services & Serial SPP
-    const navBluetooth = (navigator as any).bluetooth;
+    const navBluetooth = (navigator as PrinterNavigator).bluetooth;
+    if (!navBluetooth) {
+      throw new Error('Bluetooth API mavjud emas.');
+    }
     const device = await navBluetooth.requestDevice({
       acceptAllDevices: true,
       optionalServices: [
@@ -789,7 +857,7 @@ export async function printReceiptViaBluetooth(
     onStatusUpdate?.("Xizmatlar aniqlanmoqda...");
 
     const services = await server.getPrimaryServices();
-    let writeCharacteristic: any = null;
+    let writeCharacteristic: BluetoothPrinterCharacteristic | null = null;
 
     for (const service of services) {
       const characteristics = await service.getCharacteristics();
@@ -839,14 +907,14 @@ export async function printReceiptViaBluetooth(
       deviceName: device.name || 'Bluetooth Printer'
     };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Bluetooth print error:", error);
-    if (error.name === 'NotFoundError') {
+    if (getPrintErrorName(error) === 'NotFoundError') {
       return { success: false, message: "Printer tanlanmadi yoki bekor qilindi." };
     }
     return {
       success: false,
-      message: error.message || "Bluetooth printerga ulanishda xatolik yuz berdi."
+      message: getPrintErrorMessage(error, "Bluetooth printerga ulanishda xatolik yuz berdi.")
     };
   }
 }
@@ -861,7 +929,7 @@ export async function printReceiptViaWebUSB(
   customFooter?: string,
   onStatusUpdate?: (status: string) => void
 ): Promise<{ success: boolean; message: string; deviceName?: string }> {
-  if (typeof navigator === 'undefined' || !(navigator as any).usb) {
+  if (typeof navigator === 'undefined' || !(navigator as PrinterNavigator).usb) {
     return {
       success: false,
       message: "Brauzeringiz WebUSB to'g'ridan-to'g'ri chop etishni qo'llab-quvvatlamaydi (Google Chrome yoki Microsoft Edge ishlating)."
@@ -869,7 +937,10 @@ export async function printReceiptViaWebUSB(
   }
 
   try {
-    const navUsb = (navigator as any).usb;
+    const navUsb = (navigator as PrinterNavigator).usb;
+    if (!navUsb) {
+      throw new Error('WebUSB API mavjud emas.');
+    }
     
     // 1. Try previously paired USB devices first for instant 1-click zero-popup print
     const pairedDevices = await navUsb.getDevices();
@@ -908,7 +979,7 @@ export async function printReceiptViaWebUSB(
     if (configuration && configuration.interfaces) {
       for (const iface of configuration.interfaces) {
         for (const alt of iface.alternates) {
-          const outEndpoint = alt.endpoints.find((ep: any) => ep.direction === 'out');
+          const outEndpoint = alt.endpoints.find((endpoint) => endpoint.direction === 'out');
           if (outEndpoint) {
             interfaceNumber = iface.interfaceNumber;
             endpointNumber = outEndpoint.endpointNumber;
@@ -947,12 +1018,13 @@ export async function printReceiptViaWebUSB(
       deviceName: device.productName || 'USB Printer'
     };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("WebUSB print error:", error);
-    if (error.name === 'NotFoundError') {
+    if (getPrintErrorName(error) === 'NotFoundError') {
       return { success: false, message: "USB printer tanlanmadi yoki bekor qilindi." };
     }
-    if (error.message?.includes('Access denied') || error.name === 'SecurityError') {
+    const message = getPrintErrorMessage(error, "USB printerga ulanishda xatolik yuz berdi.");
+    if (message.includes('Access denied') || getPrintErrorName(error) === 'SecurityError') {
       return {
         success: false,
         message: "Windows tizimining 'XP-58C' drayveri USB portni band qilgan. Chek darcha orqali chiqarilmoqda..."
@@ -960,7 +1032,7 @@ export async function printReceiptViaWebUSB(
     }
     return {
       success: false,
-      message: error.message || "USB printerga ulanishda xatolik yuz berdi."
+      message
     };
   }
 }
@@ -974,7 +1046,7 @@ export async function printReceiptViaWebSerial(
   customFooter?: string,
   onStatusUpdate?: (status: string) => void
 ): Promise<{ success: boolean; message: string }> {
-  if (typeof navigator === 'undefined' || !(navigator as any).serial) {
+  if (typeof navigator === 'undefined' || !(navigator as PrinterNavigator).serial) {
     return {
       success: false,
       message: "Brauzeringiz Web Serial to'g'ridan-to'g'ri ulanishni qo'llab-quvvatlamaydi."
@@ -983,12 +1055,18 @@ export async function printReceiptViaWebSerial(
 
   try {
     onStatusUpdate?.("Serial / COM port tanlanmoqda...");
-    const navSerial = (navigator as any).serial;
+    const navSerial = (navigator as PrinterNavigator).serial;
+    if (!navSerial) {
+      throw new Error('Web Serial API mavjud emas.');
+    }
     const port = await navSerial.requestPort();
     
     await port.open({ baudRate: 9600 });
     onStatusUpdate?.("Chek yuborilmoqda...");
 
+    if (!port.writable) {
+      throw new Error('Serial port yozish oqimi mavjud emas.');
+    }
     const writer = port.writable.getWriter();
     const escPosData = generateEscPosReceiptBytes(receipt, width, customFooter);
     await writer.write(escPosData);
@@ -999,14 +1077,14 @@ export async function printReceiptViaWebSerial(
       success: true,
       message: "Chek Serial/COM port orqali chop etildi!"
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("WebSerial print error:", error);
-    if (error.name === 'NotFoundError') {
+    if (getPrintErrorName(error) === 'NotFoundError') {
       return { success: false, message: "Port tanlanmadi." };
     }
     return {
       success: false,
-      message: error.message || "Serial portga ulanishda xatolik yuz berdi."
+      message: getPrintErrorMessage(error, "Serial portga ulanishda xatolik yuz berdi.")
     };
   }
 }

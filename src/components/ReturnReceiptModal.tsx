@@ -1,17 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SaleReceipt, ReturnedItemRecord, Customer } from '../types';
+import { SaleReceipt } from '../types';
 import { 
   X, 
   RotateCcw, 
-  AlertTriangle, 
-  CheckCircle2, 
   Banknote, 
   CreditCard, 
   Coins, 
   Barcode, 
-  ShieldAlert,
   Info
 } from 'lucide-react';
 
@@ -36,14 +33,16 @@ interface ReturnReceiptModalProps {
   exchangeRate: number;
 }
 
-export const ReturnReceiptModal: React.FC<ReturnReceiptModalProps> = ({
+interface ReturnReceiptModalContentProps extends ReturnReceiptModalProps {
+  receipt: SaleReceipt;
+}
+
+const ReturnReceiptModalContent: React.FC<ReturnReceiptModalContentProps> = ({
   receipt,
   onClose,
   onConfirmReturn,
   exchangeRate
 }) => {
-  if (!receipt) return null;
-
   // Track return quantities and selected serial numbers per cart item index
   // Key: itemIndex
   const [returnQtys, setReturnQtys] = useState<{ [itemIndex: number]: number }>(() => {
@@ -484,4 +483,9 @@ export const ReturnReceiptModal: React.FC<ReturnReceiptModalProps> = ({
       </div>
     </div>
   );
+};
+
+export const ReturnReceiptModal: React.FC<ReturnReceiptModalProps> = (props) => {
+  if (!props.receipt) return null;
+  return <ReturnReceiptModalContent {...props} receipt={props.receipt} />;
 };

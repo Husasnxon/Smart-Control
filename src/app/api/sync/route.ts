@@ -1,28 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  Product,
+  Customer,
+  SaleReceipt,
+  Expense,
+  Employee,
+  CustomerOrder,
+  ShipmentOrder,
+  PurchaseInvoice,
+  ServiceTicket,
+  CustomerDebtPayment,
+  PayrollRecord,
+  EmployeeAdvance,
+  ObjectHandover
+} from '@/types';
 
 // Server-side shared storage across client devices
 interface SyncStore {
   timestamp: number;
-  products?: any[];
-  customers?: any[];
-  receipts?: any[];
-  expenses?: any[];
-  employees?: any[];
-  customerOrders?: any[];
-  shipments?: any[];
-  purchases?: any[];
-  serviceTickets?: any[];
-  customerDebtPayments?: any[];
-  payrolls?: any[];
-  advances?: any[];
-  handovers?: any[];
+  products?: Product[];
+  customers?: Customer[];
+  receipts?: SaleReceipt[];
+  expenses?: Expense[];
+  employees?: Employee[];
+  customerOrders?: CustomerOrder[];
+  shipments?: ShipmentOrder[];
+  purchases?: PurchaseInvoice[];
+  serviceTickets?: ServiceTicket[];
+  customerDebtPayments?: CustomerDebtPayment[];
+  payrolls?: PayrollRecord[];
+  advances?: EmployeeAdvance[];
+  handovers?: ObjectHandover[];
   exchangeRate?: number;
   baseCurrency?: string;
 }
 
 // Global persistence for warm serverless instances
 declare global {
-  // eslint-disable-next-line no-var
   var __smartControlSyncStore: SyncStore | undefined;
 }
 
@@ -61,9 +75,10 @@ export async function POST(req: NextRequest) {
       success: true,
       timestamp: updatedStore.timestamp
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to sync data';
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to sync data' },
+      { success: false, error: message },
       { status: 500 }
     );
   }

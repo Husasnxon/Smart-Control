@@ -130,7 +130,7 @@ export const ObjectQrPassportModal: React.FC<ObjectQrPassportModalProps> = ({
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow"
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>2D Sxemani Ko'rish / Tahrirlash</span>
+              <span>2D Sxemani Ko&apos;rish / Tahrirlash</span>
             </button>
             <button
               onClick={onClose}
@@ -167,7 +167,7 @@ export const ObjectQrPassportModal: React.FC<ObjectQrPassportModalProps> = ({
               }`}
             >
               <FileText className="w-4 h-4" />
-              <span>A4 To'liq Texnik Hujjat</span>
+              <span>A4 To&apos;liq Texnik Hujjat</span>
             </button>
 
             <button
@@ -179,7 +179,7 @@ export const ObjectQrPassportModal: React.FC<ObjectQrPassportModalProps> = ({
               }`}
             >
               <Smartphone className="w-4 h-4" />
-              <span>Mobil Skaner Ko'rinishi</span>
+              <span>Mobil Skaner Ko&apos;rinishi</span>
             </button>
           </div>
 
@@ -217,7 +217,7 @@ export const ObjectQrPassportModal: React.FC<ObjectQrPassportModalProps> = ({
                   </div>
                 )}
                 <p className="text-[9px] font-black text-center text-slate-800 uppercase tracking-tight mt-1">
-                  📱 Kamerangizni yo'naltiring
+                  📱 Kamerangizni yo&apos;naltiring
                 </p>
                 <p className="text-[8px] text-center text-slate-600 leading-tight">
                   Suvoq ostidagi kabellar, xonalar suratlari va 2D montaj loyihasi
@@ -250,7 +250,7 @@ export const ObjectQrPassportModal: React.FC<ObjectQrPassportModalProps> = ({
                 )}
                 {objectPassport.installedByTechnicianName && (
                   <div className="flex justify-between">
-                    <span className="font-bold text-slate-600">Mas'ul usta:</span>
+                    <span className="font-bold text-slate-600">Mas&apos;ul usta:</span>
                     <span className="font-bold text-right">{objectPassport.installedByTechnicianName}</span>
                   </div>
                 )}
@@ -301,7 +301,7 @@ export const ObjectQrPassportModal: React.FC<ObjectQrPassportModalProps> = ({
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                   <p className="text-[10px] uppercase font-bold text-slate-400">Montaj & Kafolat:</p>
                   <p className="font-bold text-slate-900">Kafolat muddati: {objectPassport.warrantyMonths} oy ({objectPassport.warrantyExpiresAt} gacha)</p>
-                  <p className="text-slate-700">Mas'ul muhandis / usta: <span className="font-bold">{objectPassport.installedByTechnicianName || '-'}</span></p>
+                  <p className="text-slate-700">Mas&apos;ul muhandis / usta: <span className="font-bold">{objectPassport.installedByTechnicianName || '-'}</span></p>
                   <p className="text-slate-700">Jami kabel sarfi: <span className="font-mono font-bold text-slate-900">{totalCableLength} metr</span></p>
                 </div>
               </div>
@@ -494,7 +494,7 @@ export const ObjectQrPassportModal: React.FC<ObjectQrPassportModalProps> = ({
 
                   {allPins.length === 0 && (
                     <div className="py-8 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-2xl">
-                      Hali xonalar va nuqtalar kiritilmagan. Yuqoridagi "2D Xaritani Ochish" tugmasini bosing.
+                      Hali xonalar va nuqtalar kiritilmagan. Yuqoridagi &quot;2D Xaritani Ochish&quot; tugmasini bosing.
                     </div>
                   )}
                 </div>

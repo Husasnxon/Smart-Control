@@ -158,7 +158,15 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('Barchasi');
 
   // Custom templates state loaded from localStorage
-  const [customTemplates, setCustomTemplates] = useState<TemplateDefinition[]>([]);
+  const [customTemplates, setCustomTemplates] = useState<TemplateDefinition[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('sc_custom_estimate_templates');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isCreatingTemplate, setIsCreatingTemplate] = useState<boolean>(false);
   const [newTemplateName, setNewTemplateName] = useState<string>('');
   const [templateSuccessToast, setTemplateSuccessToast] = useState<string | null>(null);
@@ -166,20 +174,12 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
   // HDD Calculator Modal state
   const [isHddCalcOpen, setIsHddCalcOpen] = useState<boolean>(false);
 
-  // Load custom templates on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('sc_custom_estimate_templates');
-      if (saved) {
-        setCustomTemplates(JSON.parse(saved));
-      }
-    } catch (e) {
-      console.error("Templates load error", e);
-    }
-  }, []);
-
   // Sync state when modal opens with targetOrder (e.g. resubmitting rejected estimate)
-  useEffect(() => {
+  const [prevTargetOrderId, setPrevTargetOrderId] = useState<string | null>(null);
+  const [prevIsOpen, setPrevIsOpen] = useState<boolean>(isOpen);
+  if (isOpen !== prevIsOpen || (targetOrder?.id || null) !== prevTargetOrderId) {
+    setPrevIsOpen(isOpen);
+    setPrevTargetOrderId(targetOrder?.id || null);
     if (isOpen) {
       if (targetOrder) {
         setSelectedCustomerId(targetOrder.customerId || '');
@@ -200,7 +200,7 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
       }
       setSubmittedAttempt(false);
     }
-  }, [isOpen, targetOrder]);
+  }
 
   // Filtered customer list for combobox
   const filteredCustomers = useMemo(() => {

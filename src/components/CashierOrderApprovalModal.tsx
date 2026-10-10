@@ -67,14 +67,14 @@ export const CashierOrderApprovalModal: React.FC<CashierOrderApprovalModalProps>
   const [rejectReasonText, setRejectReasonText] = useState<string>('Tovarlar omborda yetarli emas yoki narx xato');
 
   // Sync editable items whenever selected order changes or modal opens
-  useEffect(() => {
-    if (selectedOrder) {
-      setEditableItems(selectedOrder.items ? JSON.parse(JSON.stringify(selectedOrder.items)) : []);
-      setIsAddingProduct(false);
-      setProductSearch('');
-      setIsRejectConfirmOpen(false);
-    }
-  }, [selectedOrder?.id, isOpen]);
+  const [prevOrderId, setPrevOrderId] = useState<string | null>(null);
+  if (selectedOrder && selectedOrder.id !== prevOrderId) {
+    setPrevOrderId(selectedOrder.id);
+    setEditableItems(selectedOrder.items ? JSON.parse(JSON.stringify(selectedOrder.items)) : []);
+    setIsAddingProduct(false);
+    setProductSearch('');
+    setIsRejectConfirmOpen(false);
+  }
 
   // Calculations from editable items
   const computedTotalUZS = useMemo(() => {

@@ -77,6 +77,8 @@ interface OrdersAndShipmentsScreenProps {
   onClearAllOrders?: () => void;
 }
 
+const generateShipmentId = () => `shipment-${Date.now()}`;
+
 export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> = ({
   orders,
   shipments,
@@ -336,7 +338,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
 
     const newShipmentNumber = `OTG-${2000 + shipments.length + 1}`;
     const newShipment: ShipmentOrder = {
-      id: `shipment-${Date.now()}`,
+      id: generateShipmentId(),
       shipmentNumber: newShipmentNumber,
       orderId: order.id,
       orderNumber: order.orderNumber,

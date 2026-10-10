@@ -40,6 +40,8 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
+const ALL_DEFAULT_TABS: ActiveTab[] = ['dashboard', 'financial_reports', 'crm', 'pos', 'orders', 'inventory', 'warranty', 'customers', 'employees', 'settings'];
+
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
@@ -82,7 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Determine allowed tabs for current user
   const allowedTabs = React.useMemo(() => {
-    if (!currentUser) return allNavItems.map(n => n.id);
+    if (!currentUser) return [...ALL_DEFAULT_TABS];
 
     if (isTechUser) {
       return ['technician_portal'] as ActiveTab[];
@@ -94,7 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     } else if (currentUser.systemRole && DEFAULT_ROLE_TABS[currentUser.systemRole]) {
       tabs = [...DEFAULT_ROLE_TABS[currentUser.systemRole]];
     } else {
-      tabs = allNavItems.map(n => n.id);
+      tabs = [...ALL_DEFAULT_TABS];
     }
 
     if (currentUser.systemRole === 'admin' || currentUser.systemRole === 'manager' || !currentUser.systemRole || currentUser.permissions?.canViewFinancialReports) {

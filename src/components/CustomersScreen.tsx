@@ -1606,7 +1606,7 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Boshlang&apos;ich Status</label>
                 <select
                   value={tier}
-                  onChange={(e: any) => setTier(e.target.value)}
+                  onChange={(e) => setTier(e.target.value as Exclude<Customer['tier'], 'None'>)}
                   className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white outline-none"
                 >
                   <option value="Standard">Standard (1% Cashback)</option>
@@ -2185,6 +2185,9 @@ interface AcceptDebtPaymentModalProps {
   onSubmitPayment: (payment: CustomerDebtPayment) => void;
 }
 
+const generateDebtPaymentId = () => `cdp-${Date.now()}`;
+const generateDebtPaymentNumber = () => `QP-${1000 + Math.floor(Math.random() * 9000)}`;
+
 const AcceptDebtPaymentModal: React.FC<AcceptDebtPaymentModalProps> = ({
   isOpen,
   onClose,
@@ -2257,8 +2260,8 @@ const AcceptDebtPaymentModal: React.FC<AcceptDebtPaymentModalProps> = ({
     const linkedReceipt = receipts.find(r => r.id === selectedReceiptId);
 
     const payment: CustomerDebtPayment = {
-      id: `cdp-${Date.now()}`,
-      paymentNumber: `QP-${1000 + Math.floor(Math.random() * 9000)}`,
+      id: generateDebtPaymentId(),
+      paymentNumber: generateDebtPaymentNumber(),
       createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
       customerId: customer.id,
       customerName: customer.fullName,

@@ -42,6 +42,12 @@ export const DEFAULT_TELEGRAM_SETTINGS: TelegramSettings = {
 
 const STORAGE_KEY = 'sc_telegram_settings';
 
+interface TelegramApiResponse {
+  ok: boolean;
+  description?: string;
+  result?: unknown;
+}
+
 /**
  * Get saved Telegram settings from local storage
  */
@@ -77,7 +83,7 @@ export const sendTelegramMessage = async (
   botToken: string,
   chatId: string,
   text: string
-): Promise<{ success: boolean; message: string; data?: any }> => {
+): Promise<{ success: boolean; message: string; data?: unknown }> => {
   try {
     const token = botToken.trim();
     const chat = chatId.trim();
@@ -103,7 +109,7 @@ export const sendTelegramMessage = async (
       }),
     });
 
-    const data = await response.json();
+    const data: TelegramApiResponse = await response.json();
 
     if (!response.ok || !data.ok) {
       const errDetail = data.description || 'Noma\'lum xatolik yuz berdi';
@@ -125,10 +131,11 @@ export const sendTelegramMessage = async (
       message: 'Hisobot Telegramga muvaffaqiyatli yuborildi!',
       data: data.result,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internet aloqasini tekshiring';
     return {
       success: false,
-      message: `Tarmoqqa ulanishda xatolik: ${error?.message || 'Internet aloqasini tekshiring'}`,
+      message: `Tarmoqqa ulanishda xatolik: ${message}`,
     };
   }
 };

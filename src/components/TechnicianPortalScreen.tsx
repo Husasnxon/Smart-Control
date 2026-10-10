@@ -170,7 +170,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   const [customEndDate, setCustomEndDate] = useState<string>('');
 
   // Sync initialSubTab changes from sidebar
-  useEffect(() => {
+  const [prevSubTab, setPrevSubTab] = useState(initialSubTab);
+  if (initialSubTab !== prevSubTab) {
+    setPrevSubTab(initialSubTab);
     if (initialSubTab) {
       if (initialSubTab === 'earnings' || initialSubTab === 'profile') {
         setMainTab('profile');
@@ -192,7 +194,7 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
         setOrdersSubFilter('active_jobs');
       }
     }
-  }, [initialSubTab]);
+  }
 
   const [searchQuery, setSearchQuery] = useState('');
   const [estimateStatusFilter, setEstimateStatusFilter] = useState<'all' | 'pending' | 'rejected' | 'shipped' | 'completed'>('all');
@@ -225,15 +227,15 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [profileSavedToast, setProfileSavedToast] = useState(false);
 
-  useEffect(() => {
-    if (activeTechnician) {
-      setProfileFullName(activeTechnician.fullName || '');
-      setProfilePhone(activeTechnician.phone || '');
-      setProfileAvatar(activeTechnician.avatar || '');
-      setProfilePassword(activeTechnician.password || '');
-      setProfilePin(activeTechnician.pin || '');
-    }
-  }, [activeTechnician]);
+  const [prevTechId, setPrevTechId] = useState(activeTechnician?.id);
+  if (activeTechnician && activeTechnician.id !== prevTechId) {
+    setPrevTechId(activeTechnician.id);
+    setProfileFullName(activeTechnician.fullName || '');
+    setProfilePhone(activeTechnician.phone || '');
+    setProfileAvatar(activeTechnician.avatar || '');
+    setProfilePassword(activeTechnician.password || '');
+    setProfilePin(activeTechnician.pin || '');
+  }
 
   // Escape key handler to close modals in TechnicianPortalScreen
   useEffect(() => {

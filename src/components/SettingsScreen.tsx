@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Product, 
   SaleReceipt, 
@@ -99,7 +99,6 @@ interface SettingsScreenProps {
   onUpdateExchangeRate: (rate: number) => void;
   baseCurrency: Currency;
   onUpdateBaseCurrency: (currency: Currency) => void;
-  onRestoreAllData?: (data: any) => void;
   currentUser?: Employee | null;
   onUpdateEmployee?: (employee: Employee) => void;
 }
@@ -117,7 +116,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onUpdateExchangeRate,
   baseCurrency,
   onUpdateBaseCurrency,
-  onRestoreAllData,
   currentUser,
   onUpdateEmployee
 }) => {
@@ -242,6 +240,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [permissionsSavedToast, setPermissionsSavedToast] = useState(false);
 
   // Background automated scheduler for Telegram reports
+  const handleSendReportRef = useRef<((type: 'daily' | 'low_stock' | 'techs' | 'debts' | 'service') => Promise<void>) | null>(null);
+
   useEffect(() => {
     if (!settings.enabled || !settings.autoSchedulerEnabled || !settings.scheduledSendTime || !settings.botToken || !settings.chatId) {
       return;
@@ -256,7 +256,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         const lastSentDate = localStorage.getItem('sc_last_auto_scheduled_date');
         if (lastSentDate !== todayStr) {
           localStorage.setItem('sc_last_auto_scheduled_date', todayStr);
-          handleSendReport('daily');
+          if (handleSendReportRef.current) {
+            handleSendReportRef.current('daily');
+          }
         }
       }
     };
@@ -265,13 +267,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     return () => clearInterval(timer);
   }, [settings, receipts, expenses, exchangeRate]);
 
-  useEffect(() => {
-    if (!employees.some(e => e.id === selectedEmployeeId) && employees.length > 0) {
-      setSelectedEmployeeId(employees[0].id);
-    }
-  }, [employees, selectedEmployeeId]);
-
-  const activeEmployee = employees.find(e => e.id === selectedEmployeeId) || employees[0];
+  const effectiveEmployeeId = employees.some(e => e.id === selectedEmployeeId) ? selectedEmployeeId : (employees[0]?.id || '');
+  const activeEmployee = employees.find(e => e.id === effectiveEmployeeId) || employees[0];
 
   const handleTogglePermission = (empId: string, key: keyof EmployeePermissions) => {
     const targetEmp = employees.find(e => e.id === empId);
@@ -308,9 +305,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setTimeout(() => setPermissionsSavedToast(false), 2000);
   };
 
-  useEffect(() => {
+  const [prevExchangeRate, setPrevExchangeRate] = useState(exchangeRate);
+  if (exchangeRate !== prevExchangeRate) {
+    setPrevExchangeRate(exchangeRate);
     setTempRate(exchangeRate.toString());
-  }, [exchangeRate]);
+  }
 
   // Save Telegram Settings
   const handleSaveSettings = () => {
@@ -397,6 +396,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       }));
     }
   };
+
+  useEffect(() => {
+    handleSendReportRef.current = handleSendReport;
+  });
 
   // Open Preview Modal
   const handlePreviewReport = (type: 'daily' | 'low_stock' | 'techs' | 'debts' | 'service') => {
@@ -495,8 +498,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           alert('Ma\'lumotlar muvaffaqiyatli tiklandi! Tizim qayta yuklanmoqda...');
           window.location.reload();
         }
-      } catch (err: any) {
-        alert('Faylni o\'qishda xatolik: ' + err.message);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Noma\'lum xatolik';
+        alert('Faylni o\'qishda xatolik: ' + message);
       }
     };
     reader.readAsText(file);
@@ -2666,7 +2670,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <div>
                     <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
                       <Sparkles className="w-5 h-5 text-purple-500" />
-                      <span>Google Gemini Sun'iy Intellekt Sozlamalari</span>
+                      <span>Google Gemini Sun&apos;iy Intellekt Sozlamalari</span>
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Ovozli xabarlarni tahlil qilish, avtomat lid ochish, aqlli smeta va tijoriy taklif generatsiya qilish
@@ -2732,7 +2736,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         Kunlik Bepul Limit:
                       </label>
                       <div className="px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-emerald-500 flex items-center justify-between">
-                        <span>1,500 ta so'rov / kuniga</span>
+                        <span>1,500 ta so&apos;rov / kuniga</span>
                         <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">0$ Bepul</span>
                       </div>
                     </div>
@@ -2771,8 +2775,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                               const err = await res.json();
                               lastErrMsg = err.error?.message || 'API kalit xato yoki model topilmadi';
                             }
-                          } catch (e: any) {
-                            lastErrMsg = e.message;
+                          } catch (e: unknown) {
+                            lastErrMsg = e instanceof Error ? e.message : 'Noma\'lum xatolik';
                           }
                         }
 
@@ -2841,7 +2845,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <li>Nusxalangan kalitni chapdagi maydonga joylang va <strong className="text-white">&ldquo;Saqlash&rdquo;</strong>ni bosing.</li>
                 </ol>
                 <div className="p-2.5 rounded-xl bg-purple-950/60 border border-purple-500/30 text-[11px] text-purple-200">
-                  💡 <strong>Eslatma:</strong> API kalit kiritilmagan taqdirda ham CRM dagi sun'iy intellekt maxsus lokal tahlilchi (offline engine) orqali to'liq ishlayveradi!
+                  💡 <strong>Eslatma:</strong> API kalit kiritilmagan taqdirda ham CRM dagi sun&apos;iy intellekt maxsus lokal tahlilchi (offline engine) orqali to&apos;liq ishlayveradi!
                 </div>
               </div>
             </div>
@@ -3288,7 +3292,7 @@ Body: {
                       </label>
                       <select
                         value={integrations.telephonyProvider}
-                        onChange={(e: any) => setIntegrations({ ...integrations, telephonyProvider: e.target.value })}
+                        onChange={(e) => setIntegrations({ ...integrations, telephonyProvider: e.target.value as typeof integrations.telephonyProvider })}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-100"
                       >
                         <option value="zadarma">Zadarma Cloud PBX</option>

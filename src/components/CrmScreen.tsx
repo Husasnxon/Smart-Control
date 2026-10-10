@@ -146,7 +146,7 @@ const SOURCE_LABELS: Record<CrmLeadSource, { label: string; color: string }> = {
   other: { label: 'Boshqa manba', color: 'text-slate-400 bg-slate-500/10 border-slate-500/30' }
 };
 
-const OBJECT_TYPE_LABELS: Record<CrmObjectType, { label: string; icon: any }> = {
+const OBJECT_TYPE_LABELS: Record<CrmObjectType, { label: string; icon: React.ElementType }> = {
   xonadon: { label: 'Hovli / Xonadon', icon: Home },
   dokon: { label: 'Do\'kon / Savdo', icon: Store },
   ofis: { label: 'Ofis / Biznes', icon: Building2 },
@@ -685,7 +685,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition active:scale-95"
             >
               <Plus className="w-3.5 h-3.5" />
-              Lid qo'shish
+              Lid qo&apos;shish
             </button>
             <button
               onClick={() => setIsAddPassportModalOpen(true)}
@@ -758,8 +758,8 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   <option value="all">Barcha Manbalar</option>
                   <option value="instagram">Instagram / SMM</option>
                   <option value="telegram">Telegram</option>
-                  <option value="phone">Qo'ng'iroq</option>
-                  <option value="walk_in">Do'konga kelgan</option>
+                  <option value="phone">Qo&apos;ng&apos;iroq</option>
+                  <option value="walk_in">Do&apos;konga kelgan</option>
                   <option value="recommendation">Tavsiya</option>
                 </select>
 
@@ -995,7 +995,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                                   className="px-1 py-1 bg-slate-950 border border-slate-700 rounded text-[9px] text-slate-300 font-semibold focus:outline-none shrink-0"
                                 >
                                   <option value="new_lead">1. Yangi</option>
-                                  <option value="site_visit">2. O'lchash</option>
+                                  <option value="site_visit">2. O&apos;lchash</option>
                                   <option value="estimate_sent">3. Smeta</option>
                                   <option value="installation">4. Montaj</option>
                                   <option value="won">5. Yopildi</option>
@@ -1008,7 +1008,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
 
                         {stageLeads.length === 0 && (
                           <div className="py-8 text-center text-[11px] text-slate-400 border border-dashed border-slate-800/80 rounded-xl">
-                            Hozircha lid yo'q
+                            Hozircha lid yo&apos;q
                           </div>
                         )}
                       </div>
@@ -1066,7 +1066,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                             <td className="px-4 py-3">
                               <div className="font-extrabold text-amber-400">${formatUSDNumber(lead.budgetEstimatedUSD || 0)}</div>
                               <div className="text-[10px] text-slate-400">
-                                {formatNumberWithSpaces(lead.budgetEstimatedUZS || Math.round((lead.budgetEstimatedUSD || 0) * exchangeRate))} so'm
+                                {formatNumberWithSpaces(lead.budgetEstimatedUZS || Math.round((lead.budgetEstimatedUSD || 0) * exchangeRate))} so&apos;m
                               </div>
                             </td>
                             <td className="px-4 py-3 text-slate-300">
@@ -1200,7 +1200,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                           )}
                           {stage === 'fully_completed' && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                              <span>✅</span> To'liq Topshirildi
+                              <span>✅</span> To&apos;liq Topshirildi
                             </span>
                           )}
                           {stage === 'maintenance' && (
@@ -1241,7 +1241,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                               className="flex items-center gap-1 text-[11px] text-sky-400 hover:text-sky-300"
                             >
                               <MapPin className="w-3 h-3 text-rose-400" />
-                              Xaritada ko'rish
+                              Xaritada ko&apos;rish
                               <ExternalLink className="w-2.5 h-2.5" />
                             </a>
                           )}
@@ -1377,7 +1377,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 <div className="col-span-full py-12 text-center text-slate-400 bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl">
                   <ShieldCheck className="w-10 h-10 text-slate-400 mx-auto mb-2" />
                   <p className="text-sm font-bold text-slate-300">Obyekt pasportlari topilmadi</p>
-                  <p className="text-xs text-slate-400 mt-1">Yangi obyekt qo'shish uchun yuqoridagi tugmani bosing</p>
+                  <p className="text-xs text-slate-400 mt-1">Yangi obyekt qo&apos;shish uchun yuqoridagi tugmani bosing</p>
                 </div>
               )}
             </div>
@@ -1391,8 +1391,8 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
           <div className="space-y-4 max-w-4xl mx-auto">
             <div className="flex items-center justify-between bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
               <div>
-                <h3 className="text-sm font-bold text-white">Rejalashtirilgan Qo'ng'iroqlar va Profilaktikalar</h3>
-                <p className="text-xs text-slate-400">Mijozlar bilan qayta bog'lanish, o'lchash-hisoblash va kafolatli profilaktikalar</p>
+                <h3 className="text-sm font-bold text-white">Rejalashtirilgan Qo&apos;ng&apos;iroqlar va Profilaktikalar</h3>
+                <p className="text-xs text-slate-400">Mijozlar bilan qayta bog&apos;lanish, o&apos;lchash-hisoblash va kafolatli profilaktikalar</p>
               </div>
               <button
                 onClick={() => setIsAddReminderModalOpen(true)}
@@ -1476,7 +1476,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               {reminders.length === 0 && (
                 <div className="py-12 text-center text-slate-400 bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl">
                   <CalendarClock className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-                  <p className="text-sm font-bold text-slate-300">Hozircha eslatmalar yo'q</p>
+                  <p className="text-sm font-bold text-slate-300">Hozircha eslatmalar yo&apos;q</p>
                   <p className="text-xs text-slate-400 mt-1">Yangi eslatma yaratish uchun yuqoridagi tugmani bosing</p>
                 </div>
               )}
@@ -1547,7 +1547,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-teal-400" />
-                  Obyektlar Turi Bo'yicha
+                  Obyektlar Turi Bo&apos;yicha
                 </h4>
                 <div className="space-y-2">
                   {Object.entries(OBJECT_TYPE_LABELS).map(([typeKey, info]) => {
@@ -1658,10 +1658,10 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                     name="source"
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-indigo-500 focus:outline-none"
                   >
-                    <option value="phone">Qo'ng'iroq</option>
+                    <option value="phone">Qo&apos;ng&apos;iroq</option>
                     <option value="instagram">Instagram / SMM</option>
                     <option value="telegram">Telegram</option>
-                    <option value="walk_in">Do'konga kelgan</option>
+                    <option value="walk_in">Do&apos;konga kelgan</option>
                     <option value="recommendation">Tavsiya</option>
                     <option value="other">Boshqa</option>
                   </select>
@@ -1675,7 +1675,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="xonadon">Hovli / Xonadon</option>
-                  <option value="dokon">Do'kon / Savdo majmuasi</option>
+                  <option value="dokon">Do&apos;kon / Savdo majmuasi</option>
                   <option value="ofis">Ofis / Biznes markaz</option>
                   <option value="ombor_zavod">Omborxona / Zavod</option>
                   <option value="davlat">Davlat tashkiloti / Maktab</option>
@@ -1684,7 +1684,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Manzil / Mo'ljal</label>
+                <label className="block text-slate-300 font-bold mb-1">Manzil / Mo&apos;ljal</label>
                 <input
                   name="address"
                   placeholder="Namangan sh., Chorsu bozori yaqinida"
@@ -1716,7 +1716,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-                <label className="block text-slate-300 font-bold">O'lchash-hisoblash / Usta biriktirish</label>
+                <label className="block text-slate-300 font-bold">O&apos;lchash-hisoblash / Usta biriktirish</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="sm:col-span-1">
                     <select
@@ -1759,7 +1759,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Qo'shimcha Izoh</label>
+                <label className="block text-slate-300 font-bold mb-1">Qo&apos;shimcha Izoh</label>
                 <textarea
                   name="notes"
                   rows={2}
@@ -1897,7 +1897,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                     name="objectType"
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none"
                   >
-                    <option value="dokon">Do'kon / Savdo</option>
+                    <option value="dokon">Do&apos;kon / Savdo</option>
                     <option value="xonadon">Hovli / Xonadon</option>
                     <option value="ofis">Ofis / Biznes</option>
                     <option value="ombor_zavod">Omborxona / Zavod</option>
@@ -1905,7 +1905,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">O'rnatilgan Kameralar soni</label>
+                  <label className="block text-slate-300 font-bold mb-1">O&apos;rnatilgan Kameralar soni</label>
                   <input
                     name="installedCamerasCount"
                     type="number"
@@ -1917,7 +1917,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">To'liq Manzil</label>
+                <label className="block text-slate-300 font-bold mb-1">To&apos;liq Manzil</label>
                 <input
                   name="address"
                   required
@@ -1937,7 +1937,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
 
               {/* DVR / NVR Hardware Details */}
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-                <p className="font-bold text-teal-400">DVR / NVR Qurilma Ma'lumotlari</p>
+                <p className="font-bold text-teal-400">DVR / NVR Qurilma Ma&apos;lumotlari</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-slate-400 mb-1">Registrator Modeli</label>
@@ -2006,7 +2006,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">O'rnatgan Usta</label>
+                <label className="block text-slate-300 font-bold mb-1">O&apos;rnatgan Usta</label>
                 <input
                   name="technicianName"
                   placeholder="Dilshod Karimov"
@@ -2067,7 +2067,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 const title = (form.elements.namedItem('title') as HTMLInputElement).value;
                 const customerName = (form.elements.namedItem('customerName') as HTMLInputElement).value;
                 const customerPhone = (form.elements.namedItem('customerPhone') as HTMLInputElement).value;
-                const type = (form.elements.namedItem('type') as HTMLSelectElement).value as any;
+                const type = (form.elements.namedItem('type') as HTMLSelectElement).value as CrmReminder['type'];
                 const dueDate = (form.elements.namedItem('dueDate') as HTMLInputElement).value;
                 const dueTime = (form.elements.namedItem('dueTime') as HTMLInputElement).value;
                 const notes = (form.elements.namedItem('notes') as HTMLTextAreaElement).value;
@@ -2127,8 +2127,8 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   name="type"
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-amber-500 focus:outline-none"
                 >
-                  <option value="call">Telefon orqali qo'ng'iroq qilish</option>
-                  <option value="visit">O'lchash-hisoblash / Obyektga borish</option>
+                  <option value="call">Telefon orqali qo&apos;ng&apos;iroq qilish</option>
+                  <option value="visit">O&apos;lchash-hisoblash / Obyektga borish</option>
                   <option value="maintenance">Rejali profilaktika / Servis</option>
                   <option value="debt_reminder">Nasiya / Qarz eslatish</option>
                 </select>
@@ -2218,7 +2218,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 <p className="text-[10px] uppercase font-bold text-slate-400">Kafolat & Montajchi:</p>
                 <p className="font-bold text-slate-900">Kafolat: {printingPassport.warrantyMonths} oy</p>
                 <p className="text-slate-600">Amal qilish muddati: <span className="font-bold text-slate-900">{printingPassport.warrantyExpiresAt}</span></p>
-                <p className="text-slate-600">O'rnatgan usta: <span className="font-bold text-slate-900">{printingPassport.installedByTechnicianName || '-'}</span></p>
+                <p className="text-slate-600">O&apos;rnatgan usta: <span className="font-bold text-slate-900">{printingPassport.installedByTechnicianName || '-'}</span></p>
               </div>
             </div>
 
@@ -2253,7 +2253,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
             {printingPassport.installedItems && printingPassport.installedItems.length > 0 && (
               <div className="border border-slate-300 rounded-xl overflow-hidden text-xs">
                 <div className="bg-slate-100 px-4 py-2 font-bold text-slate-800 border-b border-slate-300">
-                  2. O'rnatilgan Kameralar va Nuqtalar
+                  2. O&apos;rnatilgan Kameralar va Nuqtalar
                 </div>
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b border-slate-200 text-[11px] text-slate-600">
@@ -2261,7 +2261,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                       <th className="px-3 py-2">#</th>
                       <th className="px-3 py-2">Uskuna Nomi</th>
                       <th className="px-3 py-2">Seriya Raqami (S/N)</th>
-                      <th className="px-3 py-2">O'rnatilgan Joyi</th>
+                      <th className="px-3 py-2">O&apos;rnatilgan Joyi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -2326,7 +2326,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-black text-white flex items-center gap-2">
-                    <span>Smeta Tuzish & Bog'lash</span>
+                    <span>Smeta Tuzish & Bog&apos;lash</span>
                     <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-500/30">
                       {selectedLeadForEstimate.leadNumber}
                     </span>
@@ -2366,14 +2366,14 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                       estimateCurrency === 'UZS' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    So'm (UZS)
+                    So&apos;m (UZS)
                   </button>
                 </div>
               </div>
 
               {/* Technician Selector */}
               <div>
-                <label className="block text-slate-400 font-bold mb-1">Mas'ul Usta / Muhandis:</label>
+                <label className="block text-slate-400 font-bold mb-1">Mas&apos;ul Usta / Muhandis:</label>
                 <select
                   value={estimateTechId}
                   onChange={(e) => setEstimateTechId(e.target.value)}
@@ -2409,7 +2409,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="text-slate-400 font-bold flex items-center gap-1 text-[11px]">
                 <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                Tezkor To'plamlar:
+                Tezkor To&apos;plamlar:
               </span>
               <button
                 type="button"
@@ -2469,7 +2469,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 }}
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold transition"
               >
-                📹 Standart CCTV To'plam
+                📹 Standart CCTV To&apos;plam
               </button>
               <button
                 type="button"
@@ -2499,7 +2499,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
 
             {/* Add Product Search & Catalog Dropdown */}
             <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2">
-              <label className="block text-xs font-bold text-slate-300">Ombordan Tovar yoki Xizmat Qo'shish:</label>
+              <label className="block text-xs font-bold text-slate-300">Ombordan Tovar yoki Xizmat Qo&apos;shish:</label>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative flex-1 min-w-[240px]">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -2559,7 +2559,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                           </div>
                           <div className="text-right">
                             <span className="font-extrabold text-amber-400">${priceUSD}</span>
-                            <span className="text-[10px] text-slate-400 ml-1.5 font-mono">({prod.retailPrice.toLocaleString()} so'm)</span>
+                            <span className="text-[10px] text-slate-400 ml-1.5 font-mono">({prod.retailPrice.toLocaleString()} so&apos;m)</span>
                           </div>
                         </div>
                       );
@@ -2580,7 +2580,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                       <th className="px-3 py-2.5 text-right">Narxi ({estimateCurrency === 'USD' ? '$' : 'so\'m'})</th>
                       <th className="px-3 py-2.5 text-center">Chegirma</th>
                       <th className="px-3 py-2.5 text-right">Jami</th>
-                      <th className="px-3 py-2.5 text-center">O'chirish</th>
+                      <th className="px-3 py-2.5 text-center">O&apos;chirish</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
@@ -2694,7 +2694,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                     {estimateItems.length === 0 && (
                       <tr>
                         <td colSpan={7} className="py-6 text-center text-slate-400 italic">
-                          Smetada hali tovarlar yo'q. Yuqoridan to'plam tanlang yoki qidiruv orqali qo'shing.
+                          Smetada hali tovarlar yo&apos;q. Yuqoridan to&apos;plam tanlang yoki qidiruv orqali qo&apos;shing.
                         </td>
                       </tr>
                     )}
@@ -2723,11 +2723,11 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-indigo-950/40 border border-slate-800 text-xs">
                   <div className="space-y-0.5">
                     <p className="text-slate-400 font-semibold">
-                      Oraliq summa: <b className="text-slate-200">${formatUSDNumber(subtotalUSD)}</b> ({Math.round(subtotalUZS).toLocaleString()} so'm)
+                      Oraliq summa: <b className="text-slate-200">${formatUSDNumber(subtotalUSD)}</b> ({Math.round(subtotalUZS).toLocaleString()} so&apos;m)
                     </p>
                     {estimateDiscountPercent > 0 && (
                       <p className="text-rose-400 font-semibold">
-                        Chegirma ({estimateDiscountPercent}%): -${formatUSDNumber(totalDiscountUSD)} (-{Math.round(totalDiscountUZS).toLocaleString()} so'm)
+                        Chegirma ({estimateDiscountPercent}%): -${formatUSDNumber(totalDiscountUSD)} (-{Math.round(totalDiscountUZS).toLocaleString()} so&apos;m)
                       </p>
                     )}
                   </div>
@@ -2737,7 +2737,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                       ${formatUSDNumber(finalTotalUSD)}
                     </div>
                     <div className="text-xs font-mono font-bold text-slate-400">
-                      {finalTotalUZS.toLocaleString()} so'm
+                      {finalTotalUZS.toLocaleString()} so&apos;m
                     </div>
                   </div>
                 </div>
@@ -2757,7 +2757,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                     className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Hisob-kitoblar Bo'limiga O'tish</span>
+                    <span>Hisob-kitoblar Bo&apos;limiga O&apos;tish</span>
                   </button>
                 )}
               </div>
@@ -2776,7 +2776,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition active:scale-95"
                 >
                   <Save className="w-4 h-4" />
-                  <span>Smetani Saqlash & Bog'lash</span>
+                  <span>Smetani Saqlash & Bog&apos;lash</span>
                 </button>
               </div>
             </div>
@@ -2822,7 +2822,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 const customerPhone = (form.elements.namedItem('customerPhone') as HTMLInputElement).value;
                 const address = (form.elements.namedItem('address') as HTMLInputElement).value;
                 const objectType = (form.elements.namedItem('objectType') as HTMLSelectElement).value as CrmObjectType;
-                const installationStage = (form.elements.namedItem('installationStage') as HTMLSelectElement).value as any;
+                const installationStage = (form.elements.namedItem('installationStage') as HTMLSelectElement).value as CrmObjectPassport['installationStage'];
                 const mapLocationUrl = (form.elements.namedItem('mapLocationUrl') as HTMLInputElement).value;
                 const dvrModel = (form.elements.namedItem('dvrModel') as HTMLInputElement).value;
                 const dvrSerialNumber = (form.elements.namedItem('dvrSerialNumber') as HTMLInputElement).value;
@@ -2871,7 +2871,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                 >
                   <option value="cabling_phase">🔌 1-Bosqich: Kabel montaji (Chernovoy davr)</option>
                   <option value="devices_phase">📹 2-Bosqich: Qurilmalar montaji (Chistovoy davr)</option>
-                  <option value="fully_completed">✅ To'liq montaj topshirilgan & Faol</option>
+                  <option value="fully_completed">✅ To&apos;liq montaj topshirilgan & Faol</option>
                   <option value="maintenance">🛠️ Servis & Rejali profilaktika</option>
                 </select>
               </div>
@@ -2893,7 +2893,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                     defaultValue={selectedPassportForDetail.objectType}
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-teal-500 focus:outline-none"
                   >
-                    <option value="dokon">Do'kon / Savdo</option>
+                    <option value="dokon">Do&apos;kon / Savdo</option>
                     <option value="xonadon">Hovli / Xonadon</option>
                     <option value="ofis">Ofis / Biznes</option>
                     <option value="ombor_zavod">Omborxona / Zavod</option>
@@ -2924,7 +2924,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">To'liq Manzil</label>
+                <label className="block text-slate-300 font-bold mb-1">To&apos;liq Manzil</label>
                 <input
                   name="address"
                   required
@@ -3056,7 +3056,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                     }}
                     className="px-3 py-2 rounded-xl bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 font-bold border border-rose-800/40"
                   >
-                    O'chirish
+                    O&apos;chirish
                   </button>
                 )}
 
@@ -3072,7 +3072,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                     type="submit"
                     className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow-lg shadow-teal-600/20"
                   >
-                    O'zgarishlarni Saqlash
+                    O&apos;zgarishlarni Saqlash
                   </button>
                 </div>
               </div>
@@ -3121,7 +3121,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   <UserCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Ustaga bog'lash</h3>
+                  <h3 className="text-base font-bold text-white">Ustaga bog&apos;lash</h3>
                   <p className="text-xs text-slate-400">
                     Lid: <span className="font-mono text-slate-300 font-bold">{assigningLeadTech.leadNumber}</span> - {assigningLeadTech.clientName}
                   </p>
@@ -3138,7 +3138,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Mas'ul Usta / Montajchi</label>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Mas&apos;ul Usta / Montajchi</label>
                 <select
                   value={selectedTechIdForAssign}
                   onChange={(e) => setSelectedTechIdForAssign(e.target.value)}
@@ -3168,7 +3168,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Tashrif / O'lchash Sanasi</label>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Tashrif / O&apos;lchash Sanasi</label>
                   <input
                     type="date"
                     value={visitDateForAssign}

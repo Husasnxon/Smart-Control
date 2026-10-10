@@ -166,32 +166,42 @@ export const parseProductsFromExcel = async (
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const rawJson: any[] = XLSX.utils.sheet_to_json(worksheet);
+        const rawJson: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet);
 
         const products: Product[] = [];
         const errors: string[] = [];
 
         rawJson.forEach((row, idx) => {
+          const getCellValue = (...keys: string[]) => {
+            for (const key of keys) {
+              const value = row[key];
+              if (value !== undefined && value !== null && value !== '') return value;
+            }
+            return undefined;
+          };
+
           // Normalize column names
-          const name = row['Mahsulot Nomi'] || row['Nomi'] || row['Name'] || row['Наименование'] || row['nomi'];
+          const name = getCellValue('Mahsulot Nomi', 'Nomi', 'Name', 'Наименование', 'nomi');
           if (!name) {
             errors.push(`Qator ${idx + 2}: Mahsulot nomi ko'rsatilmagan`);
             return;
           }
 
-          const category = row['Kategoriya'] || row['Category'] || row['Категория'] || 'Kuzatuv kameralari (CCTV)';
-          const sku = row['Artikul (SKU)'] || row['SKU'] || row['Artikul'] || row['Артикул'] || `SKU-${Date.now()}-${idx}`;
-          const barcode = String(row['Shtrix-kod (Barcode)'] || row['Barcode'] || row['Shtrix-kod'] || row['Штрихкод'] || `BC-${Date.now()}-${idx}`);
-          const stockQty = Number(row['Qoldiq Miqdori'] || row['Qoldiq'] || row['Stock'] || row['Количество'] || 0);
-          const unit = row['O\'lchov Birligi'] || row['Birlik'] || row['Unit'] || row['Ед. изм.'] || 'dona';
-          const costPrice = Number(row['Tannarx (So\'m)'] || row['Tannarx'] || row['Cost'] || row['Себестоимость'] || 0);
-          const costPriceUSD = row['Tannarx ($ USD)'] || row['Tannarx ($)'] || row['Cost USD'] ? Number(row['Tannarx ($ USD)'] || row['Tannarx ($)'] || row['Cost USD']) : undefined;
-          const retailPrice = Number(row['Sotish Narxi (So\'m)'] || row['Narxi'] || row['Price'] || row['Цена'] || 0);
-          const retailPriceUSD = row['Sotish Narxi ($ USD)'] || row['Narxi ($)'] || row['Price USD'] ? Number(row['Sotish Narxi ($ USD)'] || row['Narxi ($)'] || row['Price USD']) : undefined;
-          const warrantyMonths = Number(row['Kafolat Muddati (Oy)'] || row['Kafolat'] || row['Warranty'] || row['Гарантия'] || 12);
+          const category = String(getCellValue('Kategoriya', 'Category', 'Категория') ?? 'Kuzatuv kameralari (CCTV)');
+          const sku = String(getCellValue('Artikul (SKU)', 'SKU', 'Artikul', 'Артикул') ?? `SKU-${Date.now()}-${idx}`);
+          const barcode = String(getCellValue('Shtrix-kod (Barcode)', 'Barcode', 'Shtrix-kod', 'Штрихкод') ?? `BC-${Date.now()}-${idx}`);
+          const stockQty = Number(getCellValue('Qoldiq Miqdori', 'Qoldiq', 'Stock', 'Количество') ?? 0);
+          const unit = String(getCellValue('O\'lchov Birligi', 'Birlik', 'Unit', 'Ед. изм.') ?? 'dona');
+          const costPrice = Number(getCellValue('Tannarx (So\'m)', 'Tannarx', 'Cost', 'Себестоимость') ?? 0);
+          const costPriceUSDValue = getCellValue('Tannarx ($ USD)', 'Tannarx ($)', 'Cost USD');
+          const costPriceUSD = costPriceUSDValue === undefined ? undefined : Number(costPriceUSDValue);
+          const retailPrice = Number(getCellValue('Sotish Narxi (So\'m)', 'Narxi', 'Price', 'Цена') ?? 0);
+          const retailPriceUSDValue = getCellValue('Sotish Narxi ($ USD)', 'Narxi ($)', 'Price USD');
+          const retailPriceUSD = retailPriceUSDValue === undefined ? undefined : Number(retailPriceUSDValue);
+          const warrantyMonths = Number(getCellValue('Kafolat Muddati (Oy)', 'Kafolat', 'Warranty', 'Гарантия') ?? 12);
           
           // Serial numbers parsing
-          const serialsRaw = row['Seriya Raqamlari (Vergul bilan)'] || row['Seriya raqamlari'] || row['S/N'] || row['Серийные номера'];
+          const serialsRaw = getCellValue('Seriya Raqamlari (Vergul bilan)', 'Seriya raqamlari', 'S/N', 'Серийные номера');
           let serialNumbers: string[] = [];
           if (serialsRaw) {
             serialNumbers = String(serialsRaw)
@@ -201,7 +211,7 @@ export const parseProductsFromExcel = async (
           }
 
           const isService = category.toLowerCase().includes('xizmat') || category.toLowerCase().includes('montaj') || unit === 'xizmat' || unit === 'nuqta';
-          const hasSerialNumber = serialNumbers.length > 0 || (row['S/N Nazorati'] && String(row['S/N Nazorati']).toLowerCase() === 'mavjud');
+          const hasSerialNumber = serialNumbers.length > 0 || String(getCellValue('S/N Nazorati') || '').toLowerCase() === 'mavjud';
 
           products.push({
             id: `prod-import-${Date.now()}-${idx}`,
@@ -224,7 +234,7 @@ export const parseProductsFromExcel = async (
         });
 
         resolve({ products, errors });
-      } catch (err: any) {
+      } catch (err: unknown) {
         reject(err);
       }
     };
@@ -526,4 +536,3 @@ export const exportPurchasesToExcel = (
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Kirim_Nakladnoylar');
   XLSX.writeFile(workbook, filename);
 };
-

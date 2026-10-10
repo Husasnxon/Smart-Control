@@ -470,7 +470,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   const lowStockCount = useMemo(() => physicalProducts.filter((p) => p.stockQuantity <= p.minStockAlert).length, [physicalProducts]);
 
   // Purchases Metrics
-  const currentPurchases = purchases || [];
+  const currentPurchases = useMemo(() => purchases || [], [purchases]);
   const totalPurchasesUZS = useMemo(() => 
     currentPurchases.filter((p) => p.status !== 'cancelled').reduce((sum, p) => sum + p.totalAmount, 0),
     [currentPurchases]
@@ -1458,7 +1458,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
               onChange={(e) => setSelectedSupplierFilter(e.target.value)}
               className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500/40"
             >
-              <option value="all">🏢 Barcha Ta'minotchilar ({suppliersSummary.length} ta)</option>
+              <option value="all">🏢 Barcha Ta&apos;minotchilar ({suppliersSummary.length} ta)</option>
               {suppliersSummary.map((supp, idx) => (
                 <option key={idx} value={supp.name}>
                   {supp.name} {supp.totalDebtUZS > 0 ? `(Qarz: ${formatNumberWithSpaces(supp.totalDebtUZS)} so'm)` : `(Qarzsiz)`}

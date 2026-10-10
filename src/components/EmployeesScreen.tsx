@@ -609,7 +609,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
           { id: 'employees', label: 'Xodimlar Ro\'yxati', icon: Users },
           { id: 'payroll', label: 'Ish Haqi Tarixi & Jurnal', icon: BarChart3 },
           { id: 'advances', label: 'Avanslar', icon: ArrowDownLeft }
-        ] as { id: ScreenTab; label: string; icon: any }[]).map(({ id, label, icon: Icon }) => (
+        ] as { id: ScreenTab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setScreenTab(id)}
@@ -911,7 +911,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                           p.advancePaid > 0 && { label: 'Ushlangan avans', value: `-${fmt(p.advancePaid)} so'm`, color: 'text-violet-600' },
                           { label: 'BRUTTO (Jami)', value: `${fmt(p.totalGross)} so'm`, color: 'font-bold text-slate-800 dark:text-white' },
                           { label: 'NETTO (Qo\'lga berildi)', value: `${fmt(p.totalNet)} so'm`, color: 'font-black text-emerald-600 dark:text-emerald-400 text-sm' },
-                        ].filter(Boolean).map((item: any, idx) => (
+                        ].filter((item): item is { label: string; value: string; color: string } => Boolean(item)).map((item, idx) => (
                           <div key={idx} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2.5">
                             <span className="text-[10px] text-slate-400 block">{item.label}</span>
                             <span className={`text-xs font-bold font-mono ${item.color}`}>{item.value}</span>
@@ -992,7 +992,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Lavozimi</label>
-                  <select value={newRole} onChange={(e) => setNewRole(e.target.value as any)}
+                  <select value={newRole} onChange={(e) => setNewRole(e.target.value)}
                     className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white outline-none">
                     <option value="Montajchi Usta">Montajchi Usta</option>
                     <option value="Bosh Muhandis">Bosh Muhandis</option>
@@ -1052,7 +1052,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                     </div>
                     <div>
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Foiz manbasi</label>
-                      <select value={newPercentageTarget} onChange={(e) => setNewPercentageTarget(e.target.value as any)}
+                      <select value={newPercentageTarget} onChange={(e) => setNewPercentageTarget(e.target.value as 'total_sales' | 'net_profit')}
                         className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium">
                         <option value="total_sales">Jami savdo tushumidan</option>
                         <option value="net_profit">Sof foydadan</option>
@@ -1191,7 +1191,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Lavozimi</label>
-                  <select value={editRole} onChange={(e) => setEditRole(e.target.value as any)}
+                  <select value={editRole} onChange={(e) => setEditRole(e.target.value)}
                     className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white">
                     <option value="Montajchi Usta">Montajchi Usta</option>
                     <option value="Bosh Muhandis">Bosh Muhandis</option>
@@ -1204,7 +1204,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Holati</label>
-                  <select value={editStatus} onChange={(e) => setEditStatus(e.target.value as any)}
+                  <select value={editStatus} onChange={(e) => setEditStatus(e.target.value as Employee['status'])}
                     className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-bold">
                     <option value="active">Ishda (Bo&apos;sh)</option>
                     <option value="on_site">Obyektda</option>
@@ -1361,7 +1361,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                     </div>
                     <div>
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Foiz manbasi</label>
-                      <select value={editPercentageTarget} onChange={(e) => setEditPercentageTarget(e.target.value as any)}
+                      <select value={editPercentageTarget} onChange={(e) => setEditPercentageTarget(e.target.value as 'total_sales' | 'net_profit')}
                         className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium">
                         <option value="total_sales">Jami savdo tushumidan</option>
                         <option value="net_profit">Sof foydadan</option>
@@ -1531,7 +1531,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                     { v: 'cash', label: 'Naqd', icon: Banknote },
                     { v: 'card', label: 'Karta', icon: CreditCard },
                     { v: 'bank_transfer', label: 'Bank', icon: Briefcase }
-                  ] as any[]).map(({ v, label, icon: Icon }) => (
+                  ] as { v: EmployeeAdvance['paymentMethod']; label: string; icon: React.ElementType }[]).map(({ v, label, icon: Icon }) => (
                     <button
                       key={v}
                       type="button"

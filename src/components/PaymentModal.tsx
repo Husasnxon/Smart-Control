@@ -52,7 +52,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   // Calculate total in USD
   const totalAmountUSD = Number((totalAmount / exchangeRate).toFixed(2));
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       if (baseCurrency === 'USD') {
         setCashUSD(totalAmountUSD);
@@ -68,7 +70,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setDebtUSD(0);
       setUseCashback(0);
     }
-  }, [isOpen, totalAmount, baseCurrency, totalAmountUSD]);
+  }
 
   // Escape key to close payment modal
   useEffect(() => {
@@ -604,7 +606,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none"
                 defaultValue=""
               >
-                <option value="" disabled>-- Ro'yxatdan mijozni tanlang (1-Click Nasiya) --</option>
+                <option value="" disabled>-- Ro&apos;yxatdan mijozni tanlang (1-Click Nasiya) --</option>
                 {customers?.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.fullName} ({c.phone || "Tel yo'q"})
