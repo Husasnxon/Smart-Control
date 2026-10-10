@@ -18,12 +18,19 @@ import {
   CheckCheck, 
   Copy,
   Bluetooth,
+  Usb,
   Loader2,
   Settings2,
   AlertCircle
 } from 'lucide-react';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
-import { printThermalReceiptViaIframe, printReceiptViaBluetooth, printThermalReceiptViaPopup } from '../utils/thermalPrinter';
+import { 
+  printThermalReceiptViaIframe, 
+  printReceiptViaBluetooth, 
+  printReceiptViaWebUSB,
+  printReceiptViaWebSerial,
+  printThermalReceiptViaPopup 
+} from '../utils/thermalPrinter';
 
 interface ReceiptModalProps {
   receipt: SaleReceipt | null;
@@ -46,6 +53,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const [isPrinting, setIsPrinting] = useState(false);
   const [btStatus, setBtStatus] = useState<string | null>(null);
   const [btError, setBtError] = useState<string | null>(null);
+  const [usbStatus, setUsbStatus] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -133,6 +141,32 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     }
   };
 
+  // 3. Direct WebUSB ESC/POS Print (Bypasses driver / Chrome print dialog completely)
+  const handleUsbPrint = async () => {
+    setUsbStatus('USB printer ulanmoqda...');
+    setBtError(null);
+    try {
+      const res = await printReceiptViaWebUSB(
+        receipt,
+        paperWidth,
+        customFooter,
+        (status) => setUsbStatus(status)
+      );
+      if (!res.success) {
+        setBtError(res.message);
+        setTimeout(() => setBtError(null), 7000);
+      } else {
+        setUsbStatus(res.message);
+        setTimeout(() => setUsbStatus(null), 4000);
+      }
+    } catch (e: any) {
+      setBtError(e.message || "USB printerga ulanib bo'lmadi.");
+      setTimeout(() => setBtError(null), 7000);
+    } finally {
+      setTimeout(() => setUsbStatus(null), 5000);
+    }
+  };
+
   const netTotal = receipt.totalAmount - (receipt.totalRefunded || 0);
 
   const copyReceiptSummary = () => {
@@ -199,6 +233,17 @@ Rahmat!`;
               </button>
             </div>
 
+            {/* USB Direct Print (WebUSB) */}
+            <button
+              type="button"
+              onClick={handleUsbPrint}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold text-xs shadow-sm transition"
+              title="USB kabel orqali to'g'ridan-to'g'ri chop etish (Brauzer darchasisiz ESC/POS)"
+            >
+              <Usb className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden sm:inline">USB To&apos;g&apos;ridan-to&apos;g&apos;ri</span>
+            </button>
+
             {/* Bluetooth Direct Print */}
             <button
               type="button"
@@ -216,7 +261,7 @@ Rahmat!`;
               onClick={handlePrint}
               disabled={isPrinting}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold text-xs shadow-md transition disabled:opacity-50"
-              title="USB drayver yoki standart chop etish"
+              title="USB drayver yoki standart chop etish darchasi"
             >
               {isPrinting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
               <span>Chop Etish</span>
@@ -245,6 +290,14 @@ Rahmat!`;
             </button>
           </div>
         </div>
+
+        {/* USB Status or Toast */}
+        {usbStatus && (
+          <div className="bg-emerald-600 text-white text-xs px-4 py-2 flex items-center gap-2 animate-in fade-in duration-150">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span className="font-semibold">{usbStatus}</span>
+          </div>
+        )}
 
         {/* Bluetooth Status or Error Toast */}
         {btStatus && (
@@ -294,11 +347,11 @@ Rahmat!`;
 
               <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-amber-200 dark:border-amber-800/60">
                 <span className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                  <Bluetooth className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Ulanish turi:</span>
+                  <Usb className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Ulanish turlari:</span>
                 </span>
-                <span className="text-[11px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md">
-                  USB / BT / LAN
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                  USB / Bluetooth / LAN
                 </span>
               </div>
             </div>
@@ -319,14 +372,17 @@ Rahmat!`;
               />
             </div>
 
-            {/* Crucial tip for Chrome orientation */}
-            <div className="bg-amber-100/90 dark:bg-amber-900/40 p-2.5 rounded-xl border border-amber-300 dark:border-amber-800 text-[11px] text-amber-950 dark:text-amber-200 space-y-1">
+            {/* Crucial tip for Chrome settings */}
+            <div className="bg-amber-100/90 dark:bg-amber-900/40 p-2.5 rounded-xl border border-amber-300 dark:border-amber-800 text-[11px] text-amber-950 dark:text-amber-200 space-y-1.5">
               <div className="font-bold flex items-center gap-1.5">
-                <span>💡 Muhim eslatma (Xprinter 58mm uchun):</span>
+                <span>💡 Chrome darchasida to&apos;g&apos;ri sozlamalar (XP-58 uchun):</span>
               </div>
-              <p>
-                Agar brauzer chop etish darchasida <strong>&quot;Ориентация&quot;</strong> (Yo&apos;nalish) <strong>&quot;Горизонтально&quot;</strong> bo&apos;lib qolgan bo&apos;lsa, uni bir marta <strong>&quot;Вертикально&quot; (Portret)</strong> ga o&apos;zgartiring. Brauzer keyingi safar buni avtomatik eslab qoladi va chek 1 ta ixcham lenta bo&apos;lib chiqadi.
-              </p>
+              <ul className="list-disc list-inside space-y-1 text-[11px]">
+                <li><strong>Размер бумаги:</strong> <code>58(48) x 210 mm</code> yoki <code>58 x 210 mm</code> tanlang (3276 mm emas).</li>
+                <li><strong>Поля (Margins):</strong> <code>Нет</code> (Bo&apos;sh joylarsiz) qiling.</li>
+                <li><strong>Ориентация:</strong> <code>Вертикальная</code> (Portret).</li>
+                <li><strong>Yoki:</strong> To&apos;g&apos;ridan-to&apos;g&apos;ri yuqoridagi <strong>&quot;USB To&apos;g&apos;ridan-to&apos;g&apos;ri&quot;</strong> yoki <strong>&quot;Bluetooth&quot;</strong> tugmasini bosing — darchasiz tezkor chiqaradi!</li>
+              </ul>
             </div>
           </div>
         )}
@@ -653,6 +709,15 @@ Rahmat!`;
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleUsbPrint}
+              className="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5"
+              title="USB kabel orqali to'g'ridan-to'g'ri chop etish (Brauzer darchasisiz ESC/POS)"
+            >
+              <Usb className="w-3.5 h-3.5" />
+              <span>USB Chop Etish</span>
+            </button>
             <button
               type="button"
               onClick={handleBluetoothPrint}

@@ -737,3 +737,136 @@ export async function printReceiptViaBluetooth(
     };
   }
 }
+
+/**
+ * Direct WebUSB API printing for USB POS Printers (Xprinter XP-58 / XP-80, Epson, etc.)
+ * Bypasses Windows print spooler and Chrome print dialog entirely.
+ */
+export async function printReceiptViaWebUSB(
+  receipt: SaleReceipt,
+  width: '58' | '80' = '58',
+  customFooter?: string,
+  onStatusUpdate?: (status: string) => void
+): Promise<{ success: boolean; message: string; deviceName?: string }> {
+  if (typeof navigator === 'undefined' || !(navigator as any).usb) {
+    return {
+      success: false,
+      message: "Brauzeringiz WebUSB to'g'ridan-to'g'ri chop etishni qo'llab-quvvatlamaydi (Google Chrome yoki Microsoft Edge ishlating)."
+    };
+  }
+
+  try {
+    onStatusUpdate?.("USB printer tanlanmoqda...");
+    const navUsb = (navigator as any).usb;
+    
+    // Request any USB device or filter by printer class (0x07)
+    const device = await navUsb.requestDevice({
+      filters: []
+    });
+
+    onStatusUpdate?.(`${device.productName || 'USB Printer'} ochilmoqda...`);
+    await device.open();
+
+    // Select configuration 1
+    if (device.configuration === null) {
+      await device.selectConfiguration(1);
+    }
+
+    // Find printer interface (Interface class 7 is printer) or first available interface
+    let interfaceNumber = 0;
+    let endpointNumber = 1;
+
+    const configuration = device.configuration;
+    if (configuration && configuration.interfaces) {
+      for (const iface of configuration.interfaces) {
+        for (const alt of iface.alternates) {
+          // Check for OUT endpoint (direction: 'out')
+          const outEndpoint = alt.endpoints.find((ep: any) => ep.direction === 'out');
+          if (outEndpoint) {
+            interfaceNumber = iface.interfaceNumber;
+            endpointNumber = outEndpoint.endpointNumber;
+            break;
+          }
+        }
+      }
+    }
+
+    await device.claimInterface(interfaceNumber);
+    onStatusUpdate?.("Chek USB orqali yuborilmoqda...");
+
+    const escPosData = generateEscPosReceiptBytes(receipt, width, customFooter);
+    await device.transferOut(endpointNumber, escPosData);
+
+    onStatusUpdate?.("Chop etildi!");
+    
+    // Release and close cleanly
+    try {
+      await device.releaseInterface(interfaceNumber);
+      await device.close();
+    } catch {
+      // ignore
+    }
+
+    return {
+      success: true,
+      message: "Chek USB orqali to'g'ridan-to'g'ri chop etildi!",
+      deviceName: device.productName || 'USB Printer'
+    };
+
+  } catch (error: any) {
+    console.error("WebUSB print error:", error);
+    if (error.name === 'NotFoundError') {
+      return { success: false, message: "USB printer tanlanmadi yoki bekor qilindi." };
+    }
+    return {
+      success: false,
+      message: error.message || "USB printerga ulanishda xatolik yuz berdi. (Windows drayveri band qilgan bo'lishi mumkin)."
+    };
+  }
+}
+
+/**
+ * Direct WebSerial API printing for COM/Serial/Virtual USB POS Printers
+ */
+export async function printReceiptViaWebSerial(
+  receipt: SaleReceipt,
+  width: '58' | '80' = '58',
+  customFooter?: string,
+  onStatusUpdate?: (status: string) => void
+): Promise<{ success: boolean; message: string }> {
+  if (typeof navigator === 'undefined' || !(navigator as any).serial) {
+    return {
+      success: false,
+      message: "Brauzeringiz Web Serial to'g'ridan-to'g'ri ulanishni qo'llab-quvvatlamaydi."
+    };
+  }
+
+  try {
+    onStatusUpdate?.("Serial / COM port tanlanmoqda...");
+    const navSerial = (navigator as any).serial;
+    const port = await navSerial.requestPort();
+    
+    await port.open({ baudRate: 9600 });
+    onStatusUpdate?.("Chek yuborilmoqda...");
+
+    const writer = port.writable.getWriter();
+    const escPosData = generateEscPosReceiptBytes(receipt, width, customFooter);
+    await writer.write(escPosData);
+    writer.releaseLock();
+    await port.close();
+
+    return {
+      success: true,
+      message: "Chek Serial/COM port orqali chop etildi!"
+    };
+  } catch (error: any) {
+    console.error("WebSerial print error:", error);
+    if (error.name === 'NotFoundError') {
+      return { success: false, message: "Port tanlanmadi." };
+    }
+    return {
+      success: false,
+      message: error.message || "Serial portga ulanishda xatolik yuz berdi."
+    };
+  }
+}
