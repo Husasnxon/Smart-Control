@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useSyncExternalStore } from 'react';
 import { Product, Employee, CrmLead, CrmReminder, Currency } from '../types';
 import { 
   processCrmInputWithGemini, 
-  AiParsedCrmResult, 
-  getGeminiApiKey, 
-  saveGeminiApiKey 
+  AiParsedCrmResult,
+  getGeminiApiKey
 } from '../utils/ai';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { 
@@ -31,6 +30,18 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { getTelegramSettings, sendTelegramMessage } from '../utils/telegram';
+
+const subscribeToGeminiApiKey = (onStoreChange: () => void) => {
+  window.addEventListener('storage', onStoreChange);
+  window.addEventListener('focus', onStoreChange);
+  return () => {
+    window.removeEventListener('storage', onStoreChange);
+    window.removeEventListener('focus', onStoreChange);
+  };
+};
+
+const getGeminiApiKeySnapshot = () => Boolean(getGeminiApiKey());
+const getGeminiApiKeyServerSnapshot = () => false;
 
 interface AiCrmAssistantModalProps {
   isOpen: boolean;
@@ -60,11 +71,11 @@ export const AiCrmAssistantModal: React.FC<AiCrmAssistantModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [parsedResult, setParsedResult] = useState<AiParsedCrmResult | null>(null);
   const [copiedProposal, setCopiedProposal] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState(false);
-
-  useEffect(() => {
-    setHasApiKey(Boolean(getGeminiApiKey()));
-  }, [isOpen]);
+  const hasApiKey = useSyncExternalStore(
+    subscribeToGeminiApiKey,
+    getGeminiApiKeySnapshot,
+    getGeminiApiKeyServerSnapshot
+  );
 
   // Escape key handler to close modal
   useEffect(() => {

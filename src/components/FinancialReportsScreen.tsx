@@ -90,6 +90,21 @@ interface FinancialReportsScreenProps {
 type PeriodPreset = 'today' | 'yesterday' | 'last7days' | 'this_month' | 'last_month' | 'this_year' | 'all' | 'custom';
 type SubReportTab = 'pnl' | 'products' | 'technicians' | 'cash_flow' | 'sales_history';
 
+const MONTHS_LIST = [
+  { value: 0, label: 'Yanvar' },
+  { value: 1, label: 'Fevral' },
+  { value: 2, label: 'Mart' },
+  { value: 3, label: 'Aprel' },
+  { value: 4, label: 'May' },
+  { value: 5, label: 'Iyun' },
+  { value: 6, label: 'Iyul' },
+  { value: 7, label: 'Avgust' },
+  { value: 8, label: 'Sentyabr' },
+  { value: 9, label: 'Oktyabr' },
+  { value: 10, label: 'Noyabr' },
+  { value: 11, label: 'Dekabr' }
+];
+
 export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
   receipts,
   expenses,
@@ -120,21 +135,6 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
 
   const [customStartDate, setCustomStartDate] = useState<string>(currentMonthStart);
   const [customEndDate, setCustomEndDate] = useState<string>(todayStr);
-
-  const monthsList = [
-    { value: 0, label: 'Yanvar' },
-    { value: 1, label: 'Fevral' },
-    { value: 2, label: 'Mart' },
-    { value: 3, label: 'Aprel' },
-    { value: 4, label: 'May' },
-    { value: 5, label: 'Iyun' },
-    { value: 6, label: 'Iyul' },
-    { value: 7, label: 'Avgust' },
-    { value: 8, label: 'Sentyabr' },
-    { value: 9, label: 'Oktyabr' },
-    { value: 10, label: 'Noyabr' },
-    { value: 11, label: 'Dekabr' }
-  ];
 
   // Helper date boundaries based on preset
   const { startDate, endDate, periodLabel, daysCount } = useMemo(() => {
@@ -167,13 +167,13 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
       const start = new Date(y, m, 1);
       s = formatDateISO(start);
       e = formatDateISO(today);
-      label = `${monthsList[m].label} ${y} oylik hisobot`;
+      label = `${MONTHS_LIST[m].label} ${y} oylik hisobot`;
     } else if (selectedPeriod === 'last_month') {
       const start = new Date(y, m - 1, 1);
       const end = new Date(y, m, 0);
       s = formatDateISO(start);
       e = formatDateISO(end);
-      label = `${monthsList[start.getMonth()].label} ${start.getFullYear()} oylik hisobot`;
+      label = `${MONTHS_LIST[start.getMonth()].label} ${start.getFullYear()} oylik hisobot`;
     } else if (selectedPeriod === 'this_year') {
       const start = new Date(y, 0, 1);
       s = formatDateISO(start);
@@ -692,7 +692,7 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
                 }}
                 className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 dark:text-white outline-none cursor-pointer"
               >
-                {monthsList.map(m => (
+                {MONTHS_LIST.map(m => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>

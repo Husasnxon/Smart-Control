@@ -119,7 +119,7 @@ export const WarrantyScreen: React.FC<WarrantyScreenProps> = ({
   // -------------------------------------------------------------
   // 1. S/N INSPECTION ENGINE (Hero Search)
   // -------------------------------------------------------------
-  const inspectionResult = useMemo(() => {
+  const inspectionResult = (() => {
     const q = inspectQuery.trim().toUpperCase();
     if (!q) return null;
 
@@ -211,7 +211,7 @@ export const WarrantyScreen: React.FC<WarrantyScreenProps> = ({
       type: 'not_found' as const,
       serialNumber: q
     };
-  }, [inspectQuery, receipts, products, purchases, serviceTickets]);
+  })();
 
   // -------------------------------------------------------------
   // 2. ALL SOLD SERIAL NUMBERS DATABASE

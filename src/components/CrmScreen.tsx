@@ -328,6 +328,7 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     selectedLeadForEstimate,
+    assigningLeadTech,
     selectedPassportForFloorPlan,
     selectedPassportForQr,
     selectedPassportForDetail,
