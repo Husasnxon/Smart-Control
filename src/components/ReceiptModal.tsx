@@ -23,7 +23,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
-import { printThermalReceiptViaIframe, printReceiptViaBluetooth } from '../utils/thermalPrinter';
+import { printThermalReceiptViaIframe, printReceiptViaBluetooth, printThermalReceiptViaPopup } from '../utils/thermalPrinter';
 
 interface ReceiptModalProps {
   receipt: SaleReceipt | null;
@@ -86,10 +86,27 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       });
     } catch (err) {
       console.error('Print error:', err);
-      window.print();
+      printThermalReceiptViaPopup(receipt, {
+        width: paperWidth,
+        customFooter,
+        showQR,
+        branchName: receipt.branchName || 'Asosiy Filial',
+        storePhone: '+998 90 123-45-67'
+      });
     } finally {
       setIsPrinting(false);
     }
+  };
+
+  // 1b. Direct Popup Print (Alternative for stubborn drivers)
+  const handlePopupPrint = () => {
+    printThermalReceiptViaPopup(receipt, {
+      width: paperWidth,
+      customFooter,
+      showQR,
+      branchName: receipt.branchName || 'Asosiy Filial',
+      storePhone: '+998 90 123-45-67'
+    });
   };
 
   // 2. Direct Web Bluetooth ESC/POS Print (For mobile / portable Bluetooth thermal printers)
@@ -300,6 +317,16 @@ Rahmat!`;
                 className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-xl px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100"
                 placeholder="Xaridingiz uchun tashakkur!"
               />
+            </div>
+
+            {/* Crucial tip for Chrome orientation */}
+            <div className="bg-amber-100/90 dark:bg-amber-900/40 p-2.5 rounded-xl border border-amber-300 dark:border-amber-800 text-[11px] text-amber-950 dark:text-amber-200 space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <span>💡 Muhim eslatma (Xprinter 58mm uchun):</span>
+              </div>
+              <p>
+                Agar brauzer chop etish darchasida <strong>&quot;Ориентация&quot;</strong> (Yo&apos;nalish) <strong>&quot;Горизонтально&quot;</strong> bo&apos;lib qolgan bo&apos;lsa, uni bir marta <strong>&quot;Вертикально&quot; (Portret)</strong> ga o&apos;zgartiring. Brauzer keyingi safar buni avtomatik eslab qoladi va chek 1 ta ixcham lenta bo&apos;lib chiqadi.
+              </p>
             </div>
           </div>
         )}

@@ -174,8 +174,20 @@ export function generateThermalReceiptHtml(
         <title>Chek: ${receipt.receiptNumber}</title>
         <style>
           @page {
-            size: ${is58 ? '58mm auto' : '80mm auto'};
-            margin: 0;
+            size: portrait;
+            margin: 0mm;
+          }
+          @media print {
+            @page {
+              size: portrait;
+              margin: 0mm;
+            }
+            html, body {
+              width: 100% !important;
+              max-width: ${paperWidthPx} !important;
+              margin: 0 auto !important;
+              padding: 0 !important;
+            }
           }
           * {
             box-sizing: border-box;
@@ -183,7 +195,7 @@ export function generateThermalReceiptHtml(
             print-color-adjust: exact !important;
           }
           html, body {
-            width: ${paperWidthPx};
+            width: 100%;
             max-width: ${paperWidthPx};
             margin: 0 auto;
             padding: 0;
@@ -195,8 +207,9 @@ export function generateThermalReceiptHtml(
           }
           .receipt-box {
             width: 100%;
+            max-width: ${paperWidthPx};
             padding: ${is58 ? '4px 3px' : '8px 6px'};
-            margin: 0;
+            margin: 0 auto;
           }
         </style>
       </head>
@@ -330,7 +343,7 @@ function escapeHtml(text: string = ''): string {
 }
 
 /**
- * Robust, 100% isolated printing using a hidden <iframe>.
+ * Robust, 100% isolated printing using a hidden <iframe> or popup.
  * This guarantees the current screen (dashboards, modals, background cards) NEVER leaks into the print job!
  */
 export function printThermalReceiptViaIframe(
@@ -349,6 +362,36 @@ export function printThermalReceiptViaIframe(
 }
 
 /**
+ * Opens a dedicated small popup window to print the receipt cleanly if iframe has driver quirks
+ */
+export function printThermalReceiptViaPopup(
+  receipt: SaleReceipt,
+  options: ThermalPrintOptions = { width: '58' }
+): boolean {
+  try {
+    const html = generateThermalReceiptHtml(receipt, options);
+    const popup = window.open('', '_blank', 'width=380,height=600,left=200,top=200');
+    if (!popup) {
+      return false;
+    }
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+    setTimeout(() => {
+      popup.focus();
+      popup.print();
+      setTimeout(() => {
+        popup.close();
+      }, 1000);
+    }, 250);
+    return true;
+  } catch (e) {
+    console.error('Popup print error:', e);
+    return false;
+  }
+}
+
+/**
  * Generic isolated HTML printer for any document (Z-Report, Warranty ticket, Smeta, QR Passport, Invoice)
  */
 export function printRawHtmlInIframe(htmlContent: string): Promise<boolean> {
@@ -363,12 +406,14 @@ export function printRawHtmlInIframe(htmlContent: string): Promise<boolean> {
       const iframe = document.createElement('iframe');
       iframe.id = 'sc-silent-print-frame';
       iframe.style.position = 'fixed';
-      iframe.style.right = '0';
-      iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
+      iframe.style.top = '0';
+      iframe.style.left = '0';
+      iframe.style.width = '100vw';
+      iframe.style.height = '100vh';
       iframe.style.border = 'none';
-      iframe.style.visibility = 'hidden';
+      iframe.style.opacity = '0';
+      iframe.style.pointerEvents = 'none';
+      iframe.style.zIndex = '-9999';
 
       document.body.appendChild(iframe);
 
@@ -381,41 +426,35 @@ export function printRawHtmlInIframe(htmlContent: string): Promise<boolean> {
       doc.write(htmlContent);
       doc.close();
 
-      iframe.onload = () => {
-        setTimeout(() => {
-          try {
-            iframe.contentWindow?.focus();
-            iframe.contentWindow?.print();
-            setTimeout(() => {
+      const triggerPrint = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
               iframe.remove();
-              resolve(true);
-            }, 1000);
-          } catch (e) {
-            console.error('Failed to trigger iframe print:', e);
-            resolve(false);
-          }
-        }, 250);
+            }
+            resolve(true);
+          }, 1500);
+        } catch (e) {
+          console.error('Failed to trigger iframe print:', e);
+          resolve(false);
+        }
       };
 
-      // Fallback timeout in case onload event was already triggered
+      iframe.onload = () => {
+        setTimeout(triggerPrint, 250);
+      };
+
+      // Fallback timeout
       setTimeout(() => {
-        try {
-          if (document.body.contains(iframe)) {
-            iframe.contentWindow?.focus();
-            iframe.contentWindow?.print();
-            setTimeout(() => {
-              iframe.remove();
-              resolve(true);
-            }, 1000);
-          }
-        } catch {
-          // ignore
+        if (document.body.contains(iframe)) {
+          triggerPrint();
         }
       }, 500);
 
     } catch (err) {
       console.error('Iframe print error:', err);
-      // Fallback to window.print() if iframe blocked
       window.print();
       resolve(true);
     }
