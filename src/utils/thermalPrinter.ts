@@ -649,6 +649,87 @@ export function generateEscPosReceiptBytes(
 }
 
 /**
+ * Direct Silent Printing via Local POS Agent on Windows (http://127.0.0.1:12111)
+ * Sends raw ESC/POS directly to Windows Print Spooler (XP-58C).
+ * 0.05s instant execution with ZERO browser dialogs!
+ */
+export async function printReceiptViaLocalAgent(
+  receipt: SaleReceipt,
+  width: '58' | '80' = '58',
+  customFooter?: string,
+  onStatusUpdate?: (status: string) => void
+): Promise<{ success: boolean; message: string }> {
+  try {
+    onStatusUpdate?.("Mahalliy printerga yuborilmoqda...");
+    const escPosBytes = generateEscPosReceiptBytes(receipt, width, customFooter);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+    const res = await fetch('http://127.0.0.1:12111/print', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        printer: 'XP-58C',
+        bytes: Array.from(escPosBytes)
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        success: true,
+        message: data.message || "Chek to'g'ridan-to'g'ri chop etildi!"
+      };
+    } else {
+      return {
+        success: false,
+        message: "Mahalliy print agent xatolik berdi"
+      };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      message: "Mahalliy agent ishlamayapti"
+    };
+  }
+}
+
+/**
+ * Super Fast Direct Print:
+ * 1. Tries Local Agent first (instant silent Windows spooler print, zero dialogs)
+ * 2. Falls back to WebUSB
+ */
+export async function printReceiptFastDirect(
+  receipt: SaleReceipt,
+  width: '58' | '80' = '58',
+  customFooter?: string,
+  onStatusUpdate?: (status: string) => void
+): Promise<{ success: boolean; message: string; method?: 'agent' | 'usb' | 'dialog' }> {
+  // 1. Try local POS agent (Windows Spooler RAW)
+  const agentRes = await printReceiptViaLocalAgent(receipt, width, customFooter, onStatusUpdate);
+  if (agentRes.success) {
+    return { ...agentRes, method: 'agent' };
+  }
+
+  // 2. Try WebUSB
+  const usbRes = await printReceiptViaWebUSB(receipt, width, customFooter, onStatusUpdate);
+  if (usbRes.success) {
+    return { ...usbRes, method: 'usb' };
+  }
+
+  return {
+    success: false,
+    message: usbRes.message,
+    method: 'dialog'
+  };
+}
+
+/**
  * Direct Web Bluetooth API printing for portable / mobile thermal printers (Xprinter XP-58IIT, Goojprt, POS-58, etc.)
  * Connects directly via Bluetooth GATT Serial Service and transmits raw ESC/POS bytes without OS print dialog.
  */

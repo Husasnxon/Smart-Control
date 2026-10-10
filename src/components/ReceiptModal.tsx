@@ -27,6 +27,7 @@ import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { 
   printThermalReceiptViaIframe, 
   printReceiptViaBluetooth, 
+  printReceiptFastDirect,
   printReceiptViaWebUSB,
   printReceiptViaWebSerial,
   printThermalReceiptViaPopup 
@@ -141,12 +142,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     }
   };
 
-  // 3. Direct WebUSB ESC/POS Print (Bypasses driver / Chrome print dialog completely)
+  // 3. Super Fast Direct Print (Local Spooler Agent -> WebUSB -> Fallback)
   const handleUsbPrint = async () => {
-    setUsbStatus('USB printer ulanmoqda...');
+    setUsbStatus('Printerga yuborilmoqda...');
     setBtError(null);
     try {
-      const res = await printReceiptViaWebUSB(
+      const res = await printReceiptFastDirect(
         receipt,
         paperWidth,
         customFooter,
@@ -155,18 +156,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       if (!res.success) {
         setBtError(res.message);
         setTimeout(() => setBtError(null), 8000);
-        // Fallback to driver print if USB is monopolized by Windows
-        if (res.message.includes('XP-58C') || res.message.includes('band qilgan')) {
-          setTimeout(() => {
-            handlePrint();
-          }, 800);
-        }
+        // Fallback to driver dialog if all direct methods fail
+        setTimeout(() => {
+          handlePrint();
+        }, 1000);
       } else {
         setUsbStatus(res.message);
         setTimeout(() => setUsbStatus(null), 4000);
       }
     } catch (e: any) {
-      setBtError(e.message || "USB printerga ulanib bo'lmadi.");
+      setBtError(e.message || "Printerga ulanib bo'lmadi.");
       setTimeout(() => setBtError(null), 7000);
       handlePrint();
     } finally {
