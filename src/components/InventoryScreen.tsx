@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Product, ProductCategory, Currency, PurchaseInvoice, PurchasePaymentRecord, Employee } from '../types';
+import { Product, ProductCategory, Currency, PurchaseInvoice, PurchasePaymentRecord, Employee, Branch, StockTransfer } from '../types';
 import { formatMoney, formatDualMoney, formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { NewPurchaseModal } from './NewPurchaseModal';
 import { PurchaseInvoiceModal } from './PurchaseInvoiceModal';
 import { SupplierPaymentModal } from './SupplierPaymentModal';
+import { NewStockTransferModal } from './NewStockTransferModal';
+import { StockTransferInvoiceModal } from './StockTransferInvoiceModal';
 import { 
   Package, 
   Plus, 
@@ -43,7 +45,8 @@ import {
   Receipt,
   FileSpreadsheet,
   Download,
-  Upload
+  Upload,
+  ArrowLeftRight
 } from 'lucide-react';
 import { exportProductsToExcel, exportPurchasesToExcel } from '../utils/excel';
 import { ExcelImportModal } from './ExcelImportModal';
@@ -52,6 +55,11 @@ interface InventoryScreenProps {
   products: Product[];
   categories: ProductCategory[];
   purchases?: PurchaseInvoice[];
+  branches?: Branch[];
+  currentBranch?: Branch | null;
+  stockTransfers?: StockTransfer[];
+  onAddStockTransfer?: (transfer: StockTransfer, updatedProducts: Product[]) => void;
+  onUpdateStockTransferStatus?: (transferId: string, status: StockTransfer['status']) => void;
   onSavePurchase?: (invoice: PurchaseInvoice, updatedProducts: Product[]) => void;
   onRecordSupplierPayment?: (payment: PurchasePaymentRecord, updatedInvoice: PurchaseInvoice) => void;
   onCancelPurchase?: (invoiceId: string) => void;
@@ -71,6 +79,11 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   products,
   categories,
   purchases = [],
+  branches = [],
+  currentBranch = null,
+  stockTransfers = [],
+  onAddStockTransfer,
+  onUpdateStockTransferStatus,
   onSavePurchase,
   onRecordSupplierPayment,
   onCancelPurchase,
@@ -85,9 +98,16 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   baseCurrency = 'UZS',
   currentUser = null
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'products' | 'purchases' | 'supplier_payments'>('products');
+  const [activeSubTab, setActiveSubTab] = useState<'products' | 'purchases' | 'transfers' | 'supplier_payments'>('products');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Barchasi');
+
+  // Transfers management state
+  const [isNewTransferModalOpen, setIsNewTransferModalOpen] = useState(false);
+  const [viewingTransfer, setViewingTransfer] = useState<StockTransfer | null>(null);
+  const [transferSearchQuery, setTransferSearchQuery] = useState('');
+  const [transferFromBranchFilter, setTransferFromBranchFilter] = useState('all');
+  const [transferToBranchFilter, setTransferToBranchFilter] = useState('all');
   
   // Purchases management state
   const [isNewPurchaseModalOpen, setIsNewPurchaseModalOpen] = useState(false);
@@ -103,6 +123,33 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>('all');
   const [supplierDebtStatusFilter, setSupplierDebtStatusFilter] = useState<'all' | 'with_debt' | 'settled'>('all');
+
+  // Filtered transfers & statistics
+  const filteredTransfers = useMemo(() => {
+    return stockTransfers.filter(tr => {
+      if (transferFromBranchFilter !== 'all' && tr.fromBranchId !== transferFromBranchFilter) return false;
+      if (transferToBranchFilter !== 'all' && tr.toBranchId !== transferToBranchFilter) return false;
+      
+      if (transferSearchQuery.trim()) {
+        const q = transferSearchQuery.toLowerCase();
+        const matchNumber = tr.transferNumber.toLowerCase().includes(q);
+        const matchFrom = tr.fromBranchName.toLowerCase().includes(q);
+        const matchTo = tr.toBranchName.toLowerCase().includes(q);
+        const matchPersons = (tr.sentBy && tr.sentBy.toLowerCase().includes(q)) || (tr.receivedBy && tr.receivedBy.toLowerCase().includes(q));
+        const matchItems = tr.items.some(i => i.productName.toLowerCase().includes(q) || (i.serialNumbers && i.serialNumbers.some(s => s.toLowerCase().includes(q))));
+        if (!matchNumber && !matchFrom && !matchTo && !matchPersons && !matchItems) return false;
+      }
+      return true;
+    });
+  }, [stockTransfers, transferFromBranchFilter, transferToBranchFilter, transferSearchQuery]);
+
+  const totalTransferredCount = useMemo(() => {
+    return stockTransfers.reduce((acc, tr) => acc + tr.totalQuantity, 0);
+  }, [stockTransfers]);
+
+  const totalTransferredSumUZS = useMemo(() => {
+    return stockTransfers.reduce((acc, tr) => acc + tr.totalAmountUZS, 0);
+  }, [stockTransfers]);
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -845,6 +892,23 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveSubTab('transfers')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
+            activeSubTab === 'transfers'
+              ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <ArrowLeftRight className="w-4 h-4 text-purple-400" />
+          <span>Filiallararo Peremesheniya</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+            activeSubTab === 'transfers' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+          }`}>
+            {stockTransfers.length}
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab('supplier_payments')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
             activeSubTab === 'supplier_payments'
@@ -935,7 +999,6 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                         {/* Thumbnail */}
                         <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 p-0.5">
                           {product.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={product.imageUrl}
                               alt={product.name}
@@ -1850,6 +1913,242 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
     </div>
   )}
 
+      {/* ============================================================= */}
+      {/* CONDITIONAL SUB-TAB: TRANSFERS (PEREMESHENIYA)                */}
+      {/* ============================================================= */}
+      {activeSubTab === 'transfers' && (
+        <div className="space-y-6">
+          {/* Top KPI Banner */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 flex items-center justify-center">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Jami Peremesheniyalar
+                </span>
+                <span className="text-lg font-black text-slate-900 dark:text-white font-mono">
+                  {stockTransfers.length} ta hujjat
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
+                <Package className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Ko&apos;chirilgan Mahsulotlar
+                </span>
+                <span className="text-lg font-black text-slate-900 dark:text-white font-mono">
+                  {totalTransferredCount} dona
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center">
+                <DollarSign className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Umumiy Qiymati
+                </span>
+                <span className="text-lg font-black text-purple-700 dark:text-purple-400 font-mono">
+                  {formatDualMoney(totalTransferredSumUZS, baseCurrency, exchangeRate).primary}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Bar & Filters */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+              {/* Search */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={transferSearchQuery}
+                  onChange={(e) => setTransferSearchQuery(e.target.value)}
+                  placeholder="Hujjat №, tovar, S/N..."
+                  className="w-full pl-9 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              {/* From branch filter */}
+              <select
+                value={transferFromBranchFilter}
+                onChange={(e) => setTransferFromBranchFilter(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="all">Qayerdan: Barchasi</option>
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+
+              {/* To branch filter */}
+              <select
+                value={transferToBranchFilter}
+                onChange={(e) => setTransferToBranchFilter(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="all">Qayerga: Barchasi</option>
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Create new transfer button */}
+            <button
+              type="button"
+              onClick={() => setIsNewTransferModalOpen(true)}
+              className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md shadow-purple-600/25 transition active:scale-95 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Yangi Peremesheniya Qilish</span>
+            </button>
+          </div>
+
+          {/* Transfers Table */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold uppercase text-[10px]">
+                  <tr>
+                    <th className="py-3 px-4">Hujjat № & Sana</th>
+                    <th className="py-3 px-4">Chiqaruvchi Filial</th>
+                    <th className="py-3 px-4">Qabul Qiluvchi Filial</th>
+                    <th className="py-3 px-4">Tovarlar Tarkibi</th>
+                    <th className="py-3 px-4 text-center">Jami Miqdor</th>
+                    <th className="py-3 px-4 text-right">Summasi</th>
+                    <th className="py-3 px-4 text-center">Mas&apos;ullar</th>
+                    <th className="py-3 px-4 text-center">Holati</th>
+                    <th className="py-3 px-4 text-right">Amallar</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
+                  {filteredTransfers.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                        <ArrowLeftRight className="w-8 h-8 mx-auto mb-2 opacity-30 text-purple-500" />
+                        <p className="text-xs font-semibold">Hech qanday peremesheniya topilmadi</p>
+                        <p className="text-[11px] mt-0.5">Filiallar o&apos;rtasida tovar ko&apos;chirish uchun yangi peremesheniya yarating</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTransfers.map((tr) => (
+                      <tr key={tr.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                        {/* Number & Date */}
+                        <td className="py-3 px-4">
+                          <span className="font-mono font-black text-purple-600 dark:text-purple-400 text-xs block">
+                            #{tr.transferNumber}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">
+                            {tr.createdAt}
+                          </span>
+                        </td>
+
+                        {/* From Branch */}
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                            <span className="truncate max-w-[140px]">{tr.fromBranchName}</span>
+                          </div>
+                        </td>
+
+                        {/* To Branch */}
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            <span className="truncate max-w-[140px]">{tr.toBranchName}</span>
+                          </div>
+                        </td>
+
+                        {/* Items breakdown */}
+                        <td className="py-3 px-4">
+                          <div className="space-y-0.5">
+                            <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate max-w-xs" title={tr.items.map(i => `${i.productName} (${i.quantity} ${i.unit})`).join(', ')}>
+                              {tr.items[0]?.productName}
+                              {tr.items.length > 1 && ` + yana ${tr.items.length - 1} xil`}
+                            </div>
+                            <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold">
+                              {tr.items.length} xil mahsulot
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Total Quantity */}
+                        <td className="py-3 px-4 text-center font-mono font-bold text-slate-800 dark:text-slate-200">
+                          {tr.totalQuantity} dona
+                        </td>
+
+                        {/* Total Amount */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="font-mono font-black text-slate-900 dark:text-white">
+                            {formatMoney(tr.totalAmountUZS, baseCurrency, exchangeRate)}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            ${formatUSDNumber(tr.totalAmountUSD)}
+                          </div>
+                        </td>
+
+                        {/* Responsible */}
+                        <td className="py-3 px-4 text-center text-[11px] text-slate-600 dark:text-slate-400">
+                          <div className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[120px]">
+                            {tr.sentBy}
+                          </div>
+                          {tr.receivedBy && (
+                            <div className="text-[10px] text-slate-400 truncate max-w-[120px]">
+                              ➔ {tr.receivedBy}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3 px-4 text-center">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>Yakunlangan</span>
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setViewingTransfer(tr)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-slate-800 transition"
+                              title="Nakladnoyni ko'rish va chop etish"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setViewingTransfer(tr)}
+                              className="px-2.5 py-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition active:scale-95"
+                              title="Chop etish"
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span>Nakladnoy</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 1: ADD PRODUCT / SERVICE */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1961,7 +2260,6 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                   {/* Live Preview Box */}
                   <div className="w-14 h-14 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 p-1">
                     {newImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img src={newImageUrl} alt="Preview" className="w-full h-full object-contain" />
                     ) : (
                       <Camera className="w-6 h-6 text-slate-300 dark:text-slate-600" />
@@ -2362,7 +2660,6 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                   {/* Live Preview Box */}
                   <div className="w-14 h-14 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 p-1">
                     {editImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img src={editImageUrl} alt="Preview" className="w-full h-full object-contain" />
                     ) : (
                       <Camera className="w-6 h-6 text-slate-300 dark:text-slate-600" />
@@ -3060,6 +3357,34 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
           onImportProducts={handleImportProducts}
         />
       )}
+
+      {/* MODAL 9: NEW STOCK TRANSFER MODAL */}
+      <NewStockTransferModal
+        isOpen={isNewTransferModalOpen}
+        onClose={() => setIsNewTransferModalOpen(false)}
+        branches={branches}
+        currentBranch={currentBranch}
+        products={products}
+        currentUser={currentUser}
+        exchangeRate={exchangeRate}
+        baseCurrency={baseCurrency}
+        onSaveTransfer={(transfer, updatedProducts) => {
+          if (onAddStockTransfer) {
+            onAddStockTransfer(transfer, updatedProducts);
+          }
+          setIsNewTransferModalOpen(false);
+        }}
+      />
+
+      {/* MODAL 10: STOCK TRANSFER INVOICE / PRINT MODAL */}
+      <StockTransferInvoiceModal
+        transfer={viewingTransfer}
+        isOpen={Boolean(viewingTransfer)}
+        onClose={() => setViewingTransfer(null)}
+        baseCurrency={baseCurrency}
+        exchangeRate={exchangeRate}
+      />
     </div>
   );
 };
+

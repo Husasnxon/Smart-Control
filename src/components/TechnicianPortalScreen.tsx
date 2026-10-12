@@ -1045,7 +1045,6 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 p-0.5 shadow-lg shadow-purple-600/30 shrink-0 relative">
                   {profileAvatar || activeTechnician?.avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={profileAvatar || activeTechnician?.avatar}
                       alt={activeTechnician?.fullName}
@@ -1968,7 +1967,6 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
                   <div className="bg-slate-900 p-4 rounded-3xl border border-slate-800 flex flex-col items-center gap-3">
                     <div className="relative w-24 h-24 rounded-full bg-slate-800 p-1 border-2 border-purple-500/50 shadow-xl overflow-hidden group">
                       {profileAvatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={profileAvatar}
                           alt="Usta surati"

@@ -7,29 +7,7 @@ import {
   AiParsedCrmResult,
   getGeminiApiKey
 } from '../utils/ai';
-import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
-import { 
-  Sparkles, 
-  Mic, 
-  MicOff, 
-  Send, 
-  Check, 
-  Copy, 
-  X, 
-  Plus, 
-  Bot, 
-  Video, 
-  HardDrive, 
-  UserCheck, 
-  Clock, 
-  Calendar, 
-  DollarSign, 
-  ExternalLink,
-  ShieldCheck,
-  AlertCircle,
-  FileSpreadsheet
-} from 'lucide-react';
-import { getTelegramSettings, sendTelegramMessage } from '../utils/telegram';
+import { Sparkles, Mic, MicOff, Check, Copy, X, Plus } from 'lucide-react';
 
 interface SpeechRecognitionEventLike {
   resultIndex: number;

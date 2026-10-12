@@ -953,7 +953,6 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
                         className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col group"
                       >
                         <div className="relative aspect-video bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={photo.url}
                             alt={photo.caption || 'Obyekt surati'}
@@ -1295,7 +1294,6 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
                   <div className="grid grid-cols-3 gap-2">
                     {handoverData.photos.map((photo, i) => (
                       <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={photo.url}
                           alt={photo.caption || 'Foto'}
@@ -1359,7 +1357,6 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
                     {/* Rendered Digital Signature Image */}
                     {handoverData.clientSignature ? (
                       <div className="my-1 border border-emerald-300 bg-emerald-50/40 rounded p-1">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={handoverData.clientSignature}
                           alt="Mijoz imzosi"

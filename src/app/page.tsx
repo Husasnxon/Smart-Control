@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ActiveTab, Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, AssignedTechnician, PaymentDetails, CartItem, Currency, PurchaseInvoice, PurchasePaymentRecord, ServiceTicket, CustomerDebtPayment, ZReport, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_TABS } from '../types';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { ActiveTab, Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, AssignedTechnician, PaymentDetails, CartItem, Currency, PurchaseInvoice, PurchasePaymentRecord, ServiceTicket, CustomerDebtPayment, ZReport, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_TABS, Branch, StockTransfer } from '../types';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_CUSTOMERS, 
@@ -13,15 +13,16 @@ import {
   INITIAL_EMPLOYEES, 
   INITIAL_CUSTOMER_ORDERS, 
   INITIAL_SHIPMENTS, 
-  INITIAL_PURCHASES, 
-  INITIAL_SERVICE_TICKETS, 
-  INITIAL_CUSTOMER_DEBT_PAYMENTS, 
+  INITIAL_PURCHASES,
+  INITIAL_CUSTOMER_DEBT_PAYMENTS,
   INITIAL_PAYROLLS, 
   INITIAL_ADVANCES, 
   INITIAL_HANDOVERS,
   INITIAL_CRM_LEADS,
   INITIAL_CRM_OBJECTS,
-  INITIAL_CRM_REMINDERS
+  INITIAL_CRM_REMINDERS,
+  INITIAL_BRANCHES,
+  INITIAL_STOCK_TRANSFERS
 } from '../data/mockData';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
@@ -31,8 +32,6 @@ import { InventoryScreen } from '../components/InventoryScreen';
 import { CustomersScreen } from '../components/CustomersScreen';
 import { ExpensesScreen } from '../components/ExpensesScreen';
 import { AIAdvisorScreen } from '../components/AIAdvisorScreen';
-import { SalesHistoryScreen } from '../components/SalesHistoryScreen';
-import { EmployeesScreen } from '../components/EmployeesScreen';
 import { OrdersAndShipmentsScreen } from '../components/OrdersAndShipmentsScreen';
 import { WarrantyScreen } from '../components/WarrantyScreen';
 import { SettingsScreen } from '../components/SettingsScreen';
@@ -47,7 +46,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { getTelegramSettings, sendTelegramMessage, generateDailySalesReport } from '../utils/telegram';
 import { isTodayDate, getNowFormatted } from '../utils/formatters';
 import { playOrderNotificationSound } from '../utils/sound';
-import { CheckCircle2, CloudLightning, X } from 'lucide-react';
+import { CheckCircle2, X } from 'lucide-react';
 
 interface CloudSyncPayload {
   products?: Product[];
@@ -68,6 +67,8 @@ interface CloudSyncPayload {
   crmLeads?: CrmLead[];
   crmObjectPassports?: CrmObjectPassport[];
   crmReminders?: CrmReminder[];
+  branches?: Branch[];
+  stockTransfers?: StockTransfer[];
   exchangeRate?: number;
   baseCurrency?: Currency;
 }
@@ -97,20 +98,27 @@ export default function Home() {
   const [payrolls, setPayrolls] = useState<PayrollRecord[]>(INITIAL_PAYROLLS);
   const [advances, setAdvances] = useState<EmployeeAdvance[]>(INITIAL_ADVANCES);
   const [handovers, setHandovers] = useState<ObjectHandover[]>(INITIAL_HANDOVERS);
-  const [aiInsights, setAiInsights] = useState<AIInsight[]>(INITIAL_AI_INSIGHTS);
+  const [aiInsights] = useState<AIInsight[]>(INITIAL_AI_INSIGHTS);
   const [crmLeads, setCrmLeads] = useState<CrmLead[]>(INITIAL_CRM_LEADS);
   const [crmObjectPassports, setCrmObjectPassports] = useState<CrmObjectPassport[]>(INITIAL_CRM_OBJECTS);
   const [crmReminders, setCrmReminders] = useState<CrmReminder[]>(INITIAL_CRM_REMINDERS);
+  const [branches, setBranches] = useState<Branch[]>(INITIAL_BRANCHES);
+  const [currentBranchId, setCurrentBranchId] = useState<string>('branch-1');
+  const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>(INITIAL_STOCK_TRANSFERS);
   const [exchangeRate, setExchangeRate] = useState<number>(12850);
   const [baseCurrency, setBaseCurrency] = useState<Currency>('UZS');
   const [technicianSubTab, setTechnicianSubTab] = useState<string>('active_jobs');
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isZReportOpen, setIsZReportOpen] = useState<boolean>(false);
   const [isGlobalApprovalModalOpen, setIsGlobalApprovalModalOpen] = useState<boolean>(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
   const [activeModalReceipt, setActiveModalReceipt] = useState<SaleReceipt | null>(null);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
+
+  // Active branch selector
+  const currentBranch = useMemo(() => {
+    return branches.find(b => b.id === currentBranchId) || branches.find(b => b.isMain) || branches[0] || null;
+  }, [branches, currentBranchId]);
 
   const pushDataToCloudRef = useRef<((overrideData?: Record<string, unknown>) => Promise<void>) | null>(null);
 
@@ -379,6 +387,35 @@ export default function Home() {
 
       const savedReminders = localStorage.getItem('sc_crm_reminders');
       if (savedReminders) setCrmReminders(JSON.parse(savedReminders));
+
+      const savedBranches = localStorage.getItem('sc_branches');
+      if (savedBranches) {
+        try {
+          const parsed = JSON.parse(savedBranches);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setBranches(parsed);
+          }
+        } catch (e) {
+          console.error("Failed to parse saved branches", e);
+        }
+      }
+
+      const savedCurrentBranchId = localStorage.getItem('sc_current_branch_id');
+      if (savedCurrentBranchId) {
+        setCurrentBranchId(savedCurrentBranchId);
+      }
+
+      const savedTransfers = localStorage.getItem('sc_stock_transfers');
+      if (savedTransfers) {
+        try {
+          const parsed = JSON.parse(savedTransfers);
+          if (Array.isArray(parsed)) {
+            setStockTransfers(parsed);
+          }
+        } catch (e) {
+          console.error("Failed to parse saved transfers", e);
+        }
+      }
     } catch (e) {
       console.error("Local storage load error", e);
     } finally {
@@ -419,6 +456,8 @@ export default function Home() {
         payrolls,
         advances,
         handovers,
+        branches,
+        stockTransfers,
         exchangeRate,
         baseCurrency,
         ...(overrideData || {})
@@ -462,6 +501,9 @@ export default function Home() {
       localStorage.setItem('sc_payrolls', JSON.stringify(payrolls));
       localStorage.setItem('sc_advances', JSON.stringify(advances));
       localStorage.setItem('sc_handovers', JSON.stringify(handovers));
+      localStorage.setItem('sc_branches', JSON.stringify(branches));
+      localStorage.setItem('sc_current_branch_id', currentBranchId);
+      localStorage.setItem('sc_stock_transfers', JSON.stringify(stockTransfers));
       localStorage.setItem('sc_base_currency', baseCurrency);
 
       // Push to central cloud sync
@@ -469,7 +511,7 @@ export default function Home() {
     } catch (e) {
       console.error("Local storage save error", e);
     }
-  }, [products, productCategories, customers, receipts, expenses, expenseCategories, employees, customerOrders, shipments, purchases, serviceTickets, customerDebtPayments, payrolls, advances, handovers, baseCurrency, isLoaded]);
+  }, [products, productCategories, customers, receipts, expenses, expenseCategories, employees, customerOrders, shipments, purchases, serviceTickets, customerDebtPayments, payrolls, advances, handovers, branches, currentBranchId, stockTransfers, baseCurrency, isLoaded]);
 
   const syncFunctionRef = useRef<((force?: boolean) => Promise<void>) | null>(null);
 
@@ -617,6 +659,12 @@ export default function Home() {
           }
           if (remote.advances && (!isLocalRecentlyMutated('advances') || force)) {
             setAdvances(remote.advances);
+          }
+          if (remote.branches && (!isLocalRecentlyMutated('branches') || force)) {
+            setBranches(remote.branches);
+          }
+          if (remote.stockTransfers && (!isLocalRecentlyMutated('stockTransfers') || force)) {
+            setStockTransfers(remote.stockTransfers);
           }
           if (remote.exchangeRate) setExchangeRate(remote.exchangeRate);
           if (remote.baseCurrency) setBaseCurrency(remote.baseCurrency);
@@ -779,7 +827,7 @@ export default function Home() {
               el.tagName === 'BODY' ||
               el.tagName === 'HTML';
             return isVisible && !isShell;
-          } catch {
+          } catch (e) {
             return false;
           }
         });
@@ -1907,6 +1955,75 @@ export default function Home() {
     showToast(`✓ Kirim nakladnoyi bekor qilindi.`);
   };
 
+  // Filial qo'shish
+  const handleAddBranch = (newBranch: Branch) => {
+    recordLocalMutation('branches');
+    setBranches((prev) => {
+      let updated = [...prev];
+      if (newBranch.isMain) {
+        updated = updated.map((b) => ({ ...b, isMain: false }));
+      }
+      return [...updated, newBranch];
+    });
+    showToast(`✓ Yangi filial "${newBranch.name}" muvaffaqiyatli qo'shildi!`);
+  };
+
+  // Filialni yangilash
+  const handleUpdateBranch = (updatedBranch: Branch) => {
+    recordLocalMutation('branches');
+    setBranches((prev) => {
+      return prev.map((b) => {
+        if (b.id === updatedBranch.id) return updatedBranch;
+        if (updatedBranch.isMain) return { ...b, isMain: false };
+        return b;
+      });
+    });
+    showToast(`✓ "${updatedBranch.name}" filiali ma'lumotlari yangilandi!`);
+  };
+
+  // Filialni o'chirish
+  const handleDeleteBranch = (branchId: string) => {
+    const toDelete = branches.find((b) => b.id === branchId);
+    if (!toDelete) return;
+    if (toDelete.isMain) {
+      alert("Asosiy bosh filialni o'chirib bo'lmaydi!");
+      return;
+    }
+    if (confirm(`Haqiqatdan ham "${toDelete.name}" filialini o'chirmoqchimisiz?`)) {
+      recordLocalMutation('branches');
+      setBranches((prev) => prev.filter((b) => b.id !== branchId));
+      if (currentBranchId === branchId) {
+        const remaining = branches.filter((b) => b.id !== branchId);
+        const nextBranch = remaining.find((b) => b.isMain) || remaining[0];
+        if (nextBranch) setCurrentBranchId(nextBranch.id);
+      }
+      showToast(`✓ "${toDelete.name}" filiali o'chirildi.`);
+    }
+  };
+
+  // Faol filialni tanlash / almashtirish
+  const handleSelectBranch = (branch: Branch) => {
+    setCurrentBranchId(branch.id);
+    localStorage.setItem('sc_current_branch_id', branch.id);
+    showToast(`✓ Faol filial tanlandi: ${branch.name}`);
+  };
+
+  // Filiallararo tovar ko'chirish (Peremesheniya)
+  const handleAddStockTransfer = (transfer: StockTransfer, updatedProducts: Product[]) => {
+    recordLocalMutation('stockTransfers');
+    recordLocalMutation('products');
+    setStockTransfers((prev) => [transfer, ...prev]);
+    setProducts(updatedProducts);
+    try {
+      localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
+      localStorage.setItem('sc_stock_transfers', JSON.stringify([transfer, ...stockTransfers]));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ products: updatedProducts, stockTransfers: [transfer, ...stockTransfers] });
+    showToast(`✓ #${transfer.transferNumber} raqamli peremesheniya muvaffaqiyatli amalga oshirildi!`);
+  };
+
   // Add Customer
   const handleAddCustomer = (newCustomer: Customer) => {
     recordLocalMutation('customers');
@@ -2616,8 +2733,22 @@ export default function Home() {
   // Debtors count for badge
   const debtorsCount = customers.filter((c) => (c.debtBalance || 0) > 0).length;
 
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
+        <div className="flex flex-col items-center gap-4 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-8 py-7 shadow-xl backdrop-blur-sm">
+          <div className="h-11 w-11 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600 dark:border-slate-700 dark:border-t-indigo-400" />
+          <div className="text-center">
+            <div className="text-lg font-black tracking-tight">Smart Control</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Ma&apos;lumotlar yuklanmoqda...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // If not authenticated, render LoginScreen
-  if (!currentUser && isLoaded) {
+  if (!currentUser) {
     return (
       <LoginScreen
         employees={employees}
@@ -2666,6 +2797,9 @@ export default function Home() {
           pendingEstimatesCount={pendingEstimatesCount}
           onOpenEstimatesApproval={() => setIsGlobalApprovalModalOpen(true)}
           onForceRefresh={handleForceSync}
+          currentBranch={currentBranch}
+          branches={branches}
+          onSelectBranch={handleSelectBranch}
         />
 
         {/* Dynamic Screen View */}
@@ -2772,6 +2906,10 @@ export default function Home() {
               products={products}
               categories={productCategories}
               purchases={purchases}
+              branches={branches}
+              currentBranch={currentBranch}
+              stockTransfers={stockTransfers}
+              onAddStockTransfer={handleAddStockTransfer}
               onSavePurchase={handleSavePurchase}
               onRecordSupplierPayment={handleRecordSupplierPayment}
               onCancelPurchase={handleCancelPurchase}
@@ -2934,6 +3072,10 @@ export default function Home() {
               onUpdateBaseCurrency={handleUpdateBaseCurrency}
               currentUser={currentUser}
               onUpdateEmployee={handleUpdateEmployee}
+              branches={branches}
+              onAddBranch={handleAddBranch}
+              onUpdateBranch={handleUpdateBranch}
+              onDeleteBranch={handleDeleteBranch}
             />
           )}
 
@@ -3005,7 +3147,7 @@ export default function Home() {
         <ReceiptModal
           receipt={activeModalReceipt}
           onClose={() => setActiveModalReceipt(null)}
-          onOpenReturn={(r) => {
+          onOpenReturn={() => {
             setActiveModalReceipt(null);
             setActiveTab('financial_reports');
           }}

@@ -877,4 +877,50 @@ export interface CrmReminder {
   createdAt: string;
 }
 
+export interface Branch {
+  id: string;
+  name: string;             // e.g. "Bosh Filial (Toshkent)", "Chilonzor-1 Filiali"
+  code: string;             // e.g. "BF-01", "CH-02"
+  address?: string;
+  phone?: string;
+  managerName?: string;
+  managerId?: string;
+  isMain?: boolean;
+  status: 'active' | 'inactive';
+  createdAt?: string;
+  notes?: string;
+}
+
+export interface StockTransferItem {
+  productId: string;
+  productName: string;
+  sku?: string;
+  category?: string;
+  quantity: number;
+  unit: string;
+  costPrice?: number;
+  retailPrice?: number;
+  hasSerialNumber?: boolean;
+  serialNumbers?: string[];
+}
+
+export interface StockTransfer {
+  id: string;
+  transferNumber: string;   // e.g. "TR-1001"
+  createdAt: string;
+  fromBranchId: string;
+  fromBranchName: string;
+  toBranchId: string;
+  toBranchName: string;
+  items: StockTransferItem[];
+  totalQuantity: number;
+  totalAmountUZS: number;
+  totalAmountUSD: number;
+  sentBy: string;
+  receivedBy?: string;
+  status: 'completed' | 'in_transit' | 'draft' | 'cancelled';
+  notes?: string;
+}
+
+
 

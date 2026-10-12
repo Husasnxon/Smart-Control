@@ -787,7 +787,6 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                     {/* Vitrina Image Container (Rounded Showcase Box) */}
                     <div className="relative w-full h-28 sm:h-32 mb-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 overflow-hidden flex items-center justify-center p-2 border border-slate-100 dark:border-slate-800/80 group-hover:border-cyan-500/30 transition">
                       {product.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={product.imageUrl}
                           alt={product.name}
@@ -1255,7 +1254,6 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                         {/* Cart Item Mini Thumbnail */}
                         <div className="w-9 h-9 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 p-0.5">
                           {item.product.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={item.product.imageUrl}
                               alt={item.product.name}

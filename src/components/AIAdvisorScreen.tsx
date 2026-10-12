@@ -2,18 +2,13 @@
 
 import React, { useState } from 'react';
 import { Product, AIInsight } from '../types';
-import { 
-  Sparkles, 
-  AlertCircle, 
-  Send, 
-  Copy, 
-  Check, 
-  Bot, 
-  TrendingUp, 
-  Package, 
-  Clock, 
-  ChevronRight,
-  Share2
+import {
+  Sparkles,
+  Send,
+  Copy,
+  Check,
+  Bot,
+  Package
 } from 'lucide-react';
 
 interface AIAdvisorScreenProps {

@@ -12,7 +12,9 @@ import {
   CustomerDebtPayment,
   PayrollRecord,
   EmployeeAdvance,
-  ObjectHandover
+  ObjectHandover,
+  Branch,
+  StockTransfer
 } from '@/types';
 
 // Server-side shared storage across client devices
@@ -31,6 +33,8 @@ interface SyncStore {
   payrolls?: PayrollRecord[];
   advances?: EmployeeAdvance[];
   handovers?: ObjectHandover[];
+  branches?: Branch[];
+  stockTransfers?: StockTransfer[];
   exchangeRate?: number;
   baseCurrency?: string;
 }

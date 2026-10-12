@@ -13,7 +13,8 @@ import {
   Currency,
   EmployeePermissions,
   SystemRole,
-  DEFAULT_ROLE_PERMISSIONS
+  DEFAULT_ROLE_PERMISSIONS,
+  Branch
 } from '../types';
 import { 
   getTelegramSettings, 
@@ -33,7 +34,9 @@ import {
   Send, 
   Bot, 
   CheckCircle2, 
-  AlertTriangle, 
+  AlertTriangle,
+  AlertCircle,
+  X, 
   Eye, 
   EyeOff, 
   RefreshCw, 
@@ -75,7 +78,13 @@ import {
   Globe,
   PhoneCall,
   Radio,
-  ShoppingBag
+  ShoppingBag,
+  Plus,
+  Edit2,
+  Phone,
+  MapPin,
+  Star,
+  Building
 } from 'lucide-react';
 
 const InstagramIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
@@ -101,6 +110,10 @@ interface SettingsScreenProps {
   onUpdateBaseCurrency: (currency: Currency) => void;
   currentUser?: Employee | null;
   onUpdateEmployee?: (employee: Employee) => void;
+  branches?: Branch[];
+  onAddBranch?: (branch: Branch) => void;
+  onUpdateBranch?: (branch: Branch) => void;
+  onDeleteBranch?: (branchId: string) => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -117,9 +130,26 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   baseCurrency,
   onUpdateBaseCurrency,
   currentUser,
-  onUpdateEmployee
+  onUpdateEmployee,
+  branches = [],
+  onAddBranch,
+  onUpdateBranch,
+  onDeleteBranch
 }) => {
-  const [activeTab, setActiveTab] = useState<'telegram' | 'reports' | 'store' | 'backup' | 'permissions' | 'ai' | 'integrations'>('telegram');
+  const [activeTab, setActiveTab] = useState<'telegram' | 'reports' | 'store' | 'branches' | 'backup' | 'permissions' | 'ai' | 'integrations'>('telegram');
+
+  // Branch Management State
+  const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [branchName, setBranchName] = useState('');
+  const [branchCode, setBranchCode] = useState('');
+  const [branchAddress, setBranchAddress] = useState('');
+  const [branchPhone, setBranchPhone] = useState('');
+  const [branchManagerName, setBranchManagerName] = useState('');
+  const [branchIsMain, setBranchIsMain] = useState(false);
+  const [branchStatus, setBranchStatus] = useState<'active' | 'inactive'>('active');
+  const [branchNotes, setBranchNotes] = useState('');
+  const [branchError, setBranchError] = useState<string | null>(null);
 
   // Omnichannel Integrations State (Sayt, Instagram, TG Do'kon, IP Telefoniya)
   const [integrations, setIntegrations] = useState<{
@@ -503,8 +533,107 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         alert('Faylni o\'qishda xatolik: ' + message);
       }
     };
-    reader.readAsText(file);
   };
+
+  // Branch Management Handlers
+  const handleOpenAddBranch = () => {
+    setEditingBranch(null);
+    setBranchName('');
+    setBranchCode(`BF-0${(branches?.length || 0) + 1}`);
+    setBranchAddress('');
+    setBranchPhone('');
+    setBranchManagerName('');
+    setBranchIsMain((branches?.length || 0) === 0);
+    setBranchStatus('active');
+    setBranchNotes('');
+    setBranchError(null);
+    setIsBranchModalOpen(true);
+  };
+
+  const handleOpenEditBranch = (branch: Branch) => {
+    setEditingBranch(branch);
+    setBranchName(branch.name);
+    setBranchCode(branch.code);
+    setBranchAddress(branch.address || '');
+    setBranchPhone(branch.phone || '');
+    setBranchManagerName(branch.managerName || '');
+    setBranchIsMain(!!branch.isMain);
+    setBranchStatus(branch.status);
+    setBranchNotes(branch.notes || '');
+    setBranchError(null);
+    setIsBranchModalOpen(true);
+  };
+
+  const handleSaveBranch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!branchName.trim()) {
+      setBranchError("Filial nomini kiritish shart!");
+      return;
+    }
+    if (!branchCode.trim()) {
+      setBranchError("Filial kodini kiritish shart!");
+      return;
+    }
+
+    if (editingBranch) {
+      const updated: Branch = {
+        ...editingBranch,
+        name: branchName.trim(),
+        code: branchCode.trim().toUpperCase(),
+        address: branchAddress.trim() || undefined,
+        phone: branchPhone.trim() || undefined,
+        managerName: branchManagerName.trim() || undefined,
+        isMain: branchIsMain,
+        status: branchStatus,
+        notes: branchNotes.trim() || undefined
+      };
+      if (onUpdateBranch) onUpdateBranch(updated);
+    } else {
+      const newB: Branch = {
+        id: `branch-${Date.now()}`,
+        name: branchName.trim(),
+        code: branchCode.trim().toUpperCase(),
+        address: branchAddress.trim() || undefined,
+        phone: branchPhone.trim() || undefined,
+        managerName: branchManagerName.trim() || undefined,
+        isMain: branchIsMain,
+        status: branchStatus,
+        createdAt: new Date().toISOString().split('T')[0],
+        notes: branchNotes.trim() || undefined
+      };
+      if (onAddBranch) onAddBranch(newB);
+    }
+
+    setIsBranchModalOpen(false);
+  };
+
+  const handleToggleMainBranch = (branch: Branch) => {
+    if (branch.isMain) return; // already main
+    if (onUpdateBranch) {
+      onUpdateBranch({ ...branch, isMain: true });
+    }
+  };
+
+  const handleDeleteBranchClick = (branchId: string, branchName: string) => {
+    if (branches.length <= 1) {
+      alert("Oxirgi bitta filialni o'chirib bo'lmaydi! Kamida bitta filial mavjud bo'lishi shart.");
+      return;
+    }
+    if (window.confirm(`Rostdan ham "${branchName}" filialini o'chirmoqchimisiz?`)) {
+      if (onDeleteBranch) onDeleteBranch(branchId);
+    }
+  };
+
+  // Close branch modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isBranchModalOpen) {
+        setIsBranchModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isBranchModalOpen]);
 
   // Metrics for reports preview
   const todayReceipts = receipts.filter(r => isTodayDate(r.createdAt));
@@ -606,6 +735,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           >
             <Building2 className="w-4 h-4" />
             <span>Do&apos;kon & Valyuta Rekvizitlari</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('branches')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              activeTab === 'branches'
+                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+            }`}
+          >
+            <Building className="w-4 h-4 text-amber-500" />
+            <span>Filiallar & Omborlar ({branches.length})</span>
           </button>
 
           <button
@@ -1513,6 +1655,156 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   Rekvizitlarni Saqlash
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================= */}
+        {/* TAB 3.5: FILIALLAR & OMBORLAR BOSHQARUVI */}
+        {/* ============================================================= */}
+        {activeTab === 'branches' && (
+          <div className="space-y-5">
+            {/* Top Action Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center shadow-inner">
+                  <Building className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Filiallar & Savdo Shoxobchalari Boshqaruvi</span>
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                      {branches.length} ta
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Kompaniyaning markaziy va hududiy filiallari, omborlari hamda mas&apos;ul shaxslar ro&apos;yxati
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenAddBranch}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md shadow-amber-600/20 transition active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Yangi Filial Qo&apos;shish</span>
+              </button>
+            </div>
+
+            {/* Branches Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {branches.map((branch) => (
+                <div
+                  key={branch.id}
+                  className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border transition shadow-sm flex flex-col justify-between space-y-4 ${
+                    branch.isMain
+                      ? 'border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/30'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    {/* Card Header: Code & Badges */}
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs font-black px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                        {branch.code}
+                      </span>
+
+                      <div className="flex items-center gap-1.5">
+                        {branch.isMain && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                            <span>Bosh Filial</span>
+                          </span>
+                        )}
+
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          branch.status === 'active'
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {branch.status === 'active' ? 'Faol' : 'Nofaol'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Branch Name */}
+                    <div>
+                      <h4 className="font-black text-base text-slate-900 dark:text-white">
+                        {branch.name}
+                      </h4>
+                      {branch.notes && (
+                        <p className="text-[11px] text-slate-400 mt-0.5 italic">
+                          {branch.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Meta Info */}
+                    <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 pt-1 border-t border-slate-100 dark:border-slate-800">
+                      {branch.address && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                          <span className="truncate">{branch.address}</span>
+                        </div>
+                      )}
+
+                      {branch.phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="font-mono">{branch.phone}</span>
+                        </div>
+                      )}
+
+                      {branch.managerName && (
+                        <div className="flex items-center gap-2">
+                          <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            Mas&apos;ul: {branch.managerName}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                    {!branch.isMain ? (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMainBranch(branch)}
+                        className="text-[11px] font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1"
+                      >
+                        <Star className="w-3 h-3" />
+                        <span>Bosh filial qilish</span>
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-slate-400 font-medium">Asosiy ombor</span>
+                    )}
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditBranch(branch)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-slate-800 transition"
+                        title="Tahrirlash"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBranchClick(branch.id, branch.name)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition"
+                        title="O'chirish"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -3447,6 +3739,182 @@ Body: {
                 Yopish
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT BRANCH */}
+      {isBranchModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                  <Building className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {editingBranch ? 'Filial Ma\'lumotlarini Tahrirlash' : 'Yangi Filial Qo\'shish'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Smart Control tarmog&apos;iga yangi filial yoki savdo nuqtasi kiritish
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBranchModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {branchError && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{branchError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveBranch} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Filial Nomi *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={branchName}
+                    onChange={(e) => setBranchName(e.target.value)}
+                    placeholder="Masalan: Samarqand Filiali"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 font-semibold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Filial Kodi *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={branchCode}
+                    onChange={(e) => setBranchCode(e.target.value.toUpperCase())}
+                    placeholder="SQ-03"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 font-mono font-bold text-slate-900 dark:text-slate-100 uppercase outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Joylashgan Manzili
+                </label>
+                <input
+                  type="text"
+                  value={branchAddress}
+                  onChange={(e) => setBranchAddress(e.target.value)}
+                  placeholder="Samarqand sh., Registon ko'chasi, 15-uy"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 font-medium text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Aloqa Telefoni
+                  </label>
+                  <input
+                    type="text"
+                    value={branchPhone}
+                    onChange={(e) => setBranchPhone(e.target.value)}
+                    placeholder="+998 66 233 44 55"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 font-mono text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Mas&apos;ul Xodim / Menejer
+                  </label>
+                  <input
+                    type="text"
+                    value={branchManagerName}
+                    onChange={(e) => setBranchManagerName(e.target.value)}
+                    placeholder="Jamshid Normurodov"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 font-medium text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Izoh / Qo&apos;shimcha ma&apos;lumot
+                </label>
+                <input
+                  type="text"
+                  value={branchNotes}
+                  onChange={(e) => setBranchNotes(e.target.value)}
+                  placeholder="Katta ombor va chakana do'kon"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 font-medium text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={branchIsMain}
+                    onChange={(e) => setBranchIsMain(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-600"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 block">Asosiy Filial</span>
+                    <span className="text-[10px] text-slate-400">Markaziy boshqaruv ombori</span>
+                  </div>
+                </label>
+
+                <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 block">Holati</span>
+                    <span className="text-[10px] text-slate-400">{branchStatus === 'active' ? 'Faol ishlamoqda' : 'Vaqtincha yopiq'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBranchStatus(branchStatus === 'active' ? 'inactive' : 'active')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition ${
+                      branchStatus === 'active'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {branchStatus === 'active' ? 'Faol' : 'Nofaol'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-[11px] text-slate-400">Esc - oynani yopish</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsBranchModalOpen(false)}
+                    className="px-4 py-2 rounded-xl font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  >
+                    Bekor qilish
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-600/20 transition active:scale-95"
+                  >
+                    {editingBranch ? 'O\'zgarishlarni Saqlash' : 'Filialni Qo\'shish'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

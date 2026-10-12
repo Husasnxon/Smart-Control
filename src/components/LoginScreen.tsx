@@ -14,7 +14,6 @@ import {
   Briefcase, 
   CheckCircle2, 
   AlertCircle, 
-  Sparkles,
   Zap,
   Building2
 } from 'lucide-react';
@@ -69,9 +68,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       return;
     }
 
-    // Check password or default '123'
+    // Check password
     const validPassword = found.password || '123';
-    if (cleanPass !== validPassword && cleanPass !== 'admin123' && cleanPass !== '123') {
+    if (cleanPass !== validPassword) {
       setTimeout(() => {
         setErrorMessage("Parol noto'g'ri kiritildi! Qayta urinib ko'ring.");
         setIsSubmitting(false);
@@ -103,7 +102,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     const validPass = selectedEmployee.password || '123';
     const validPin = selectedEmployee.pin || '0000';
 
-    if (pinInput === validPass || pinInput === validPin || pinInput === '123' || pinInput === 'admin123') {
+    if (pinInput === validPass || pinInput === validPin) {
       setTimeout(() => {
         setIsSubmitting(false);
         onLoginSuccess(selectedEmployee);
@@ -114,14 +113,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         setIsSubmitting(false);
       }, 300);
     }
-  };
-
-  // Helper quick fill for demo
-  const handleQuickFill = (demoUser: string, demoPass: string) => {
-    setUsername(demoUser);
-    setPassword(demoPass);
-    setErrorMessage(null);
-    setActiveMode('form');
   };
 
   return (
@@ -221,7 +212,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Parolni kiriting (demo: 123)"
+                  placeholder="Parolni kiriting"
                   className="w-full pl-10 pr-11 py-3 bg-slate-950/70 border border-slate-700/80 rounded-2xl text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition"
                 />
                 <button
@@ -331,7 +322,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   required
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value)}
-                  placeholder="Parolni kiriting (masalan: 123)"
+                  placeholder="Parol yoki PIN kodni kiriting"
                   className="w-full pl-10 pr-4 py-3 bg-slate-950/70 border border-slate-700/80 rounded-2xl text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition text-center tracking-widest text-lg font-mono"
                   autoFocus
                 />
@@ -355,64 +346,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </form>
         )}
 
-        {/* Demo Fast Login Pills */}
-        <div className="mt-6 pt-5 border-t border-slate-800/80">
-          <div className="flex items-center justify-between mb-2.5">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              Tezkor Sinov Akkauntlari (1-klik):
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickFill('admin', '123')}
-              className="p-2 bg-slate-950/80 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/50 rounded-xl text-left transition group"
-            >
-              <div className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
-                <span>👑 Admin</span>
-              </div>
-              <div className="text-xs font-semibold text-slate-200 truncate">admin</div>
-              <div className="text-[10px] text-slate-500 font-mono">parol: 123</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickFill('farrux', '123')}
-              className="p-2 bg-slate-950/80 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/50 rounded-xl text-left transition group"
-            >
-              <div className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                <span>💳 Kassir</span>
-              </div>
-              <div className="text-xs font-semibold text-slate-200 truncate">farrux</div>
-              <div className="text-[10px] text-slate-500 font-mono">parol: 123</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickFill('jamshid', '123')}
-              className="p-2 bg-slate-950/80 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 rounded-xl text-left transition group"
-            >
-              <div className="text-[10px] font-bold text-cyan-400 flex items-center gap-1">
-                <span>🔧 Muhandis</span>
-              </div>
-              <div className="text-xs font-semibold text-slate-200 truncate">jamshid</div>
-              <div className="text-[10px] text-slate-500 font-mono">parol: 123</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickFill('dilshod', '123')}
-              className="p-2 bg-slate-950/80 hover:bg-slate-800 border border-slate-800 hover:border-blue-500/50 rounded-xl text-left transition group"
-            >
-              <div className="text-[10px] font-bold text-blue-400 flex items-center gap-1">
-                <span>🛠 Usta</span>
-              </div>
-              <div className="text-xs font-semibold text-slate-200 truncate">dilshod</div>
-              <div className="text-[10px] text-slate-500 font-mono">parol: 123</div>
-            </button>
-          </div>
+        {/* Secure Footer Notice */}
+        <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-center gap-2 text-slate-500 text-xs">
+          <ShieldCheck className="w-4 h-4 text-emerald-500/70" />
+          <span>Smart Control ERP &bull; Xavfsiz avtorizatsiya tizimi</span>
         </div>
 
       </div>

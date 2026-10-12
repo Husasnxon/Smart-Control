@@ -69,7 +69,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 type="button"
                 onClick={() => {
                   this.setState({ hasError: false });
-                  window.location.href = '/';
+                  window.location.assign('/');
                 }}
                 className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 transition"
               >

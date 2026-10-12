@@ -1,4 +1,4 @@
-import { Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, PurchaseInvoice, ServiceTicket, CustomerDebtPayment, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_PERMISSIONS } from '../types';
+import { Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, PurchaseInvoice, ServiceTicket, CustomerDebtPayment, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_PERMISSIONS, Branch, StockTransfer } from '../types';
 
 export const INITIAL_PRODUCT_CATEGORIES: ProductCategory[] = [
   { id: 'pcat-1', name: 'Kuzatuv kameralari (CCTV)', description: 'IP, HD kameralar, PTZ aylanuvchi va Wi-Fi kameralar', color: '#06B6D4' },
@@ -1489,6 +1489,88 @@ export const INITIAL_CRM_REMINDERS: CrmReminder[] = [
     createdAt: '2026-10-05 10:00'
   }
 ];
+
+export const INITIAL_BRANCHES: Branch[] = [
+  {
+    id: 'branch-1',
+    name: 'Bosh Filial (Toshkent)',
+    code: 'BF-01',
+    address: 'Toshkent sh., Chilonzor tumani, Bunyodkor shoh ko\'chasi, 42-uy',
+    phone: '+998 71 200 40 50',
+    managerName: 'Admin Foydalanuvchi',
+    isMain: true,
+    status: 'active',
+    createdAt: '2026-01-01',
+    notes: 'Bosh ombor va markaziy savdo shoxobchasi'
+  },
+  {
+    id: 'branch-2',
+    name: 'Chilonzor-1 Filiali',
+    code: 'CH-02',
+    address: 'Toshkent sh., Chilonzor 9-mavze, Kichik halqa yo\'li',
+    phone: '+998 90 123 45 67',
+    managerName: 'Farrux Aliyev',
+    isMain: false,
+    status: 'active',
+    createdAt: '2026-03-15',
+    notes: 'Chakana savdo va montaj xizmatlari filiali'
+  },
+  {
+    id: 'branch-3',
+    name: 'Samarqand Filiali',
+    code: 'SQ-03',
+    address: 'Samarqand sh., Registon ko\'chasi, 15-uy',
+    phone: '+998 66 233 44 55',
+    managerName: 'Jamshid Normurodov',
+    isMain: false,
+    status: 'active',
+    createdAt: '2026-05-20',
+    notes: 'Samarqand viloyati bo\'yicha vakolatxona'
+  }
+];
+
+export const INITIAL_STOCK_TRANSFERS: StockTransfer[] = [
+  {
+    id: 'tr-1001',
+    transferNumber: 'TR-1001',
+    createdAt: '2026-10-10 14:30',
+    fromBranchId: 'branch-1',
+    fromBranchName: 'Bosh Filial (Toshkent)',
+    toBranchId: 'branch-2',
+    toBranchName: 'Chilonzor-1 Filiali',
+    items: [
+      {
+        productId: 'prod-1',
+        productName: 'Hikvision DS-2CD1043G0-I 4MP IP Tashqi Kamera',
+        sku: 'HIK-IPC-4MP',
+        quantity: 2,
+        unit: 'dona',
+        costPrice: 340000,
+        retailPrice: 440000,
+        hasSerialNumber: true,
+        serialNumbers: ['HK-4MP-982101', 'HK-4MP-982102']
+      },
+      {
+        productId: 'prod-6',
+        productName: 'UTP Cat6 Tashqi Mis Kabel (305m)',
+        sku: 'CBL-UTP-6OUT',
+        quantity: 1,
+        unit: 'bukhta',
+        costPrice: 720000,
+        retailPrice: 920000,
+        hasSerialNumber: false
+      }
+    ],
+    totalQuantity: 3,
+    totalAmountUZS: 1800000,
+    totalAmountUSD: 140.08,
+    sentBy: 'Admin Foydalanuvchi',
+    receivedBy: 'Farrux Aliyev',
+    status: 'completed',
+    notes: 'Chilonzor filiali zaxirasini to\'ldirish uchun peremesheniya'
+  }
+];
+
 
 
 
