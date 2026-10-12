@@ -344,6 +344,8 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       technicianWageUZS: newIsService ? (newTechnicianWageUZS || undefined) : undefined,
       warrantyMonths: newWarrantyMonths,
       imageUrl: newImageUrl.trim() || undefined,
+      branchId: currentBranch?.id,
+      branchName: currentBranch?.name,
     };
 
     onAddProduct(newProd);

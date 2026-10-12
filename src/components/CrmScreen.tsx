@@ -13,7 +13,8 @@ import {
   CustomerOrder,
   OrderItem,
   Product,
-  Currency
+  Currency,
+  Branch
 } from '../types';
 import { formatDualMoney, formatMoney, formatUSDNumber, formatNumberWithSpaces } from '../utils/formatters';
 import { 
@@ -90,6 +91,8 @@ interface CrmScreenProps {
   onConvertToOrder?: (lead: CrmLead) => void;
   onSaveOrder?: (order: CustomerOrder) => void;
   onNavigateToOrders?: () => void;
+  currentBranch?: Branch | null;
+  branches?: Branch[];
 }
 
 const STAGE_CONFIG: Record<CrmLeadStage, { title: string; color: string; bg: string; border: string; badgeBg: string }> = {
@@ -177,7 +180,9 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
   exchangeRate = 12850,
   onConvertToOrder,
   onSaveOrder,
-  onNavigateToOrders
+  onNavigateToOrders,
+  currentBranch = null,
+  branches = []
 }) => {
   // Navigation sub-tabs
   const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'passports' | 'reminders' | 'analytics'>('pipeline');
@@ -1624,7 +1629,9 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   notes,
                   nextActionNote,
                   createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-                  updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' ')
+                  updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                  branchId: currentBranch?.id,
+                  branchName: currentBranch?.name
                 };
 
                 onAddLead(newLead);
@@ -1851,7 +1858,9 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   warrantyExpiresAt: expireDate.toISOString().slice(0, 10),
                   installedByTechnicianName: technicianName || undefined,
                   notes: notes || undefined,
-                  createdAt: new Date().toISOString().slice(0, 16).replace('T', ' ')
+                  createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                  branchId: currentBranch?.id,
+                  branchName: currentBranch?.name
                 };
 
                 onAddObjectPassport(newPassport);
@@ -2082,7 +2091,9 @@ export const CrmScreen: React.FC<CrmScreenProps> = ({
                   dueTime: dueTime || undefined,
                   notes: notes || undefined,
                   isCompleted: false,
-                  createdAt: new Date().toISOString().slice(0, 16).replace('T', ' ')
+                  createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                  branchId: currentBranch?.id,
+                  branchName: currentBranch?.name
                 };
 
                 onAddReminder(newReminder);

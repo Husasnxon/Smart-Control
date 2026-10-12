@@ -87,6 +87,8 @@ interface ExpensesScreenProps {
   onNavigateToTab?: (tab: ActiveTab) => void;
   initialSubTab?: 'all' | 'incomes' | 'expenses' | 'employees';
   branches?: Branch[];
+  currentBranch?: Branch | null;
+  currentUser?: Employee | null;
 }
 
 interface ReceiptLineItem {
@@ -132,7 +134,9 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   onAddAdvance,
   onNavigateToTab,
   initialSubTab = 'all',
-  branches = []
+  branches = [],
+  currentBranch = null,
+  currentUser = null
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'all' | 'incomes' | 'expenses' | 'employees'>(
     initialSubTab === 'employees' ? 'employees' : 'all'
@@ -670,7 +674,9 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
       paidBy: custName || 'Noma\'lum mijoz / Manba',
       notes: incomeNotes || 'Pul kirimi',
       createdAt: getNowFormatted(),
-      createdBy: 'Farrux A. (Kassir)',
+      createdBy: currentUser?.fullName ? `${currentUser.fullName} (${currentUser.role})` : 'Kassir',
+      branchId: currentBranch?.id,
+      branchName: currentBranch?.name,
       linkedDocType,
       linkedDocId,
       linkedDocNumber,
@@ -727,7 +733,9 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
       paidTo: targetPaidTo || 'Noma\'lum',
       notes: expenseNotes || 'Izohsiz chiqim',
       createdAt: getNowFormatted(),
-      createdBy: 'Farrux A. (Kassir)',
+      createdBy: currentUser?.fullName ? `${currentUser.fullName} (${currentUser.role})` : 'Kassir',
+      branchId: currentBranch?.id,
+      branchName: currentBranch?.name,
       linkedDocType,
       linkedDocId,
       linkedDocNumber

@@ -11,7 +11,8 @@ import {
   AssignedTechnician, 
   PaymentDetails, 
   Currency,
-  ObjectHandover
+  ObjectHandover,
+  Branch
 } from '../types';
 import { formatDualMoney, formatMoney, formatNumberWithSpaces, formatUSDNumber, getNowFormatted } from '../utils/formatters';
 import { 
@@ -75,6 +76,8 @@ interface OrdersAndShipmentsScreenProps {
   handovers?: ObjectHandover[];
   onSaveHandover?: (handover: ObjectHandover) => void;
   onClearAllOrders?: () => void;
+  branches?: Branch[];
+  currentBranch?: Branch | null;
 }
 
 const generateShipmentId = () => `shipment-${Date.now()}`;
@@ -95,7 +98,9 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   currentUser,
   handovers = [],
   onSaveHandover,
-  onClearAllOrders
+  onClearAllOrders,
+  branches = [],
+  currentBranch = null
 }) => {
   // Main Sub-tabs: 'orders' (Hisob-kitob / Zakaz) or 'shipments' (Otgruzka) or 'handovers' (Obyekt topshirish)
   const [activeSubTab, setActiveSubTab] = useState<'orders' | 'shipments' | 'handovers'>('orders');
@@ -320,7 +325,9 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
       discountTotal,
       totalAmount,
       totalAmountUSD,
-      status: targetStatus
+      status: targetStatus,
+      branchId: currentBranch?.id,
+      branchName: currentBranch?.name
     };
 
     onSaveOrder(newOrder);
@@ -359,7 +366,9 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
       totalAmount: order.totalAmount,
       totalAmountUSD: order.totalAmountUSD,
       status: 'pending',
-      paymentMethod: 'cash'
+      paymentMethod: 'cash',
+      branchId: order.branchId || currentBranch?.id,
+      branchName: order.branchName || currentBranch?.name
     };
 
     onSaveShipment(newShipment);
@@ -388,7 +397,9 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
       totalAmount: 0,
       totalAmountUSD: 0,
       status: 'pending',
-      paymentMethod: 'cash'
+      paymentMethod: 'cash',
+      branchId: currentBranch?.id,
+      branchName: currentBranch?.name
     };
     setActiveShipment(newShipment);
     setShipmentItemsWithSerials([]);

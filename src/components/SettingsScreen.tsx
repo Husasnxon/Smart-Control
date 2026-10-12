@@ -2834,6 +2834,36 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           />
                         </button>
                       </div>
+
+                      {/* CAN ACCESS ALL BRANCHES */}
+                      <div className="pt-3 flex items-start justify-between gap-3 bg-emerald-50/60 dark:bg-emerald-950/30 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800/60">
+                        <div className="pr-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black text-emerald-900 dark:text-emerald-200">
+                              Barcha Filiallarga kirish va almashtirish (Superadmin)
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-emerald-600 text-white">
+                              FILIALLAR
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-emerald-700 dark:text-emerald-300/80 mt-0.5 leading-relaxed">
+                            O&apos;chirilgan bo&apos;lsa xodim faqat o&apos;ziga biriktirilgan filial ma&apos;lumotlarini ko&apos;radi va almashtira olmaydi.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canAccessAllBranches')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canAccessAllBranches ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canAccessAllBranches ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2899,7 +2929,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         { key: 'canCreateExpenses', label: 'Kassadan chiqim kiritish', category: 'Moliya' },
                         { key: 'canViewPayroll', label: "Oylik maosh va avanslarni ko'rish", category: 'Moliya' },
                         { key: 'canManageSettings', label: 'Tizim sozlamalari & Bot', category: 'Admin' },
-                        { key: 'canManagePermissions', label: 'Huquqlar matritsasi', category: 'Admin' }
+                        { key: 'canManagePermissions', label: 'Huquqlar matritsasi', category: 'Admin' },
+                        { key: 'canAccessAllBranches', label: 'Barcha filiallarni boshqarish', category: 'Filiallar', highlight: true }
                       ].map((item) => (
                         <tr
                           key={item.key}

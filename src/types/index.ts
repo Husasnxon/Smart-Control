@@ -29,6 +29,8 @@ export interface Product {
   technicianWageUZS?: number; // Ustaga to'lanadigan xizmat haqqi (so'mda)
   imageUrl?: string;
   color?: string;
+  branchId?: string;       // Biriktirilgan filial ID si
+  branchName?: string;     // Biriktirilgan filial nomi
 }
 
 export interface Customer {
@@ -164,6 +166,7 @@ export interface EmployeePermissions {
   canManagePermissions?: boolean;     // Xodimlar huquqlarini o'zgartirish
   canViewFinancialReports?: boolean;  // P&L va moliyaviy hisobotlarni ko'rish
   canDeleteLeads?: boolean;           // CRMda lidlarni o'chirish huquqi
+  canAccessAllBranches?: boolean;     // Barcha filiallarni ko'rish va boshqarish huquqi (faqat admin yoki belgilangan xodim)
 }
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> = {
@@ -191,7 +194,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canViewPayroll: true,
     canManageSettings: true,
     canManagePermissions: true,
-    canViewFinancialReports: true
+    canViewFinancialReports: true,
+    canAccessAllBranches: true
   },
   manager: {
     onlyAssignedOrders: false,
@@ -217,7 +221,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canViewPayroll: false,
     canManageSettings: false,
     canManagePermissions: false,
-    canViewFinancialReports: true
+    canViewFinancialReports: true,
+    canAccessAllBranches: false
   },
   cashier: {
     onlyAssignedOrders: false,
@@ -243,7 +248,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canViewPayroll: false,
     canManageSettings: false,
     canManagePermissions: false,
-    canViewFinancialReports: false
+    canViewFinancialReports: false,
+    canAccessAllBranches: false
   },
   technician: {
     onlyAssignedOrders: true, // ⭐ Ustalar faqat o'zi qatnashgan smeta va otgruzkalarni ko'radi!
@@ -269,7 +275,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canViewPayroll: false,
     canManageSettings: false,
     canManagePermissions: false,
-    canViewFinancialReports: false
+    canViewFinancialReports: false,
+    canAccessAllBranches: false
   },
   warehouse: {
     onlyAssignedOrders: false,
@@ -295,7 +302,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canViewPayroll: false,
     canManageSettings: false,
     canManagePermissions: false,
-    canViewFinancialReports: false
+    canViewFinancialReports: false,
+    canAccessAllBranches: false
   }
 };
 
@@ -377,6 +385,8 @@ export interface Expense {
   linkedDocNumber?: string; // Masalan: "OTG-2001", "ZK-1001", "CHK-1001"
   customerId?: string;
   customerName?: string;
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface OrderItem {
@@ -429,6 +439,8 @@ export interface CustomerOrder {
   requestedByTechnicianId?: string;
   rejectionReason?: string;
   createdBy?: string;
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface ShipmentOrder {
@@ -460,6 +472,8 @@ export interface ShipmentOrder {
   paymentMethod?: 'cash' | 'card' | 'debt' | 'usd';
   hasHandoverReport?: boolean;
   handoverReportId?: string;
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface HandoverPhoto {
@@ -586,6 +600,8 @@ export interface PurchaseInvoice {
   notes?: string;
   receivedBy: string;            // Qabul qilgan xodim
   receivedById?: string;         // Qabul qilgan xodim ID si
+  branchId?: string;
+  branchName?: string;
 }
 
 export type ServiceTicketStatus = 
@@ -627,6 +643,8 @@ export interface ServiceTicket {
   repairCostUSD?: number;             // Ta'mir summasi ($ da)
   replacementSerialNumber?: string;   // Agar ombordan zamen qilingan bo'lsa yangi S/N
   receivedBy: string;                 // Qabul qilgan xodim
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface CustomerDebtPayment {
@@ -647,6 +665,8 @@ export interface CustomerDebtPayment {
   receiptNumber?: string;
   notes?: string;
   cashierName: string;
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface PayrollRecord {
@@ -676,6 +696,8 @@ export interface PayrollRecord {
   paidAt: string;                     // Qachon berildi
   notes?: string;
   status: 'paid' | 'pending';
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface EmployeeAdvance {
@@ -689,6 +711,8 @@ export interface EmployeeAdvance {
   paidAt: string;                     // e.g. "2026-10-04 14:30"
   periodMonth: string;                // Qaysi oy uchun e.g. "2026-10"
   notes?: string;
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface ZReport {
@@ -698,6 +722,7 @@ export interface ZReport {
   openedAt?: string;
   cashierName: string;
   branchName: string;
+  branchId?: string;
   receiptsCount: number;
   totalSalesUZS: number;
   totalSalesUSD: number;
@@ -748,6 +773,8 @@ export interface CrmLead {
   nextActionNote?: string;
   createdAt: string;
   updatedAt: string;
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface CrmObjectInstalledItem {
@@ -862,6 +889,8 @@ export interface CrmObjectPassport {
   
   notes?: string;
   createdAt: string;
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface CrmReminder {
@@ -878,6 +907,8 @@ export interface CrmReminder {
   isCompleted: boolean;
   completedAt?: string;
   createdAt: string;
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface Branch {

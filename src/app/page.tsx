@@ -117,6 +117,7 @@ export default function Home() {
 
   // Active branch selector
   const currentBranch = useMemo(() => {
+    if (currentBranchId === 'all') return null;
     return branches.find(b => b.id === currentBranchId) || branches.find(b => b.isMain) || branches[0] || null;
   }, [branches, currentBranchId]);
 
@@ -2008,7 +2009,13 @@ export default function Home() {
   };
 
   // Faol filialni tanlash / almashtirish
-  const handleSelectBranch = (branch: Branch) => {
+  const handleSelectBranch = (branch: Branch | null) => {
+    if (!branch) {
+      setCurrentBranchId('all');
+      localStorage.setItem('sc_current_branch_id', 'all');
+      showToast(`✓ Barcha filiallar (konsolidatsiyalangan) tanlandi`);
+      return;
+    }
     setCurrentBranchId(branch.id);
     localStorage.setItem('sc_current_branch_id', branch.id);
     showToast(`✓ Faol filial tanlandi: ${branch.name}`);
@@ -2303,7 +2310,9 @@ export default function Home() {
       paidTo: record.employeeName,
       notes: `${record.periodLabel} uchun ish haqi to'lovi (#${record.payrollNumber})`,
       createdAt: new Date().toISOString(),
-      createdBy: 'Menejer'
+      createdBy: currentUser?.fullName || 'Menejer',
+      branchId: record.branchId || currentBranch?.id,
+      branchName: record.branchName || currentBranch?.name
     };
     setExpenses((prev) => [newExp, ...prev]);
 
@@ -2322,7 +2331,9 @@ export default function Home() {
       paidTo: advance.employeeName,
       notes: `${advance.periodMonth} uchun avans (#${advance.advanceNumber})`,
       createdAt: new Date().toISOString(),
-      createdBy: 'Menejer'
+      createdBy: currentUser?.fullName || 'Menejer',
+      branchId: advance.branchId || currentBranch?.id,
+      branchName: advance.branchName || currentBranch?.name
     };
     setExpenses((prev) => [newExp, ...prev]);
 
@@ -2358,12 +2369,17 @@ export default function Home() {
   // Service Ticket Handlers (Kafolat va Servis)
   const handleAddServiceTicket = (ticket: ServiceTicket) => {
     recordLocalMutation('serviceTickets');
+    const taggedTicket: ServiceTicket = {
+      ...ticket,
+      branchId: ticket.branchId || currentBranch?.id,
+      branchName: ticket.branchName || currentBranch?.name
+    };
     let nextList: ServiceTicket[] = [];
     setServiceTickets((prev) => {
-      nextList = [ticket, ...prev];
+      nextList = [taggedTicket, ...prev];
       return nextList;
     });
-    const finalTickets = nextList.length > 0 ? nextList : [ticket, ...serviceTickets];
+    const finalTickets = nextList.length > 0 ? nextList : [taggedTicket, ...serviceTickets];
     try {
       localStorage.setItem('sc_service_tickets', JSON.stringify(finalTickets));
     } catch (e) {
@@ -2739,6 +2755,78 @@ export default function Home() {
   // Debtors count for badge
   const debtorsCount = customers.filter((c) => (c.debtBalance || 0) > 0).length;
 
+  // -------------------------------------------------------------
+  // BRANCH DATA ISOLATION: Filtered entities according to current branch
+  // -------------------------------------------------------------
+  // If currentBranchId is 'all' or empty, superadmin sees all data.
+  // Otherwise, filter items by item.branchId === currentBranchId (or fallback to 'branch-1' if item.branchId is undefined)
+  const isBranchAll = currentBranchId === 'all';
+
+  const branchFilteredProducts = useMemo(() => {
+    if (isBranchAll) return products;
+    return products.filter((p) => (p.branchId || 'branch-1') === currentBranchId);
+  }, [products, currentBranchId, isBranchAll]);
+
+  const branchFilteredReceipts = useMemo(() => {
+    if (isBranchAll) return receipts;
+    return receipts.filter((r) => (r.branchId || 'branch-1') === currentBranchId);
+  }, [receipts, currentBranchId, isBranchAll]);
+
+  const branchFilteredExpenses = useMemo(() => {
+    if (isBranchAll) return expenses;
+    return expenses.filter((e) => (e.branchId || 'branch-1') === currentBranchId);
+  }, [expenses, currentBranchId, isBranchAll]);
+
+  const branchFilteredOrders = useMemo(() => {
+    if (isBranchAll) return customerOrders;
+    return customerOrders.filter((o) => (o.branchId || 'branch-1') === currentBranchId);
+  }, [customerOrders, currentBranchId, isBranchAll]);
+
+  const branchFilteredShipments = useMemo(() => {
+    if (isBranchAll) return shipments;
+    return shipments.filter((s) => (s.branchId || 'branch-1') === currentBranchId);
+  }, [shipments, currentBranchId, isBranchAll]);
+
+  const branchFilteredPurchases = useMemo(() => {
+    if (isBranchAll) return purchases;
+    return purchases.filter((p) => (p.branchId || 'branch-1') === currentBranchId);
+  }, [purchases, currentBranchId, isBranchAll]);
+
+  const branchFilteredEmployees = useMemo(() => {
+    if (isBranchAll) return employees;
+    return employees.filter((emp) => (emp.branchId || 'branch-1') === currentBranchId);
+  }, [employees, currentBranchId, isBranchAll]);
+
+  const branchFilteredPayrolls = useMemo(() => {
+    if (isBranchAll) return payrolls;
+    return payrolls.filter((pr) => (pr.branchId || 'branch-1') === currentBranchId);
+  }, [payrolls, currentBranchId, isBranchAll]);
+
+  const branchFilteredAdvances = useMemo(() => {
+    if (isBranchAll) return advances;
+    return advances.filter((adv) => (adv.branchId || 'branch-1') === currentBranchId);
+  }, [advances, currentBranchId, isBranchAll]);
+
+  const branchFilteredLeads = useMemo(() => {
+    if (isBranchAll) return crmLeads;
+    return crmLeads.filter((l) => (l.branchId || 'branch-1') === currentBranchId);
+  }, [crmLeads, currentBranchId, isBranchAll]);
+
+  const branchFilteredObjects = useMemo(() => {
+    if (isBranchAll) return crmObjectPassports;
+    return crmObjectPassports.filter((obj) => (obj.branchId || 'branch-1') === currentBranchId);
+  }, [crmObjectPassports, currentBranchId, isBranchAll]);
+
+  const branchFilteredReminders = useMemo(() => {
+    if (isBranchAll) return crmReminders;
+    return crmReminders.filter((rem) => (rem.branchId || 'branch-1') === currentBranchId);
+  }, [crmReminders, currentBranchId, isBranchAll]);
+
+  const branchFilteredTickets = useMemo(() => {
+    if (isBranchAll) return serviceTickets;
+    return serviceTickets.filter((t) => (t.branchId || 'branch-1') === currentBranchId);
+  }, [serviceTickets, currentBranchId, isBranchAll]);
+
   if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
@@ -2812,10 +2900,10 @@ export default function Home() {
         <main className="flex-1 min-h-0 flex overflow-hidden">
           {activeTab === 'pos' && (
             <POSScreen
-              products={products}
+              products={branchFilteredProducts}
               customers={customers}
-              employees={employees}
-              customerOrders={customerOrders}
+              employees={branchFilteredEmployees}
+              customerOrders={branchFilteredOrders}
               onCompleteSale={handleCompleteSale}
               onAddCustomer={handleAddCustomer}
               onSaveOrder={handleSaveOrder}
@@ -2831,11 +2919,11 @@ export default function Home() {
 
           {activeTab === 'orders' && (
             <OrdersAndShipmentsScreen
-              orders={customerOrders}
-              shipments={shipments}
-              products={products}
+              orders={branchFilteredOrders}
+              shipments={branchFilteredShipments}
+              products={branchFilteredProducts}
               customers={customers}
-              employees={employees}
+              employees={branchFilteredEmployees}
               exchangeRate={exchangeRate}
               baseCurrency={baseCurrency}
               currentUser={currentUser}
@@ -2847,15 +2935,17 @@ export default function Home() {
               onAddCustomer={handleAddCustomer}
               onSaveHandover={handleSaveHandover}
               onClearAllOrders={handleClearAllOrders}
+              branches={branches}
+              currentBranch={currentBranch}
             />
           )}
 
           {activeTab === 'dashboard' && (
             <DashboardScreen
-              products={products}
+              products={branchFilteredProducts}
               customers={customers}
-              receipts={receipts}
-              expenses={expenses}
+              receipts={branchFilteredReceipts}
+              expenses={branchFilteredExpenses}
               aiInsights={aiInsights}
               onNavigateTab={(tab) => setActiveTab(tab)}
               isOffline={isOffline}
@@ -2866,12 +2956,12 @@ export default function Home() {
 
           {activeTab === 'financial_reports' && (
             <FinancialReportsScreen
-              receipts={receipts}
-              expenses={expenses}
-              products={products}
-              employees={employees}
-              payrolls={payrolls}
-              purchases={purchases}
+              receipts={branchFilteredReceipts}
+              expenses={branchFilteredExpenses}
+              products={branchFilteredProducts}
+              employees={branchFilteredEmployees}
+              payrolls={branchFilteredPayrolls}
+              purchases={branchFilteredPurchases}
               customers={customers}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
@@ -2885,36 +2975,38 @@ export default function Home() {
 
           {activeTab === 'crm' && (
             <CrmScreen
-              leads={crmLeads}
+              leads={branchFilteredLeads}
               onAddLead={handleAddLead}
               onUpdateLead={handleUpdateLead}
               onDeleteLead={handleDeleteLead}
-              objectPassports={crmObjectPassports}
+              objectPassports={branchFilteredObjects}
               onAddObjectPassport={handleAddObjectPassport}
               onUpdateObjectPassport={handleUpdateObjectPassport}
               onDeleteObjectPassport={handleDeleteObjectPassport}
-              reminders={crmReminders}
+              reminders={branchFilteredReminders}
               onAddReminder={handleAddReminder}
               onToggleReminder={handleToggleReminder}
               onDeleteReminder={handleDeleteReminder}
-              employees={employees}
+              employees={branchFilteredEmployees}
               customers={customers}
-              customerOrders={customerOrders}
-              products={products}
+              customerOrders={branchFilteredOrders}
+              products={branchFilteredProducts}
               currentUser={currentUser}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
               onConvertToOrder={handleConvertLeadToOrder}
               onSaveOrder={handleSaveOrder}
               onNavigateToOrders={() => setActiveTab('orders')}
+              currentBranch={currentBranch}
+              branches={branches}
             />
           )}
 
           {activeTab === 'inventory' && (
             <InventoryScreen
-              products={products}
+              products={branchFilteredProducts}
               categories={productCategories}
-              purchases={purchases}
+              purchases={branchFilteredPurchases}
               branches={branches}
               currentBranch={currentBranch}
               stockTransfers={stockTransfers}
@@ -2937,10 +3029,10 @@ export default function Home() {
 
           {activeTab === 'warranty' && (
             <WarrantyScreen
-              products={products}
-              receipts={receipts}
-              purchases={purchases}
-              serviceTickets={serviceTickets}
+              products={branchFilteredProducts}
+              receipts={branchFilteredReceipts}
+              purchases={branchFilteredPurchases}
+              serviceTickets={branchFilteredTickets}
               onAddTicket={handleAddServiceTicket}
               onUpdateTicket={handleUpdateServiceTicket}
               onDeleteTicket={handleDeleteServiceTicket}
@@ -2961,7 +3053,7 @@ export default function Home() {
           {activeTab === 'customers' && (
             <CustomersScreen
               customers={customers}
-              receipts={receipts}
+              receipts={branchFilteredReceipts}
               debtPayments={customerDebtPayments}
               onAddCustomer={handleAddCustomer}
               onUpdateCustomer={handleUpdateCustomer}
@@ -2982,7 +3074,7 @@ export default function Home() {
 
           {activeTab === 'expenses' && (
             <ExpensesScreen
-              expenses={expenses}
+              expenses={branchFilteredExpenses}
               categories={expenseCategories}
               onAddExpense={handleAddExpense}
               onAddCategory={handleAddCategory}
@@ -2992,14 +3084,14 @@ export default function Home() {
               todaySalesTotal={todaySalesTotal}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
-              employees={employees}
-              payrolls={payrolls}
-              advances={advances}
-              receipts={receipts}
-              shipments={shipments}
-              customerOrders={customerOrders}
+              employees={branchFilteredEmployees}
+              payrolls={branchFilteredPayrolls}
+              advances={branchFilteredAdvances}
+              receipts={branchFilteredReceipts}
+              shipments={branchFilteredShipments}
+              customerOrders={branchFilteredOrders}
               customers={customers}
-              purchases={purchases}
+              purchases={branchFilteredPurchases}
               onAddEmployee={handleAddEmployee}
               onUpdateEmployee={handleUpdateEmployee}
               onDeleteEmployee={handleDeleteEmployee}
@@ -3008,24 +3100,26 @@ export default function Home() {
               onNavigateToTab={(tab) => setActiveTab(tab)}
               initialSubTab="all"
               branches={branches}
+              currentBranch={currentBranch}
+              currentUser={currentUser}
             />
           )}
 
           {activeTab === 'ai_advisor' && (
             <AIAdvisorScreen
-              products={products}
+              products={branchFilteredProducts}
               insights={aiInsights}
             />
           )}
 
           {activeTab === 'sales_history' && (
             <FinancialReportsScreen
-              receipts={receipts}
-              expenses={expenses}
-              products={products}
-              employees={employees}
-              payrolls={payrolls}
-              purchases={purchases}
+              receipts={branchFilteredReceipts}
+              expenses={branchFilteredExpenses}
+              products={branchFilteredProducts}
+              employees={branchFilteredEmployees}
+              payrolls={branchFilteredPayrolls}
+              purchases={branchFilteredPurchases}
               customers={customers}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
@@ -3039,7 +3133,7 @@ export default function Home() {
 
           {activeTab === 'employees' && (
             <ExpensesScreen
-              expenses={expenses}
+              expenses={branchFilteredExpenses}
               categories={expenseCategories}
               onAddExpense={handleAddExpense}
               onAddCategory={handleAddCategory}
@@ -3049,14 +3143,14 @@ export default function Home() {
               todaySalesTotal={todaySalesTotal}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
-              employees={employees}
-              payrolls={payrolls}
-              advances={advances}
-              receipts={receipts}
-              shipments={shipments}
-              customerOrders={customerOrders}
+              employees={branchFilteredEmployees}
+              payrolls={branchFilteredPayrolls}
+              advances={branchFilteredAdvances}
+              receipts={branchFilteredReceipts}
+              shipments={branchFilteredShipments}
+              customerOrders={branchFilteredOrders}
               customers={customers}
-              purchases={purchases}
+              purchases={branchFilteredPurchases}
               onAddEmployee={handleAddEmployee}
               onUpdateEmployee={handleUpdateEmployee}
               onDeleteEmployee={handleDeleteEmployee}
@@ -3065,6 +3159,8 @@ export default function Home() {
               onNavigateToTab={(tab) => setActiveTab(tab)}
               initialSubTab="employees"
               branches={branches}
+              currentBranch={currentBranch}
+              currentUser={currentUser}
             />
           )}
 
