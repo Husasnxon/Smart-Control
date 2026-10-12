@@ -10,7 +10,8 @@ import {
   PayrollRecord, 
   PurchaseInvoice, 
   Customer,
-  Currency 
+  Currency,
+  Branch 
 } from '../types';
 import { 
   formatNumberWithSpaces, 
@@ -85,6 +86,7 @@ interface FinancialReportsScreenProps {
     }[]
   ) => void;
   initialSubTab?: SubReportTab;
+  branches?: Branch[];
 }
 
 type PeriodPreset = 'today' | 'yesterday' | 'last7days' | 'this_month' | 'last_month' | 'this_year' | 'all' | 'custom';
@@ -118,9 +120,11 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
   currentUser,
   onReturnReceipt,
   onSaveEditReceipt,
-  initialSubTab = 'pnl'
+  initialSubTab = 'pnl',
+  branches = []
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodPreset>('this_month');
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
   const [activeSubTab, setActiveSubTab] = useState<SubReportTab>(initialSubTab);
   const [productSearch, setProductSearch] = useState<string>('');
   const [productSortBy, setProductSortBy] = useState<'profit' | 'revenue' | 'qty' | 'margin'>('profit');
@@ -269,13 +273,19 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
     setSelectedPeriod('custom');
   };
 
-  // Filter receipts within period
+  // Filter receipts within period & selected branch
   const filteredReceipts = useMemo(() => {
     return receipts.filter((r) => {
       const key = getNormalizedDateKey(r.createdAt);
-      return key >= startDate && key <= endDate;
+      if (key < startDate || key > endDate) return false;
+      if (selectedBranchFilter !== 'all') {
+        const matchesName = r.branchName === selectedBranchFilter;
+        const matchesId = (r as any).branchId === selectedBranchFilter;
+        if (!matchesName && !matchesId) return false;
+      }
+      return true;
     });
-  }, [receipts, startDate, endDate]);
+  }, [receipts, startDate, endDate, selectedBranchFilter]);
 
   // Filter expenses within period
   const filteredExpenses = useMemo(() => {
@@ -755,8 +765,27 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
             </div>
           </div>
 
-          {/* Active Period Feedback & Duration */}
-          <div className="flex items-center gap-2">
+          {/* Branch Filter & Active Period Feedback */}
+          <div className="flex flex-wrap items-center gap-2">
+            {branches.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5">
+                <Building2 className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                <span className="text-slate-400 text-[11px] font-medium">Filial:</span>
+                <select
+                  value={selectedBranchFilter}
+                  onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                  className="bg-transparent text-slate-900 dark:text-white font-bold text-xs outline-none cursor-pointer"
+                >
+                  <option value="all">Barcha Filiallar (Jami)</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.name}>
+                      {b.name} {b.isMain ? '(Bosh)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-medium text-xs flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-emerald-600" />
               <span>

@@ -13,7 +13,8 @@ import {
   CustomerOrder, 
   Customer,
   PurchaseInvoice,
-  ActiveTab 
+  ActiveTab,
+  Branch 
 } from '../types';
 import { formatDualMoney, formatMoney, formatUSDNumber, formatNumberWithSpaces, getNowFormatted } from '../utils/formatters';
 import { DEFAULT_SUPPLIERS } from '../data/mockData';
@@ -85,6 +86,7 @@ interface ExpensesScreenProps {
   onAddAdvance?: (advance: EmployeeAdvance) => void;
   onNavigateToTab?: (tab: ActiveTab) => void;
   initialSubTab?: 'all' | 'incomes' | 'expenses' | 'employees';
+  branches?: Branch[];
 }
 
 interface ReceiptLineItem {
@@ -129,7 +131,8 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   onAddPayroll,
   onAddAdvance,
   onNavigateToTab,
-  initialSubTab = 'all'
+  initialSubTab = 'all',
+  branches = []
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'all' | 'incomes' | 'expenses' | 'employees'>(
     initialSubTab === 'employees' ? 'employees' : 'all'
@@ -865,6 +868,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
             onDeleteEmployee={onDeleteEmployee || (() => {})}
             onAddPayroll={onAddPayroll || (() => {})}
             onAddAdvance={onAddAdvance || (() => {})}
+            branches={branches}
           />
         </div>
       ) : (

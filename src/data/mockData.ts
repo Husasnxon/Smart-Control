@@ -608,7 +608,9 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     pin: '0000',
     systemRole: 'admin',
     allowedTabs: ['dashboard', 'pos', 'orders', 'inventory', 'warranty', 'employees', 'customers', 'expenses', 'ai_advisor', 'sales_history', 'settings'],
-    permissions: DEFAULT_ROLE_PERMISSIONS['admin']
+    permissions: DEFAULT_ROLE_PERMISSIONS['admin'],
+    branchId: 'branch-1',
+    branchName: 'Bosh Filial (Toshkent)'
   },
   {
     id: 'emp-4',
@@ -629,7 +631,9 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     pin: '1111',
     systemRole: 'cashier',
     allowedTabs: ['pos', 'orders', 'customers', 'warranty', 'sales_history'],
-    permissions: DEFAULT_ROLE_PERMISSIONS['cashier']
+    permissions: DEFAULT_ROLE_PERMISSIONS['cashier'],
+    branchId: 'branch-2',
+    branchName: 'Chilonzor-1 Filiali'
   },
   {
     id: 'emp-1',
@@ -649,7 +653,9 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     pin: '2222',
     systemRole: 'technician',
     allowedTabs: ['technician_portal'],
-    permissions: DEFAULT_ROLE_PERMISSIONS['technician']
+    permissions: DEFAULT_ROLE_PERMISSIONS['technician'],
+    branchId: 'branch-3',
+    branchName: 'Samarqand Filiali'
   },
   {
     id: 'emp-2',

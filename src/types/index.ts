@@ -111,6 +111,7 @@ export interface SaleReceipt {
   isOffline: boolean;
   synced: boolean;
   branchName: string;
+  branchId?: string;
   installationAddress?: string; // O'rnatish / obyekt manzili
   warrantyMonths?: number;      // Kafolat muddati
   technicians?: AssignedTechnician[]; // Bir yoki bir nechta biriktirilgan ustalar va ularning ish haqqi
@@ -330,6 +331,8 @@ export interface Employee {
   systemRole?: SystemRole;      // Tizimdagi roli
   allowedTabs?: ActiveTab[];    // Ruxsat etilgan bo'limlar
   permissions?: EmployeePermissions; // Granulyar huquqlar (MoySklad uslubida)
+  branchId?: string;            // Biriktirilgan filial ID si
+  branchName?: string;          // Biriktirilgan filial nomi
   isBlocked?: boolean;          // Bloklanganlik holati
   avatar?: string;
 }

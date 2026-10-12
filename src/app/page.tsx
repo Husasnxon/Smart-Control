@@ -892,6 +892,12 @@ export default function Home() {
     }
     setIsSwitchUserModalOpen(false);
 
+    // If employee is assigned to a specific branch, auto-switch to that branch
+    if (emp.branchId) {
+      setCurrentBranchId(emp.branchId);
+      localStorage.setItem('sc_current_branch_id', emp.branchId);
+    }
+
     // Switch to first allowed tab if current activeTab is not permitted
     const isTech = emp.systemRole === 'technician' || (emp.role.toLowerCase().includes('usta') && emp.systemRole !== 'admin' && emp.systemRole !== 'manager');
     if (isTech) {
@@ -2818,6 +2824,8 @@ export default function Home() {
               onUpdateExchangeRate={handleUpdateExchangeRate}
               baseCurrency={baseCurrency}
               onUpdateBaseCurrency={handleUpdateBaseCurrency}
+              currentBranch={currentBranch}
+              currentUser={currentUser}
             />
           )}
 
@@ -2871,6 +2879,7 @@ export default function Home() {
               onReturnReceipt={handleReturnReceipt}
               onSaveEditReceipt={handleSaveEditReceipt}
               initialSubTab="pnl"
+              branches={branches}
             />
           )}
 
@@ -2998,6 +3007,7 @@ export default function Home() {
               onAddAdvance={handleAddAdvance}
               onNavigateToTab={(tab) => setActiveTab(tab)}
               initialSubTab="all"
+              branches={branches}
             />
           )}
 
@@ -3023,6 +3033,7 @@ export default function Home() {
               onReturnReceipt={handleReturnReceipt}
               onSaveEditReceipt={handleSaveEditReceipt}
               initialSubTab="sales_history"
+              branches={branches}
             />
           )}
 
@@ -3053,6 +3064,7 @@ export default function Home() {
               onAddAdvance={handleAddAdvance}
               onNavigateToTab={(tab) => setActiveTab(tab)}
               initialSubTab="employees"
+              branches={branches}
             />
           )}
 

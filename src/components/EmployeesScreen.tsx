@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Employee, PayrollRecord, EmployeeAdvance, SalaryType, SaleReceipt, Expense, SystemRole, ActiveTab, DEFAULT_ROLE_TABS } from '../types';
+import { Employee, PayrollRecord, EmployeeAdvance, SalaryType, SaleReceipt, Expense, SystemRole, ActiveTab, DEFAULT_ROLE_TABS, Branch } from '../types';
 import {
   Users,
   UserCheck,
@@ -42,7 +42,8 @@ import {
   Shield,
   User,
   ShieldAlert,
-  Printer
+  Printer,
+  Building2
 } from 'lucide-react';
 import { getNormalizedDateKey } from '../utils/formatters';
 
@@ -57,6 +58,7 @@ interface EmployeesScreenProps {
   onDeleteEmployee: (empId: string) => void;
   onAddPayroll: (record: PayrollRecord) => void;
   onAddAdvance: (advance: EmployeeAdvance) => void;
+  branches?: Branch[];
 }
 
 type ScreenTab = 'employees' | 'payroll' | 'advances';
@@ -104,7 +106,8 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   onUpdateEmployee,
   onDeleteEmployee,
   onAddPayroll,
-  onAddAdvance
+  onAddAdvance,
+  branches = []
 }) => {
   const [screenTab, setScreenTab] = useState<ScreenTab>('employees');
   const [searchQuery, setSearchQuery] = useState('');
@@ -152,6 +155,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   const [newPin, setNewPin] = useState('0000');
   const [newSystemRole, setNewSystemRole] = useState<SystemRole>('technician');
   const [newAllowedTabs, setNewAllowedTabs] = useState<ActiveTab[]>(DEFAULT_ROLE_TABS['technician']);
+  const [newBranchId, setNewBranchId] = useState<string>('');
 
   // Edit employee form state
   const [editName, setEditName] = useState('');
@@ -170,6 +174,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   const [editSystemRole, setEditSystemRole] = useState<SystemRole>('technician');
   const [editAllowedTabs, setEditAllowedTabs] = useState<ActiveTab[]>([]);
   const [editIsBlocked, setEditIsBlocked] = useState(false);
+  const [editBranchId, setEditBranchId] = useState<string>('');
 
   // Payroll modal form state
   const [payPeriod, setPayPeriod] = useState(getCurrentPeriod());
@@ -238,6 +243,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
     if (!newName.trim()) return;
 
     const generatedUsername = newUsername.trim().toLowerCase() || newName.toLowerCase().replace(/\s+/g, '').slice(0, 10);
+    const assignedBranch = branches.find(b => b.id === newBranchId);
 
     const newEmp: Employee = {
       id: `emp-${Date.now()}`,
@@ -259,6 +265,8 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       pin: newPin.trim() || '0000',
       systemRole: newSystemRole,
       allowedTabs: newAllowedTabs && newAllowedTabs.length > 0 ? newAllowedTabs : DEFAULT_ROLE_TABS[newSystemRole],
+      branchId: newBranchId || undefined,
+      branchName: assignedBranch ? assignedBranch.name : undefined,
       isBlocked: false
     };
 
@@ -275,6 +283,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
     setNewUsername('');
     setNewPassword('123');
     setNewPin('0000');
+    setNewBranchId('');
   };
 
   const handleOpenEdit = (emp: Employee) => {
@@ -295,11 +304,14 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
     setEditSystemRole(emp.systemRole || (emp.role === 'Bosh Administrator' ? 'admin' : emp.role.includes('Kassir') ? 'cashier' : 'technician'));
     setEditAllowedTabs(emp.allowedTabs || (emp.systemRole ? DEFAULT_ROLE_TABS[emp.systemRole] : DEFAULT_ROLE_TABS['technician']));
     setEditIsBlocked(!!emp.isBlocked);
+    setEditBranchId(emp.branchId || '');
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEmployee || !editName.trim()) return;
+
+    const assignedBranch = branches.find(b => b.id === editBranchId);
 
     onUpdateEmployee({
       ...editingEmployee,
@@ -318,6 +330,8 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       pin: editPin.trim(),
       systemRole: editSystemRole,
       allowedTabs: editAllowedTabs,
+      branchId: editBranchId || undefined,
+      branchName: assignedBranch ? assignedBranch.name : undefined,
       isBlocked: editIsBlocked
     });
     setEditingEmployee(null);
@@ -727,6 +741,12 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                         <span>@{emp.username || emp.id}</span>
                       </div>
                     </div>
+                    {emp.branchName && (
+                      <div className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold border border-purple-200 dark:border-purple-800">
+                        <Building2 className="w-3 h-3 text-purple-500" />
+                        <span>{emp.branchName}</span>
+                      </div>
+                    )}
                     {emp.notes && (
                       <p className="text-[11px] text-slate-400 mt-2 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl italic">&ldquo;{emp.notes}&rdquo;</p>
                     )}
@@ -1008,6 +1028,28 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 </div>
               </div>
 
+              {/* Biriktirilgan Filial */}
+              {branches.length > 0 && (
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Biriktirilgan Filial</span>
+                  </label>
+                  <select
+                    value={newBranchId}
+                    onChange={(e) => setNewBranchId(e.target.value)}
+                    className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white outline-none font-medium"
+                  >
+                    <option value="">Filial belgilanmagan (Umumiy / Har qanday)</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.code}) {b.isMain ? '⭐ Bosh Filial' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Salary Type Selector */}
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Ish haqi to&apos;lov modeli</label>
@@ -1218,6 +1260,28 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 <input type="text" required value={editPhone} onChange={(e) => setEditPhone(e.target.value)}
                   className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono" />
               </div>
+
+              {/* Biriktirilgan Filial */}
+              {branches.length > 0 && (
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Biriktirilgan Filial</span>
+                  </label>
+                  <select
+                    value={editBranchId}
+                    onChange={(e) => setEditBranchId(e.target.value)}
+                    className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white outline-none font-medium"
+                  >
+                    <option value="">Filial belgilanmagan (Umumiy / Har qanday)</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.code}) {b.isMain ? '⭐ Bosh Filial' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* ── AVTORIZATSIYA VA LOGIN TAHRIRLASH ── */}
               <div className="bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 p-3.5 rounded-2xl space-y-3">

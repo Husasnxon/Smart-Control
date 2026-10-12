@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, Customer, CartItem, SaleReceipt, PaymentDetails, Employee, AssignedTechnician, Currency, CustomerOrder } from '../types';
+import { Product, Customer, CartItem, SaleReceipt, PaymentDetails, Employee, AssignedTechnician, Currency, CustomerOrder, Branch } from '../types';
 import { 
   Search, 
   Barcode, 
@@ -59,6 +59,8 @@ interface POSScreenProps {
   onUpdateExchangeRate?: (rate: number) => void;
   baseCurrency?: Currency;
   onUpdateBaseCurrency?: (curr: Currency) => void;
+  currentBranch?: Branch | null;
+  currentUser?: Employee | null;
 }
 
 export const POSScreen: React.FC<POSScreenProps> = ({
@@ -73,7 +75,9 @@ export const POSScreen: React.FC<POSScreenProps> = ({
   exchangeRate = 12850,
   onUpdateExchangeRate,
   baseCurrency = 'UZS',
-  onUpdateBaseCurrency
+  onUpdateBaseCurrency,
+  currentBranch = null,
+  currentUser = null
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Barchasi');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -501,7 +505,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
       id: `rec-${Date.now()}`,
       receiptNumber: `#SC-${Math.floor(1000 + Math.random() * 9000)}`,
       createdAt: getNowFormatted(),
-      cashierName: 'Farrux A.',
+      cashierName: currentUser?.fullName || 'Kassir',
       customer: selectedCustomer,
       items: cart,
       subtotal,
@@ -513,7 +517,8 @@ export const POSScreen: React.FC<POSScreenProps> = ({
       cashbackEarned,
       isOffline,
       synced: !isOffline,
-      branchName: 'Smart Control (Bosh Filial)',
+      branchName: currentBranch?.name || 'Smart Control (Bosh Filial)',
+      branchId: currentBranch?.id || 'branch-1',
       installationAddress: installationAddress.trim() || undefined,
       warrantyMonths: maxWarranty || undefined,
       technicians: selectedTechnicians.length > 0 ? selectedTechnicians : undefined,
