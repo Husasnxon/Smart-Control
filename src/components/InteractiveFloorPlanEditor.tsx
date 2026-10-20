@@ -1409,6 +1409,7 @@ export const InteractiveFloorPlanEditor: React.FC<InteractiveFloorPlanEditorProp
                     type="number"
                     disabled={isReadOnly}
                     value={selectedPin.cableLengthMeters || 25}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setSelectedPin({ ...selectedPin, cableLengthMeters: Number(e.target.value) || 0 })}
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:border-sky-500 focus:outline-none font-bold font-mono"
                   />

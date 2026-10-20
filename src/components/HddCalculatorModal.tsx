@@ -295,6 +295,7 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
                     min={1}
                     max={128}
                     value={cameraCount}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setCameraCount(Math.max(1, parseInt(e.target.value) || 1))}
                     className="w-full bg-transparent text-white font-black text-xs outline-none"
                   />
@@ -397,6 +398,7 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
                     min={1}
                     max={24}
                     value={customDailyHours}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setCustomDailyHours(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))}
                     className="w-14 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-white font-bold text-center outline-none"
                   />
@@ -552,6 +554,7 @@ export const HddCalculatorModal: React.FC<HddCalculatorModalProps> = ({ isOpen, 
                         min={100}
                         max={100000}
                         value={customHddGB}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => setCustomHddGB(Math.max(100, parseInt(e.target.value) || 100))}
                         placeholder="Masalan: 3000"
                         className="w-full bg-transparent text-white font-mono font-bold text-xs outline-none"

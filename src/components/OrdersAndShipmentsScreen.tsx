@@ -2354,8 +2354,12 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                                   <input
                                     type="number"
                                     min={1}
-                                    value={item.quantity}
-                                    onChange={(e) => handleUpdateShipmentItem(idx, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
+                                    value={item.quantity === 0 ? '' : item.quantity}
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      handleUpdateShipmentItem(idx, 'quantity', val === '' ? 1 : Math.max(1, parseInt(val) || 1));
+                                    }}
                                     className="w-10 bg-transparent text-center font-mono font-bold text-xs text-slate-900 dark:text-white outline-none"
                                   />
                                   <button
@@ -2373,8 +2377,13 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                                   <input
                                     type="number"
                                     min={0}
-                                    value={item.unitPrice}
-                                    onChange={(e) => handleUpdateShipmentItem(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                    value={item.unitPrice === 0 ? '' : item.unitPrice}
+                                    placeholder="0"
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      handleUpdateShipmentItem(idx, 'unitPrice', val === '' ? 0 : parseFloat(val) || 0);
+                                    }}
                                     className="w-24 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1 text-xs font-mono font-bold text-slate-900 dark:text-white text-right outline-none"
                                   />
                                 </div>
@@ -2562,8 +2571,12 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                               <input
                                 type="number"
                                 placeholder="0"
-                                value={t.wageUSD || ''}
-                                onChange={(e) => handleUpdateTechWage(t.id, 'wageUSD', parseFloat(e.target.value) || 0)}
+                                value={t.wageUSD === 0 ? '' : t.wageUSD}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  handleUpdateTechWage(t.id, 'wageUSD', val === '' ? 0 : parseFloat(val) || 0);
+                                }}
                                 className="w-16 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-xs font-mono font-bold text-right"
                               />
                             </div>
@@ -2572,8 +2585,12 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                               <input
                                 type="number"
                                 placeholder="So'm"
-                                value={t.wageUZS || ''}
-                                onChange={(e) => handleUpdateTechWage(t.id, 'wageUZS', parseInt(e.target.value) || 0)}
+                                value={t.wageUZS === 0 ? '' : t.wageUZS}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  handleUpdateTechWage(t.id, 'wageUZS', val === '' ? 0 : parseInt(val) || 0);
+                                }}
                                 className="w-24 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-xs font-mono font-bold text-right"
                               />
                               <span className="text-[10px] text-slate-400">so&apos;m</span>

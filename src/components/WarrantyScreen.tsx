@@ -1334,9 +1334,9 @@ export const WarrantyScreen: React.FC<WarrantyScreenProps> = ({
                         type="number"
                         min="0"
                         step="1000"
-                        value={editingTicket.repairCost || ''}
+                        value={editingTicket.repairCost === 0 ? '' : editingTicket.repairCost}
                         onChange={(e) => {
-                          const val = Number(e.target.value);
+                          const val = e.target.value === '' ? 0 : Number(e.target.value) || 0;
                           setEditingTicket({ ...editingTicket, repairCost: val, repairCostUSD: Number((val / exchangeRate).toFixed(2)) });
                         }}
                         onFocus={(e) => e.target.select()}

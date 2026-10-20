@@ -2082,9 +2082,15 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
                             <input
                               type="number"
                               min="0"
-                              value={tierCurrencyMode === 'USD' ? (tier.thresholdUSD || Math.round(tier.thresholdUZS / exchangeRate)) : (tier.thresholdUZS || tier.thresholdUSD * exchangeRate)}
+                              value={
+                                tierCurrencyMode === 'USD'
+                                  ? ((tier.thresholdUSD || Math.round(tier.thresholdUZS / exchangeRate)) === 0 ? '' : (tier.thresholdUSD || Math.round(tier.thresholdUZS / exchangeRate)))
+                                  : ((tier.thresholdUZS || tier.thresholdUSD * exchangeRate) === 0 ? '' : (tier.thresholdUZS || tier.thresholdUSD * exchangeRate))
+                              }
+                              placeholder="0"
+                              onFocus={(e) => e.target.select()}
                               onChange={(e) => {
-                                const val = parseFloat(e.target.value) || 0;
+                                const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                                 const updated = [...editTiers];
                                 if (tierCurrencyMode === 'USD') {
                                   updated[idx].thresholdUSD = val;
@@ -2470,8 +2476,11 @@ const AcceptDebtPaymentModal: React.FC<AcceptDebtPaymentModalProps> = ({
                 type="number"
                 min="0"
                 step={currency === 'USD' ? '0.01' : '1000'}
-                value={amountInput || ''}
-                onChange={(e) => setAmountInput(Number(e.target.value))}
+                value={amountInput === 0 ? '' : amountInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setAmountInput(val === '' ? 0 : Number(val) || 0);
+                }}
                 onFocus={(e) => e.target.select()}
                 onClick={(e) => (e.target as HTMLInputElement).select()}
                 placeholder="0"

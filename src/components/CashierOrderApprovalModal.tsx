@@ -451,8 +451,12 @@ export const CashierOrderApprovalModal: React.FC<CashierOrderApprovalModalProps>
                                     <input
                                       type="number"
                                       min="1"
-                                      value={it.quantity}
-                                      onChange={(e) => handleUpdateItemQty(idx, Math.max(1, Number(e.target.value) || 1))}
+                                      value={it.quantity === 0 ? '' : it.quantity}
+                                      onFocus={(e) => e.target.select()}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        handleUpdateItemQty(idx, val === '' ? 1 : Math.max(1, Number(val) || 1));
+                                      }}
                                       className="w-10 bg-transparent text-center font-mono font-bold text-white text-xs focus:outline-none"
                                     />
                                     <button
@@ -475,8 +479,13 @@ export const CashierOrderApprovalModal: React.FC<CashierOrderApprovalModalProps>
                                       type="number"
                                       step="any"
                                       min="0"
-                                      value={itemUnitUSD}
-                                      onChange={(e) => handleUpdateItemPriceUSD(idx, Number(e.target.value) || 0)}
+                                      value={itemUnitUSD === 0 ? '' : itemUnitUSD}
+                                      placeholder="0"
+                                      onFocus={(e) => e.target.select()}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        handleUpdateItemPriceUSD(idx, val === '' ? 0 : Number(val) || 0);
+                                      }}
                                       className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-1.5 py-0.5 text-right font-mono font-bold text-cyan-300 text-xs focus:ring-1 focus:ring-cyan-500"
                                     />
                                   </div>

@@ -805,8 +805,12 @@ export const HandoverModal: React.FC<HandoverModalProps> = ({
                               <input
                                 type="number"
                                 min={0}
-                                value={item.quantity}
-                                onChange={(e) => handleUpdateQuantity(itIdx, Number(e.target.value))}
+                                value={item.quantity === 0 ? '' : item.quantity}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  handleUpdateQuantity(itIdx, val === '' ? 0 : Number(val) || 0);
+                                }}
                                 className="w-14 text-center bg-transparent text-xs font-mono font-black text-slate-900 dark:text-white outline-none"
                               />
 

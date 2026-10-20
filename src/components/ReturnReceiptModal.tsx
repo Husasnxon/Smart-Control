@@ -332,7 +332,11 @@ const ReturnReceiptModalContent: React.FC<ReturnReceiptModalContentProps> = ({
                               max={returnable}
                               value={currentQty === 0 ? '' : currentQty}
                               placeholder="0"
-                              onChange={(e) => handleQtyChange(idx, parseInt(e.target.value) || 0)}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                handleQtyChange(idx, val === '' ? 0 : parseInt(val) || 0);
+                              }}
                               className="w-12 text-center bg-transparent font-bold font-mono text-sm text-slate-900 dark:text-white outline-none"
                             />
                             <button

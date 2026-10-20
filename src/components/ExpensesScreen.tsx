@@ -1626,8 +1626,12 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                           required
                           min="1"
                           placeholder="Masalan: 1 500 000"
-                          value={incomeAmount || ''}
-                          onChange={(e) => setIncomeAmount(Number(e.target.value))}
+                          value={incomeAmount === 0 ? '' : incomeAmount}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setIncomeAmount(val === '' ? 0 : Number(val) || 0);
+                          }}
                           className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400 focus:ring-2 focus:ring-emerald-500/40"
                         />
                       </div>
@@ -2137,8 +2141,12 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                           required
                           min="1"
                           placeholder="Masalan: 4 500 000"
-                          value={expenseAmount || ''}
-                          onChange={(e) => setExpenseAmount(Number(e.target.value))}
+                          value={expenseAmount === 0 ? '' : expenseAmount}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setExpenseAmount(val === '' ? 0 : Number(val) || 0);
+                          }}
                           className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold font-mono text-rose-600 dark:text-rose-400 focus:ring-2 focus:ring-rose-500/40"
                         />
                       </div>

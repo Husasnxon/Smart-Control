@@ -2473,9 +2473,10 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                           type="number"
                           step="0.5"
                           placeholder="25"
-                          value={newTechnicianWageUSD || ''}
+                          value={newTechnicianWageUSD === 0 ? '' : newTechnicianWageUSD}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
-                            const val = Number(e.target.value);
+                            const val = e.target.value === '' ? 0 : Number(e.target.value) || 0;
                             setNewTechnicianWageUSD(val);
                             setNewTechnicianWageUZS(Math.round(val * exchangeRate));
                           }}
@@ -2488,9 +2489,10 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                       <input
                         type="number"
                         placeholder="320000"
-                        value={newTechnicianWageUZS || ''}
+                        value={newTechnicianWageUZS === 0 ? '' : newTechnicianWageUZS}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => {
-                          const val = Number(e.target.value);
+                          const val = e.target.value === '' ? 0 : Number(e.target.value) || 0;
                           setNewTechnicianWageUZS(val);
                           setNewTechnicianWageUSD(Number((val / exchangeRate).toFixed(1)));
                         }}
@@ -2530,8 +2532,13 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Boshlang&apos;ich Qoldiq</label>
                     <input
                       type="number"
-                      value={newStock || ''}
-                      onChange={(e) => setNewStock(Number(e.target.value))}
+                      placeholder="0"
+                      value={newStock === 0 ? '' : newStock}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewStock(val === '' ? 0 : Number(val) || 0);
+                      }}
                       className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono"
                     />
                   </div>

@@ -495,7 +495,11 @@ const EditReceiptModalContent: React.FC<EditReceiptModalContentProps> = ({
                           max={selectedProduct.isService ? 9999 : selectedProduct.stockQuantity}
                           value={addQuantity}
                           disabled={selectedProduct.hasSerialNumber}
-                          onChange={(e) => setAddQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setAddQuantity(val === '' ? 1 : Math.max(1, parseInt(val) || 1));
+                          }}
                           className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-mono font-bold text-slate-900 dark:text-white outline-none"
                         />
                         {selectedProduct.hasSerialNumber && (
@@ -509,8 +513,13 @@ const EditReceiptModalContent: React.FC<EditReceiptModalContentProps> = ({
                         </label>
                         <input
                           type="number"
-                          value={addPrice}
-                          onChange={(e) => setAddPrice(parseInt(e.target.value) || 0)}
+                          value={addPrice === 0 ? '' : addPrice}
+                          placeholder="0"
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setAddPrice(val === '' ? 0 : parseInt(val) || 0);
+                          }}
                           className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-mono font-bold text-slate-900 dark:text-white outline-none"
                         />
                       </div>
@@ -760,8 +769,12 @@ const EditReceiptModalContent: React.FC<EditReceiptModalContentProps> = ({
                             <input
                               type="number"
                               placeholder="0"
-                              value={t.wageUSD || ''}
-                              onChange={(e) => handleUpdateTechWage(t.id, 'wageUSD', parseFloat(e.target.value) || 0)}
+                              value={t.wageUSD === 0 ? '' : t.wageUSD}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                handleUpdateTechWage(t.id, 'wageUSD', val === '' ? 0 : parseFloat(val) || 0);
+                              }}
                               className="w-16 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-xs font-mono font-bold text-right text-slate-900 dark:text-white"
                             />
                           </div>
@@ -770,8 +783,12 @@ const EditReceiptModalContent: React.FC<EditReceiptModalContentProps> = ({
                             <input
                               type="number"
                               placeholder="So'm"
-                              value={t.wageUZS || ''}
-                              onChange={(e) => handleUpdateTechWage(t.id, 'wageUZS', parseInt(e.target.value) || 0)}
+                              value={t.wageUZS === 0 ? '' : t.wageUZS}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                handleUpdateTechWage(t.id, 'wageUZS', val === '' ? 0 : parseInt(val) || 0);
+                              }}
                               className="w-24 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1 text-xs font-mono font-bold text-right text-slate-900 dark:text-white"
                             />
                             <span className="text-[10px] text-slate-400">so&apos;m</span>
