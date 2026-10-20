@@ -283,6 +283,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   step="any"
                   placeholder="0 $"
                   value={cashUSD || ''}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => {
                     const val = Number(e.target.value) || 0;
                     setCashUSD(val);
@@ -323,6 +324,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 type="number"
                 min="0"
                 value={cash || ''}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => setCash(Number(e.target.value) || 0)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-emerald-500/40 text-slate-900 dark:text-white"
               />
@@ -341,6 +343,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 type="number"
                 min="0"
                 value={card || ''}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => setCard(Number(e.target.value) || 0)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-blue-500/40 text-slate-900 dark:text-white"
               />

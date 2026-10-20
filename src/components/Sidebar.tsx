@@ -79,7 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'expenses' as ActiveTab, label: 'Moliya & Pul Oqimi', icon: ArrowLeftRight, badge: 'Prixod/Rasxod', color: 'text-rose-400' },
     { id: 'ai_advisor' as ActiveTab, label: 'AI Tahlilchi & Zakaz', icon: Sparkles, badge: 'Smart', color: 'text-indigo-500' },
     { id: 'technician_portal' as ActiveTab, label: 'Usta Kabineti (Mobil)', icon: HardHat, badge: 'Obyektlar', color: 'text-purple-400' },
-    { id: 'settings' as ActiveTab, label: 'Telegram & Sozlamalar', icon: Bot, badge: 'Bot', color: 'text-sky-400' },
+    { id: 'settings' as ActiveTab, label: 'Filiallar & Sozlamalar', icon: Settings, badge: 'Filial', color: 'text-amber-400' },
   ];
 
   // Determine allowed tabs for current user

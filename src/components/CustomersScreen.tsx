@@ -2059,10 +2059,12 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
                               min="0"
                               max="100"
                               step="0.5"
-                              value={tier.rate}
+                              value={tier.rate === 0 ? '' : tier.rate}
+                              placeholder="0"
+                              onFocus={(e) => e.target.select()}
                               onChange={(e) => {
                                 const updated = [...editTiers];
-                                updated[idx].rate = parseFloat(e.target.value) || 0;
+                                updated[idx].rate = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                                 setEditTiers(updated);
                               }}
                               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-purple-600 dark:text-purple-400"

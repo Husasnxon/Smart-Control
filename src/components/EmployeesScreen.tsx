@@ -112,6 +112,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   const [screenTab, setScreenTab] = useState<ScreenTab>('employees');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('Barchasi');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -195,11 +196,12 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
 
   const filtered = employees.filter((emp) => {
     const matchRole = selectedRole === 'Barchasi' || emp.role === selectedRole;
+    const matchBranch = selectedBranchId === 'all' || (emp.branchId || 'branch-1') === selectedBranchId;
     const matchSearch =
       emp.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (emp.username && emp.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
       emp.phone.includes(searchQuery);
-    return matchRole && matchSearch;
+    return matchRole && matchBranch && matchSearch;
   });
 
   const totalInstallations = employees.reduce((sum, e) => sum + e.installationsCompleted, 0);
@@ -237,13 +239,26 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
     return { totalSales, periodExpenses, netProfit };
   };
 
+  // Open Add modal with smart branch default
+  const handleOpenAddModal = () => {
+    if (selectedBranchId && selectedBranchId !== 'all') {
+      setNewBranchId(selectedBranchId);
+    } else {
+      const mainB = branches.find(b => b.isMain) || branches[0];
+      setNewBranchId(mainB ? mainB.id : '');
+    }
+    setIsAddModalOpen(true);
+  };
+
   // Create employee
   const handleCreateEmployee = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
 
     const generatedUsername = newUsername.trim().toLowerCase() || newName.toLowerCase().replace(/\s+/g, '').slice(0, 10);
-    const assignedBranch = branches.find(b => b.id === newBranchId);
+    const targetBranch = branches.find(b => b.id === newBranchId) || branches.find(b => b.isMain) || branches[0];
+    const finalBranchId = newBranchId || targetBranch?.id || 'branch-1';
+    const finalBranchName = targetBranch ? targetBranch.name : 'Bosh Filial (Toshkent)';
 
     const newEmp: Employee = {
       id: `emp-${Date.now()}`,
@@ -265,12 +280,16 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       pin: newPin.trim() || '0000',
       systemRole: newSystemRole,
       allowedTabs: newAllowedTabs && newAllowedTabs.length > 0 ? newAllowedTabs : DEFAULT_ROLE_TABS[newSystemRole],
-      branchId: newBranchId || undefined,
-      branchName: assignedBranch ? assignedBranch.name : undefined,
+      branchId: finalBranchId,
+      branchName: finalBranchName,
       isBlocked: false
     };
 
     onAddEmployee(newEmp);
+    // If the active filter would hide this new employee, set filter to 'all' so the new employee is immediately visible
+    if (selectedBranchId !== 'all' && selectedBranchId !== finalBranchId) {
+      setSelectedBranchId('all');
+    }
     setIsAddModalOpen(false);
 
     // Reset
@@ -566,7 +585,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
           </p>
         </div>
         <button
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={handleOpenAddModal}
           className="px-4 py-2.5 rounded-xl font-bold text-xs bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/20 flex items-center gap-2 transition active:scale-[0.98]"
         >
           <Plus className="w-4 h-4" />
@@ -648,6 +667,44 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       {/* ── TAB: EMPLOYEES ── */}
       {screenTab === 'employees' && (
         <>
+          {/* Branch Filter Pills */}
+          {branches.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0">
+                <Building2 className="w-3.5 h-3.5 text-purple-500" />
+                Filial:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedBranchId('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                  selectedBranchId === 'all'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                🏢 Barcha Filiallar ({employees.length})
+              </button>
+              {branches.map((b) => {
+                const count = employees.filter((e) => (e.branchId || 'branch-1') === b.id).length;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setSelectedBranchId(b.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                      selectedBranchId === b.id
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {b.name} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Filter Row */}
           <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="relative w-full md:w-72">
@@ -741,12 +798,15 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                         <span>@{emp.username || emp.id}</span>
                       </div>
                     </div>
-                    {emp.branchName && (
-                      <div className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold border border-purple-200 dark:border-purple-800">
-                        <Building2 className="w-3 h-3 text-purple-500" />
-                        <span>{emp.branchName}</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const bName = emp.branchName || branches.find(b => b.id === emp.branchId)?.name || 'Bosh Filial (Toshkent)';
+                      return (
+                        <div className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold border border-purple-200 dark:border-purple-800">
+                          <Building2 className="w-3 h-3 text-purple-500" />
+                          <span>{bName}</span>
+                        </div>
+                      );
+                    })()}
                     {emp.notes && (
                       <p className="text-[11px] text-slate-400 mt-2 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl italic">&ldquo;{emp.notes}&rdquo;</p>
                     )}
@@ -1069,8 +1129,17 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 {(newSalaryType === 'fixed' || newSalaryType === 'fixed_plus_job' || newSalaryType === 'fixed_plus_percentage') && (
                   <div>
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Asosiy Oylik Maosh (Oklad, so&apos;mda)</label>
-                    <input type="number" value={newBaseSalary} onChange={(e) => setNewBaseSalary(Number(e.target.value) || 0)}
-                      className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold" />
+                    <input
+                      type="number"
+                      value={newBaseSalary === 0 ? '' : newBaseSalary}
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewBaseSalary(val === '' ? 0 : parseFloat(val) || 0);
+                      }}
+                      className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold"
+                    />
                   </div>
                 )}
 
@@ -1078,8 +1147,17 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 {(newSalaryType === 'per_job' || newSalaryType === 'fixed_plus_job') && (
                   <div>
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">1 ta montaj / kamera stavkasi (so&apos;mda)</label>
-                    <input type="number" value={newCommission} onChange={(e) => setNewCommission(Number(e.target.value) || 0)}
-                      className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold" />
+                    <input
+                      type="number"
+                      value={newCommission === 0 ? '' : newCommission}
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewCommission(val === '' ? 0 : parseFloat(val) || 0);
+                      }}
+                      className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold"
+                    />
                   </div>
                 )}
 
@@ -1088,9 +1166,18 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Foiz stavkasi (% da)</label>
-                      <input type="number" step="0.5" value={newPercentageRate} onChange={(e) => setNewPercentageRate(Number(e.target.value) || 0)}
-                        placeholder="Masalan: 2%"
-                        className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-600 font-mono font-bold" />
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={newPercentageRate === 0 ? '' : newPercentageRate}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewPercentageRate(val === '' ? 0 : parseFloat(val) || 0);
+                        }}
+                        className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-600 font-mono font-bold"
+                      />
                     </div>
                     <div>
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Foiz manbasi</label>
@@ -1403,16 +1490,34 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 {(editSalaryType === 'fixed' || editSalaryType === 'fixed_plus_job' || editSalaryType === 'fixed_plus_percentage') && (
                   <div>
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Asosiy Oylik Maosh (Oklad, so&apos;mda)</label>
-                    <input type="number" value={editBaseSalary} onChange={(e) => setEditBaseSalary(Number(e.target.value) || 0)}
-                      className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold" />
+                    <input
+                      type="number"
+                      value={editBaseSalary === 0 ? '' : editBaseSalary}
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditBaseSalary(val === '' ? 0 : parseFloat(val) || 0);
+                      }}
+                      className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold"
+                    />
                   </div>
                 )}
 
                 {(editSalaryType === 'per_job' || editSalaryType === 'fixed_plus_job') && (
                   <div>
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">1 ta montaj / kamera stavkasi (so&apos;mda)</label>
-                    <input type="number" value={editCommission} onChange={(e) => setEditCommission(Number(e.target.value) || 0)}
-                      className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold" />
+                    <input
+                      type="number"
+                      value={editCommission === 0 ? '' : editCommission}
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditCommission(val === '' ? 0 : parseFloat(val) || 0);
+                      }}
+                      className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold"
+                    />
                   </div>
                 )}
 
@@ -1420,8 +1525,18 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Foiz stavkasi (% da)</label>
-                      <input type="number" step="0.5" value={editPercentageRate} onChange={(e) => setEditPercentageRate(Number(e.target.value) || 0)}
-                        className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-600 font-mono font-bold" />
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={editPercentageRate === 0 ? '' : editPercentageRate}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditPercentageRate(val === '' ? 0 : parseFloat(val) || 0);
+                        }}
+                        className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-600 font-mono font-bold"
+                      />
                     </div>
                     <div>
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Foiz manbasi</label>
@@ -1485,8 +1600,15 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 {(payrollEmployee.salaryType === 'per_job' || payrollEmployee.salaryType === 'fixed_plus_job') ? (
                   <div>
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bajarilgan montajlar (ta)</label>
-                    <input type="number" min="0" value={payInstallations} onChange={(e) => setPayInstallations(Number(e.target.value) || 0)}
-                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold" />
+                    <input
+                      type="number"
+                      min="0"
+                      value={payInstallations === 0 ? '' : payInstallations}
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setPayInstallations(e.target.value === '' ? 0 : Number(e.target.value) || 0)}
+                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold"
+                    />
                   </div>
                 ) : (
                   <div>
@@ -1575,15 +1697,29 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                   <label className="text-xs font-bold text-emerald-600 flex items-center gap-1">
                     <Gift className="w-3.5 h-3.5" /> Bonus (so&apos;m)
                   </label>
-                  <input type="number" min="0" value={payBonus} onChange={(e) => setPayBonus(Number(e.target.value) || 0)}
-                    className="w-full mt-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300 font-mono focus:ring-2 focus:ring-emerald-500/40" />
+                  <input
+                    type="number"
+                    min="0"
+                    value={payBonus === 0 ? '' : payBonus}
+                    placeholder="0"
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setPayBonus(e.target.value === '' ? 0 : Number(e.target.value) || 0)}
+                    className="w-full mt-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300 font-mono focus:ring-2 focus:ring-emerald-500/40"
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-red-500 flex items-center gap-1">
                     <MinusCircle className="w-3.5 h-3.5" /> Jarima (so&apos;m)
                   </label>
-                  <input type="number" min="0" value={payDeduction} onChange={(e) => setPayDeduction(Number(e.target.value) || 0)}
-                    className="w-full mt-1 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2 text-xs text-red-700 dark:text-red-300 font-mono focus:ring-2 focus:ring-red-500/40" />
+                  <input
+                    type="number"
+                    min="0"
+                    value={payDeduction === 0 ? '' : payDeduction}
+                    placeholder="0"
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setPayDeduction(e.target.value === '' ? 0 : Number(e.target.value) || 0)}
+                    className="w-full mt-1 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2 text-xs text-red-700 dark:text-red-300 font-mono focus:ring-2 focus:ring-red-500/40"
+                  />
                 </div>
               </div>
 
@@ -1653,7 +1789,8 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 <input
                   type="number" required min="1" autoFocus
                   value={advAmount || ''}
-                  onChange={(e) => setAdvAmount(Number(e.target.value) || 0)}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setAdvAmount(e.target.value === '' ? 0 : Number(e.target.value) || 0)}
                   placeholder="500 000"
                   className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-violet-500/40"
                 />

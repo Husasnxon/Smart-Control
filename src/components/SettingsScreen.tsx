@@ -114,6 +114,7 @@ interface SettingsScreenProps {
   onAddBranch?: (branch: Branch) => void;
   onUpdateBranch?: (branch: Branch) => void;
   onDeleteBranch?: (branchId: string) => void;
+  initialSubTab?: 'telegram' | 'reports' | 'store' | 'branches' | 'backup' | 'permissions' | 'ai' | 'integrations';
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -134,9 +135,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   branches = [],
   onAddBranch,
   onUpdateBranch,
-  onDeleteBranch
+  onDeleteBranch,
+  initialSubTab
 }) => {
-  const [activeTab, setActiveTab] = useState<'telegram' | 'reports' | 'store' | 'branches' | 'backup' | 'permissions' | 'ai' | 'integrations'>('telegram');
+  const [activeTab, setActiveTab] = useState<'telegram' | 'reports' | 'store' | 'branches' | 'backup' | 'permissions' | 'ai' | 'integrations'>(
+    initialSubTab || 'branches'
+  );
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   // Branch Management State
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
@@ -700,6 +710,32 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
           <button
             type="button"
+            onClick={() => setActiveTab('branches')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              activeTab === 'branches'
+                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+            }`}
+          >
+            <Building className="w-4 h-4 text-amber-500" />
+            <span>🏢 Filiallar & Omborlar ({branches.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('store')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              activeTab === 'store'
+                ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+            }`}
+          >
+            <Building2 className="w-4 h-4" />
+            <span>Do&apos;kon & Valyuta Rekvizitlari</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('telegram')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
               activeTab === 'telegram'
@@ -722,32 +758,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           >
             <Send className="w-4 h-4" />
             <span>Jonli Hisobot Yuborish Markazi</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('store')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-              activeTab === 'store'
-                ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
-                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            <span>Do&apos;kon & Valyuta Rekvizitlari</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('branches')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-              activeTab === 'branches'
-                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
-                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-            }`}
-          >
-            <Building className="w-4 h-4 text-amber-500" />
-            <span>Filiallar & Omborlar ({branches.length})</span>
           </button>
 
           <button
@@ -1783,24 +1793,28 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       <span className="text-[11px] text-slate-400 font-medium">Asosiy ombor</span>
                     )}
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <button
                         type="button"
                         onClick={() => handleOpenEditBranch(branch)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-slate-800 transition"
-                        title="Tahrirlash"
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-sky-600 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 border border-sky-200 dark:border-sky-800 transition flex items-center gap-1"
+                        title="Filial nomi va ma'lumotlarini o'zgartirish"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
+                        <span>Nomini o&apos;zgartirish</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteBranchClick(branch.id, branch.name)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition"
-                        title="O'chirish"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {!branch.isMain && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteBranchClick(branch.id, branch.name)}
+                          className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 transition flex items-center gap-1"
+                          title="Filialni butunlay o'chirish"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>O&apos;chirish</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

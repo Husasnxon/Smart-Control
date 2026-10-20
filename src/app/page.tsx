@@ -83,6 +83,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const [isSwitchUserModalOpen, setIsSwitchUserModalOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('pos');
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'telegram' | 'reports' | 'store' | 'branches' | 'backup' | 'permissions' | 'ai' | 'integrations'>('branches');
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [productCategories, setProductCategories] = useState<ProductCategory[]>(INITIAL_PRODUCT_CATEGORIES);
@@ -2937,6 +2938,10 @@ export default function Home() {
           currentBranch={currentBranch}
           branches={branches}
           onSelectBranch={handleSelectBranch}
+          onManageBranches={() => {
+            setSettingsInitialTab('branches');
+            setActiveTab('settings');
+          }}
         />
 
         {/* Dynamic Screen View */}
@@ -3127,9 +3132,9 @@ export default function Home() {
               todaySalesTotal={todaySalesTotal}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
-              employees={branchFilteredEmployees}
-              payrolls={branchFilteredPayrolls}
-              advances={branchFilteredAdvances}
+              employees={currentUser?.systemRole === 'admin' || !!currentUser?.permissions?.canAccessAllBranches ? employees : branchFilteredEmployees}
+              payrolls={currentUser?.systemRole === 'admin' || !!currentUser?.permissions?.canAccessAllBranches ? payrolls : branchFilteredPayrolls}
+              advances={currentUser?.systemRole === 'admin' || !!currentUser?.permissions?.canAccessAllBranches ? advances : branchFilteredAdvances}
               receipts={branchFilteredReceipts}
               shipments={branchFilteredShipments}
               customerOrders={branchFilteredOrders}
@@ -3186,9 +3191,9 @@ export default function Home() {
               todaySalesTotal={todaySalesTotal}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
-              employees={branchFilteredEmployees}
-              payrolls={branchFilteredPayrolls}
-              advances={branchFilteredAdvances}
+              employees={currentUser?.systemRole === 'admin' || !!currentUser?.permissions?.canAccessAllBranches ? employees : branchFilteredEmployees}
+              payrolls={currentUser?.systemRole === 'admin' || !!currentUser?.permissions?.canAccessAllBranches ? payrolls : branchFilteredPayrolls}
+              advances={currentUser?.systemRole === 'admin' || !!currentUser?.permissions?.canAccessAllBranches ? advances : branchFilteredAdvances}
               receipts={branchFilteredReceipts}
               shipments={branchFilteredShipments}
               customerOrders={branchFilteredOrders}
@@ -3227,6 +3232,7 @@ export default function Home() {
               onAddBranch={handleAddBranch}
               onUpdateBranch={handleUpdateBranch}
               onDeleteBranch={handleDeleteBranch}
+              initialSubTab={settingsInitialTab}
             />
           )}
 

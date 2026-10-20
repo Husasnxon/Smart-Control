@@ -1147,8 +1147,10 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                                 <input
                                   type="number"
                                   step="0.5"
-                                  value={t.wageUSD}
-                                  onChange={(e) => handleUpdateTechnicianWageUSD(t.id, Number(e.target.value))}
+                                  value={t.wageUSD === 0 ? '' : t.wageUSD}
+                                  placeholder="0"
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) => handleUpdateTechnicianWageUSD(t.id, e.target.value === '' ? 0 : Number(e.target.value) || 0)}
                                   className="w-16 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-5 pr-1 py-0.5 text-xs font-mono font-bold text-slate-900 dark:text-white text-right focus:ring-1 focus:ring-emerald-500"
                                 />
                               </div>
@@ -1781,9 +1783,11 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                   </label>
                   <input
                     type="number"
-                    value={newCustBonus}
+                    value={newCustBonus === 0 ? '' : newCustBonus}
+                    placeholder="0"
+                    onFocus={(e) => e.target.select()}
                     disabled={newCustTier === 'None' || newCustNoCashback}
-                    onChange={(e) => setNewCustBonus(Number(e.target.value) || 0)}
+                    onChange={(e) => setNewCustBonus(e.target.value === '' ? 0 : Number(e.target.value) || 0)}
                     className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono disabled:opacity-50"
                   />
                 </div>

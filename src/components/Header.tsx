@@ -15,7 +15,8 @@ import {
   Bell,
   BellRing,
   ChevronDown,
-  Check
+  Check,
+  Settings
 } from 'lucide-react';
 import { formatDualMoney, formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { Branch } from '../types';
@@ -40,6 +41,7 @@ interface HeaderProps {
   currentBranch?: Branch | null;
   branches?: Branch[];
   onSelectBranch?: (branch: Branch) => void;
+  onManageBranches?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -61,7 +63,8 @@ export const Header: React.FC<HeaderProps> = ({
   onForceRefresh,
   currentBranch = null,
   branches = [],
-  onSelectBranch
+  onSelectBranch,
+  onManageBranches
 }) => {
   const [isManualSyncing, setIsManualSyncing] = React.useState(false);
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = React.useState(false);
@@ -210,6 +213,23 @@ export const Header: React.FC<HeaderProps> = ({
                           );
                         })}
                       </div>
+
+                      {/* Manage Branches Button for Admin */}
+                      {(currentUser?.systemRole === 'admin' || !!currentUser?.permissions?.canAccessAllBranches) && onManageBranches && (
+                        <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsBranchDropdownOpen(false);
+                              onManageBranches();
+                            }}
+                            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold border border-amber-300/40 dark:border-amber-700/40 transition active:scale-[0.98]"
+                          >
+                            <Settings className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                            <span>⚙️ Filiallarni Boshqarish & Sozlash</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
