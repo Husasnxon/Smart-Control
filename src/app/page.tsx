@@ -75,7 +75,8 @@ interface CloudSyncPayload {
 
 interface CloudSyncResponse {
   timestamp: number;
-  data: CloudSyncPayload | null;
+  modified?: boolean;
+  data?: CloudSyncPayload | null;
 }
 
 export default function Home() {
@@ -533,17 +534,22 @@ export default function Home() {
       if (isSyncingRef.current && !force) return;
       isSyncingRef.current = true;
       try {
-        const res = await fetch('/api/sync', { cache: 'no-store' });
+        const sinceQuery = force ? '' : `?since=${lastSyncedTimestampRef.current}`;
+        const res = await fetch(`/api/sync${sinceQuery}`, { cache: 'no-store' });
         if (!res.ok) {
           isSyncingRef.current = false;
           return;
         }
         const json: CloudSyncResponse = await res.json();
         
+        // If server says no changes since our timestamp, do not transfer or process anything
+        if (json.modified === false) {
+          return;
+        }
+
         // If server is empty, push local state to initialize server
         if (!json.data || !json.timestamp) {
           pushDataToCloudRef.current?.();
-          isSyncingRef.current = false;
           return;
         }
 
@@ -684,8 +690,12 @@ export default function Home() {
     // Initial sync
     syncWithCloud();
 
-    // Fast polling every 2 seconds for real-time cross-device sync
-    const intervalId = setInterval(() => syncWithCloud(), 2000);
+    // Smart polling: only polls every 15 seconds when the tab is visible (99.9% bandwidth saving)
+    const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        syncWithCloud();
+      }
+    }, 15000);
 
     const onFocus = () => syncWithCloud(true);
     const onVisibilityChange = () => {

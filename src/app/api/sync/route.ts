@@ -44,18 +44,31 @@ declare global {
   var __smartControlSyncStore: SyncStore | undefined;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const since = Number(searchParams.get('since') || 0);
+
   const store = globalThis.__smartControlSyncStore;
   if (!store || !store.timestamp) {
     return NextResponse.json({
       timestamp: 0,
+      modified: false,
       data: null,
       message: 'No central sync data yet.'
     });
   }
 
+  // Bandwidth optimization: If client already has the latest timestamp, do not transfer full payload
+  if (since && store.timestamp <= since) {
+    return NextResponse.json({
+      timestamp: store.timestamp,
+      modified: false
+    });
+  }
+
   return NextResponse.json({
     timestamp: store.timestamp,
+    modified: true,
     data: store
   });
 }
