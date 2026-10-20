@@ -79,12 +79,34 @@ export async function POST(req: NextRequest) {
 
     const existing = globalThis.__smartControlSyncStore || { timestamp: 0 };
 
-    // Merge incoming data with existing store
-    const updatedStore: SyncStore = {
-      ...existing,
-      ...body,
-      timestamp: Date.now()
-    };
+    let updatedStore: SyncStore;
+    if ((body as { reset?: boolean }).reset) {
+      updatedStore = {
+        timestamp: Date.now(),
+        products: [],
+        customers: [],
+        receipts: [],
+        expenses: [],
+        customerOrders: [],
+        shipments: [],
+        purchases: [],
+        serviceTickets: [],
+        customerDebtPayments: [],
+        payrolls: [],
+        advances: [],
+        handovers: [],
+        branches: existing.branches,
+        stockTransfers: [],
+        exchangeRate: existing.exchangeRate || 12850,
+        baseCurrency: existing.baseCurrency || 'UZS'
+      };
+    } else {
+      updatedStore = {
+        ...existing,
+        ...body,
+        timestamp: Date.now()
+      };
+    }
 
     globalThis.__smartControlSyncStore = updatedStore;
 

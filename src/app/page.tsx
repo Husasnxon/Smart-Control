@@ -138,6 +138,39 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
+        // Clean zero-state reset requested by user:
+        // Barcha bo'lgan savdolar, qarzlar, maxsulotlar, prixod va chiqimlarni 0 holatga keltirish
+        const isZeroResetDone = localStorage.getItem('sc_clean_zero_state_v2');
+        if (!isZeroResetDone) {
+          localStorage.setItem('sc_products', JSON.stringify([]));
+          localStorage.setItem('sc_customers', JSON.stringify([]));
+          localStorage.setItem('sc_receipts', JSON.stringify([]));
+          localStorage.setItem('sc_expenses', JSON.stringify([]));
+          localStorage.setItem('sc_customer_orders', JSON.stringify([]));
+          localStorage.setItem('sc_shipments', JSON.stringify([]));
+          localStorage.setItem('sc_purchases', JSON.stringify([]));
+          localStorage.setItem('sc_service_tickets', JSON.stringify([]));
+          localStorage.setItem('sc_customer_debt_payments', JSON.stringify([]));
+          localStorage.setItem('sc_payrolls', JSON.stringify([]));
+          localStorage.setItem('sc_advances', JSON.stringify([]));
+          localStorage.setItem('sc_handovers', JSON.stringify([]));
+          localStorage.setItem('sc_crm_leads', JSON.stringify([]));
+          localStorage.setItem('sc_crm_objects', JSON.stringify([]));
+          localStorage.setItem('sc_crm_reminders', JSON.stringify([]));
+          localStorage.setItem('sc_stock_transfers', JSON.stringify([]));
+          localStorage.setItem('sc_z_reports', JSON.stringify([]));
+          localStorage.removeItem('sc_today_z_closed_date');
+          localStorage.removeItem('sc_last_auto_z_date');
+          localStorage.setItem('sc_clean_zero_state_v2', 'true');
+
+          // Immediately push reset to cloud serverless store
+          fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reset: true })
+          }).catch(() => {});
+        }
+
         const savedRate = localStorage.getItem('sc_exchange_rate');
       if (savedRate && !isNaN(Number(savedRate))) {
         setExchangeRate(Number(savedRate));
