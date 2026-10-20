@@ -2268,14 +2268,28 @@ export default function Home() {
 
   const handleDeleteExpense = (expenseId: string) => {
     recordLocalMutation('expenses');
-    setExpenses((prev) => prev.filter((e) => e.id !== expenseId));
+    const updated = expenses.filter((e) => e.id !== expenseId);
+    setExpenses(updated);
+    try {
+      localStorage.setItem('sc_expenses', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ expenses: updated });
     showToast(`✓ Moliya yozuvi o'chirildi!`);
   };
 
   // Category management handlers
   const handleAddCategory = (newCat: ExpenseCategory) => {
     recordLocalMutation('expenseCategories');
-    setExpenseCategories((prev) => [...prev, newCat]);
+    const updated = [...expenseCategories, newCat];
+    setExpenseCategories(updated);
+    try {
+      localStorage.setItem('sc_categories', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ expenseCategories: updated });
     showToast(`✓ Yangi toifa qo'shildi: "${newCat.name}"`);
   };
 
@@ -2284,17 +2298,31 @@ export default function Home() {
     const oldCat = expenseCategories.find((c) => c.id === categoryId);
     const oldName = oldCat?.name;
 
-    setExpenseCategories((prev) =>
-      prev.map((c) => (c.id === categoryId ? { ...c, name: newName, description: newDesc ?? c.description } : c))
+    const updated = expenseCategories.map((c) =>
+      c.id === categoryId ? { ...c, name: newName, description: newDesc ?? c.description } : c
     );
-
-    if (oldName && oldName !== newName) {
-      recordLocalMutation('expenses');
-      setExpenses((prev) =>
-        prev.map((e) => (e.category === oldName ? { ...e, category: newName } : e))
-      );
+    setExpenseCategories(updated);
+    try {
+      localStorage.setItem('sc_categories', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
     }
 
+    let updatedExpenses = expenses;
+    if (oldName && oldName !== newName) {
+      recordLocalMutation('expenses');
+      updatedExpenses = expenses.map((e) =>
+        e.category === oldName ? { ...e, category: newName } : e
+      );
+      setExpenses(updatedExpenses);
+      try {
+        localStorage.setItem('sc_expenses', JSON.stringify(updatedExpenses));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    pushDataToCloud({ expenseCategories: updated, expenses: updatedExpenses });
     showToast(`✓ Toifa nomi yangilandi: "${newName}"`);
   };
 
@@ -2303,14 +2331,28 @@ export default function Home() {
     const catToDelete = expenseCategories.find((c) => c.id === categoryId);
     if (!catToDelete) return;
 
-    setExpenseCategories((prev) => prev.filter((c) => c.id !== categoryId));
+    const updated = expenseCategories.filter((c) => c.id !== categoryId);
+    setExpenseCategories(updated);
+    try {
+      localStorage.setItem('sc_categories', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ expenseCategories: updated });
     showToast(`✓ Toifa o'chirildi: "${catToDelete.name}"`);
   };
 
   // Product Category management handlers
   const handleAddProductCategory = (newCat: ProductCategory) => {
     recordLocalMutation('productCategories');
-    setProductCategories((prev) => [...prev, newCat]);
+    const updated = [...productCategories, newCat];
+    setProductCategories(updated);
+    try {
+      localStorage.setItem('sc_product_categories', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ productCategories: updated });
     showToast(`✓ Yangi mahsulot kategoriyasi: "${newCat.name}"`);
   };
 
@@ -2319,18 +2361,32 @@ export default function Home() {
     const oldCat = productCategories.find((c) => c.id === categoryId);
     const oldName = oldCat?.name;
 
-    setProductCategories((prev) =>
-      prev.map((c) => (c.id === categoryId ? { ...c, name: newName, description: newDesc ?? c.description } : c))
+    const updated = productCategories.map((c) =>
+      c.id === categoryId ? { ...c, name: newName, description: newDesc ?? c.description } : c
     );
+    setProductCategories(updated);
+    try {
+      localStorage.setItem('sc_product_categories', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
 
+    let updatedProducts = products;
     // Cascade rename to all existing products in this category
     if (oldName && oldName !== newName) {
       recordLocalMutation('products');
-      setProducts((prev) =>
-        prev.map((p) => (p.category === oldName ? { ...p, category: newName } : p))
+      updatedProducts = products.map((p) =>
+        p.category === oldName ? { ...p, category: newName } : p
       );
+      setProducts(updatedProducts);
+      try {
+        localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
+      } catch (e) {
+        console.error(e);
+      }
     }
 
+    pushDataToCloud({ productCategories: updated, products: updatedProducts });
     showToast(`✓ Kategoriya nomi o'zgartirildi: "${newName}"`);
   };
 
@@ -2339,29 +2395,55 @@ export default function Home() {
     const catToDelete = productCategories.find((c) => c.id === categoryId);
     if (!catToDelete) return;
 
-    setProductCategories((prev) => prev.filter((c) => c.id !== categoryId));
+    const updated = productCategories.filter((c) => c.id !== categoryId);
+    setProductCategories(updated);
+    try {
+      localStorage.setItem('sc_product_categories', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ productCategories: updated });
     showToast(`✓ Kategoriya o'chirildi: "${catToDelete.name}"`);
   };
 
   // Employee Management handlers
   const handleAddEmployee = (newEmp: Employee) => {
     recordLocalMutation('employees');
-    setEmployees((prev) => [newEmp, ...prev]);
+    const updated = [newEmp, ...employees.filter((e) => e.id !== newEmp.id)];
+    setEmployees(updated);
+    try {
+      localStorage.setItem('sc_employees', JSON.stringify(updated));
+    } catch (e) {
+      console.error("Local storage employee add error", e);
+    }
+    pushDataToCloud({ employees: updated });
     showToast(`✓ Xodim "${newEmp.fullName}" muvaffaqiyatli qo'shildi.`);
   };
 
   const handleUpdateEmployee = (updatedEmp: Employee) => {
     recordLocalMutation('employees');
-    setEmployees((prev) =>
-      prev.map((e) => (e.id === updatedEmp.id ? updatedEmp : e))
-    );
+    const updated = employees.map((e) => (e.id === updatedEmp.id ? updatedEmp : e));
+    setEmployees(updated);
+    try {
+      localStorage.setItem('sc_employees', JSON.stringify(updated));
+    } catch (e) {
+      console.error("Local storage employee update error", e);
+    }
+    pushDataToCloud({ employees: updated });
     showToast(`✓ "${updatedEmp.fullName}" ma'lumotlari yangilandi.`);
   };
 
   const handleDeleteEmployee = (empId: string) => {
     recordLocalMutation('employees');
     const emp = employees.find((e) => e.id === empId);
-    setEmployees((prev) => prev.filter((e) => e.id !== empId));
+    const updated = employees.filter((e) => e.id !== empId);
+    setEmployees(updated);
+    try {
+      localStorage.setItem('sc_employees', JSON.stringify(updated));
+    } catch (e) {
+      console.error("Local storage employee delete error", e);
+    }
+    pushDataToCloud({ employees: updated });
     showToast(`✓ "${emp?.fullName || 'Xodim'}" ro'yxatdan o'chirildi.`);
   };
 

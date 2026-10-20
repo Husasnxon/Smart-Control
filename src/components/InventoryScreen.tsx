@@ -155,6 +155,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCategoryManageModalOpen, setIsCategoryManageModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [viewingSerialProduct, setViewingSerialProduct] = useState<Product | null>(null);
   const [quickStockProduct, setQuickStockProduct] = useState<Product | null>(null);
   const [quickNewSerialsText, setQuickNewSerialsText] = useState('');
@@ -1160,12 +1161,9 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
 
                         {/* Delete Button */}
                         <button
-                          onClick={() => {
-                            if (window.confirm(`"${product.name}" mahsulotini o'chirmoqchimisiz?`)) {
-                              onDeleteProduct(product.id);
-                            }
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-red-500 hover:text-white text-slate-400 transition"
+                          type="button"
+                          onClick={() => setProductToDelete(product)}
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-500 hover:text-white text-slate-400 transition"
                           title="O'chirish"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -2977,14 +2975,12 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm(`"${editingProduct.name}" tovarini butunlay o'chirib tashlamoqchimisiz?`)) {
-                      onDeleteProduct(editingProduct.id);
-                      setEditingProduct(null);
-                    }
+                    setProductToDelete(editingProduct);
                   }}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 border border-red-200 dark:border-red-900/60 transition"
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 transition flex items-center gap-1.5"
                 >
-                  O&apos;chirish
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>O&apos;chirish</span>
                 </button>
 
                 <div className="flex items-center gap-2">
@@ -3393,6 +3389,63 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
         baseCurrency={baseCurrency}
         exchangeRate={exchangeRate}
       />
+
+      {/* MODAL 11: CONFIRM DELETE PRODUCT */}
+      {productToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl text-center animate-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 mx-auto rounded-full bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center text-rose-600 dark:text-rose-400">
+              <Trash2 className="w-7 h-7" />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                Mahsulotni O&apos;chirish
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                Siz haqiqatdan ham <strong className="text-rose-600 dark:text-rose-400 font-bold">«{productToDelete.name}»</strong> mahsulotini ombordan butunlay o&apos;chirmoqchimisiz?
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-left text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Kategoriya:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{productToDelete.category}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Qoldiq:</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{productToDelete.stockQuantity} {productToDelete.unit}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Sotish narxi:</span>
+                <span className="font-mono font-bold">{formatNumberWithSpaces(productToDelete.retailPrice)} so&apos;m</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setProductToDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteProduct(productToDelete.id);
+                  setProductToDelete(null);
+                  setEditingProduct(null);
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 font-bold text-xs text-white shadow-lg shadow-rose-600/30 transition active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Ha, O&apos;chirish</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
