@@ -151,6 +151,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // Branch Management State
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [branchToDelete, setBranchToDelete] = useState<Branch | null>(null);
   const [branchName, setBranchName] = useState('');
   const [branchCode, setBranchCode] = useState('');
   const [branchAddress, setBranchAddress] = useState('');
@@ -624,14 +625,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   };
 
-  const handleDeleteBranchClick = (branchId: string, branchName: string) => {
+  const handleDeleteBranchClick = (branch: Branch) => {
     if (branches.length <= 1) {
-      alert("Oxirgi bitta filialni o'chirib bo'lmaydi! Kamida bitta filial mavjud bo'lishi shart.");
+      alert("Oxirgi bitta filialni o'chirib bo'lmaydi! Kamida bitta filial tizimda bo'lishi shart.");
       return;
     }
-    if (window.confirm(`Rostdan ham "${branchName}" filialini o'chirmoqchimisiz?`)) {
-      if (onDeleteBranch) onDeleteBranch(branchId);
-    }
+    setBranchToDelete(branch);
   };
 
   // Close branch modal on Escape key
@@ -1790,7 +1789,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         <span>Bosh filial qilish</span>
                       </button>
                     ) : (
-                      <span className="text-[11px] text-slate-400 font-medium">Asosiy ombor</span>
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                        <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                        <span>Asosiy bosh filial</span>
+                      </span>
                     )}
 
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -1804,12 +1806,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         <span>Nomini o&apos;zgartirish</span>
                       </button>
 
-                      {!branch.isMain && (
+                      {branches.length > 1 && (
                         <button
                           type="button"
-                          onClick={() => handleDeleteBranchClick(branch.id, branch.name)}
+                          onClick={() => handleDeleteBranchClick(branch)}
                           className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 transition flex items-center gap-1"
-                          title="Filialni butunlay o'chirish"
+                          title="Filialni o'chirish"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                           <span>O&apos;chirish</span>
@@ -3942,7 +3944,20 @@ Body: {
               </div>
 
               <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <span className="text-[11px] text-slate-400">Esc - oynani yopish</span>
+                <div>
+                  {editingBranch && branches.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleDeleteBranchClick(editingBranch);
+                      }}
+                      className="px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 transition flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Ushbu filialni o&apos;chirish</span>
+                    </button>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -3960,6 +3975,73 @@ Body: {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRM DELETE BRANCH */}
+      {branchToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl text-center animate-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 mx-auto rounded-full bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center text-rose-600 dark:text-rose-400">
+              <Trash2 className="w-7 h-7" />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                Filialni O&apos;chirish
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                Siz haqiqatdan ham <strong className="text-rose-600 dark:text-rose-400 font-bold">«{branchToDelete.name}»</strong> filialini butunlay o&apos;chirmoqchimisiz?
+              </p>
+            </div>
+
+            {branchToDelete.isMain && (
+              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-left text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                <span className="font-bold flex items-center gap-1">
+                  <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  Diqqat: Asosiy Bosh Filial
+                </span>
+                <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
+                  Ushbu filial hozirgi asosiy filial hisoblanadi. O&apos;chirilgandan so&apos;ng qolgan birinchi filial avtomatik bosh filial etib belgilanadi va barcha xodimlar yangi filialga o&apos;tkaziladi.
+                </p>
+              </div>
+            )}
+
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-left text-xs text-slate-600 dark:text-slate-300 space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Kodi:</span>
+                <span className="font-mono font-bold">{branchToDelete.code}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Manzil:</span>
+                <span className="font-medium truncate max-w-[200px]">{branchToDelete.address || 'Kiritilmagan'}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setBranchToDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteBranch) {
+                    onDeleteBranch(branchToDelete.id);
+                  }
+                  setBranchToDelete(null);
+                  setIsBranchModalOpen(false);
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 font-bold text-xs text-white shadow-lg shadow-rose-600/30 transition active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Ha, O&apos;chirish</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

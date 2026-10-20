@@ -2036,20 +2036,59 @@ export default function Home() {
   const handleDeleteBranch = (branchId: string) => {
     const toDelete = branches.find((b) => b.id === branchId);
     if (!toDelete) return;
-    if (toDelete.isMain) {
-      alert("Asosiy bosh filialni o'chirib bo'lmaydi!");
+
+    if (branches.length <= 1) {
+      alert("Oxirgi bitta filialni o'chirib bo'lmaydi! Kamida bitta filial tizimda mavjud bo'lishi shart.");
       return;
     }
-    if (confirm(`Haqiqatdan ham "${toDelete.name}" filialini o'chirmoqchimisiz?`)) {
-      recordLocalMutation('branches');
-      setBranches((prev) => prev.filter((b) => b.id !== branchId));
-      if (currentBranchId === branchId) {
-        const remaining = branches.filter((b) => b.id !== branchId);
-        const nextBranch = remaining.find((b) => b.isMain) || remaining[0];
-        if (nextBranch) setCurrentBranchId(nextBranch.id);
-      }
-      showToast(`✓ "${toDelete.name}" filiali o'chirildi.`);
+
+    // Yangi filiallar ro'yxati
+    let updatedBranches = branches.filter((b) => b.id !== branchId);
+
+    // Agar o'chirilayotgan filial asosiy bo'lsa, qolgan birinchi filialni asosiy qilib tayinlaymiz
+    if (toDelete.isMain && updatedBranches.length > 0) {
+      updatedBranches = updatedBranches.map((b, idx) => idx === 0 ? { ...b, isMain: true } : b);
     }
+
+    const nextMain = updatedBranches.find((b) => b.isMain) || updatedBranches[0];
+
+    recordLocalMutation('branches');
+    setBranches(updatedBranches);
+    try {
+      localStorage.setItem('sc_branches', JSON.stringify(updatedBranches));
+    } catch (e) {
+      console.error("Local storage branch delete error", e);
+    }
+
+    // Agar joriy faol filial o'chirilgan bo'lsa, keyingi filialga o'tkazish
+    if (currentBranchId === branchId && nextMain) {
+      setCurrentBranchId(nextMain.id);
+      try {
+        localStorage.setItem('sc_current_branch_id', nextMain.id);
+      } catch (e) {
+        console.error("Local storage branch id switch error", e);
+      }
+    }
+
+    // O'chirilgan filial xodimlarini keyingi filialga o'tkazish
+    let updatedEmployees = employees;
+    if (nextMain && employees.some((emp) => emp.branchId === branchId)) {
+      recordLocalMutation('employees');
+      updatedEmployees = employees.map((emp) =>
+        emp.branchId === branchId ? { ...emp, branchId: nextMain.id } : emp
+      );
+      setEmployees(updatedEmployees);
+      try {
+        localStorage.setItem('sc_employees', JSON.stringify(updatedEmployees));
+      } catch (e) {
+        console.error("Local storage employee branch update error", e);
+      }
+    }
+
+    // Bulutga darhol push qilish
+    pushDataToCloudRef.current?.({ branches: updatedBranches, employees: updatedEmployees });
+
+    showToast(`✓ "${toDelete.name}" filiali muvaffaqiyatli o'chirildi.`);
   };
 
   // Faol filialni tanlash / almashtirish
