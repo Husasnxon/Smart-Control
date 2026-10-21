@@ -519,8 +519,15 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   // Low stock alerts
   const lowStockCount = useMemo(() => physicalProducts.filter((p) => p.stockQuantity <= p.minStockAlert).length, [physicalProducts]);
 
-  // Purchases Metrics
-  const currentPurchases = useMemo(() => purchases || [], [purchases]);
+  // Branch filter for purchases tab (default to 'all' so no incoming purchases are hidden)
+  const [purchaseBranchFilter, setPurchaseBranchFilter] = useState<string>('all');
+
+  // Purchases Metrics & Filter
+  const currentPurchases = useMemo(() => {
+    const list = purchases || [];
+    if (purchaseBranchFilter === 'all') return list;
+    return list.filter((p) => (p.branchId || 'branch-1') === purchaseBranchFilter || p.warehouseName?.toLowerCase() === branches.find(b => b.id === purchaseBranchFilter)?.name?.toLowerCase());
+  }, [purchases, purchaseBranchFilter, branches]);
   const totalPurchasesUZS = useMemo(() => 
     currentPurchases.filter((p) => p.status !== 'cancelled').reduce((sum, p) => sum + p.totalAmount, 0),
     [currentPurchases]
@@ -887,7 +894,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
             activeSubTab === 'purchases' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
           }`}>
-            {currentPurchases.length}
+            {(purchases || []).length}
           </span>
           {totalSupplierDebtUZS > 0 && (
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title="To'lanmagan qarz mavjud" />
@@ -1183,6 +1190,48 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   {/* CONDITIONAL SUB-TAB: PURCHASES (PRIXOD / NAKLADNOY) */}
   {activeSubTab === 'purchases' && (
     <div className="space-y-4">
+      {/* Omborlar bo'yicha filter tugmalari */}
+      {branches && branches.length > 1 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <button
+            type="button"
+            onClick={() => setPurchaseBranchFilter('all')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 ${
+              purchaseBranchFilter === 'all'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span>🏢 Barcha Omborlar</span>
+            <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${purchaseBranchFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800'}`}>
+              {(purchases || []).length}
+            </span>
+          </button>
+          {branches.map((b) => {
+            const count = (purchases || []).filter(
+              (p) => (p.branchId || 'branch-1') === b.id || p.warehouseName?.toLowerCase() === b.name?.toLowerCase()
+            ).length;
+            return (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => setPurchaseBranchFilter(b.id)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 ${
+                  purchaseBranchFilter === b.id
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>🏢 {b.name}</span>
+                <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${purchaseBranchFilter === b.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Purchases Filter and Search Bar */}
       <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="relative w-full md:w-96">
@@ -1334,6 +1383,10 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                         <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1">
                           <Calendar className="w-2.5 h-2.5" />
                           <span>{purchase.createdAt}</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-800 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/50 px-2 py-0.5 rounded-md mt-1 border border-cyan-200 dark:border-cyan-800">
+                          <Building2 className="w-2.5 h-2.5 text-cyan-600 shrink-0" />
+                          <span>{purchase.warehouseName || branches.find(b => b.id === purchase.branchId)?.name || 'Asosiy Ombor'}</span>
                         </div>
                         {purchase.receivedBy && (
                           <div className="text-[10px] text-slate-600 dark:text-slate-300 font-medium mt-0.5 flex items-center gap-1" title="Kirim qilgan mas'ul xodim">

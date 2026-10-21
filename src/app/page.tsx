@@ -3004,9 +3004,9 @@ export default function Home() {
   }, [shipments, currentBranchId, isBranchAll]);
 
   const branchFilteredPurchases = useMemo(() => {
-    if (isBranchAll) return purchases;
-    return purchases.filter((p) => (p.branchId || 'branch-1') === currentBranchId);
-  }, [purchases, currentBranchId, isBranchAll]);
+    if (isBranchAll || currentUser?.systemRole === 'admin' || !currentBranch) return purchases;
+    return purchases.filter((p) => (p.branchId || 'branch-1') === currentBranchId || p.warehouseName?.toLowerCase() === currentBranch?.name?.toLowerCase());
+  }, [purchases, currentBranchId, isBranchAll, currentUser, currentBranch]);
 
   const branchFilteredEmployees = useMemo(() => {
     if (isBranchAll) return employees;
@@ -3226,7 +3226,7 @@ export default function Home() {
             <InventoryScreen
               products={branchFilteredProducts}
               categories={productCategories}
-              purchases={branchFilteredPurchases}
+              purchases={purchases}
               branches={branches}
               currentBranch={currentBranch}
               stockTransfers={stockTransfers}

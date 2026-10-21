@@ -319,7 +319,7 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
       setIsSearchDropdownOpen(false);
     }, 0);
     return () => clearTimeout(timer);
-  }, [isOpen, editingPurchase, baseCurrency, exchangeRate, categories, loggedInUserFormatted]);
+  }, [isOpen, editingPurchase, baseCurrency, exchangeRate, categories, loggedInUserFormatted, currentBranch, branches]);
 
   // Add new custom supplier to list and select it
   const handleCreateSupplier = (e?: React.FormEvent) => {
