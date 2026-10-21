@@ -259,7 +259,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
     const generatedUsername = newUsername.trim().toLowerCase() || newName.toLowerCase().replace(/\s+/g, '').slice(0, 10);
     const targetBranch = branches.find(b => b.id === newBranchId) || branches.find(b => b.isMain) || branches[0];
     const finalBranchId = newBranchId || targetBranch?.id || 'branch-1';
-    const finalBranchName = targetBranch ? targetBranch.name : 'Bosh Filial (Toshkent)';
+    const finalBranchName = targetBranch ? targetBranch.name : (branches[0]?.name || 'Asosiy Filial');
 
     const newEmp: Employee = {
       id: `emp-${Date.now()}`,
@@ -800,7 +800,9 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                       </div>
                     </div>
                     {(() => {
-                      const bName = emp.branchName || branches.find(b => b.id === emp.branchId)?.name || 'Bosh Filial (Toshkent)';
+                      const branchMatch = branches.find(b => b.id === emp.branchId);
+                      const mainBranch = branches.find(b => b.isMain) || branches[0];
+                      const bName = branchMatch ? branchMatch.name : (mainBranch ? mainBranch.name : 'Asosiy Filial');
                       return (
                         <div className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold border border-purple-200 dark:border-purple-800">
                           <Building2 className="w-3 h-3 text-purple-500" />

@@ -242,14 +242,10 @@ export default function Home() {
       if (savedEmployees) {
         try {
           let parsedEmp: Employee[] = JSON.parse(savedEmployees);
-          // Check if admin user is present and has username
-          const hasAdmin = parsedEmp.some((e) => e.username === 'admin');
-          if (!hasAdmin) {
-            setEmployees(INITIAL_EMPLOYEES);
-          } else {
+          if (Array.isArray(parsedEmp)) {
             // Guarantee technician_portal is included for all technicians
             parsedEmp = parsedEmp.map((emp) => {
-              if (emp.systemRole === 'technician' || (emp.role.toLowerCase().includes('usta') && emp.systemRole !== 'admin' && emp.systemRole !== 'manager')) {
+              if (emp.systemRole === 'technician' || (emp.role && emp.role.toLowerCase().includes('usta') && emp.systemRole !== 'admin' && emp.systemRole !== 'manager')) {
                 return { ...emp, allowedTabs: ['technician_portal'] as ActiveTab[] };
               }
               if (emp.systemRole === 'admin' || emp.systemRole === 'manager' || !emp.systemRole) {
@@ -273,12 +269,18 @@ export default function Home() {
               }
               return emp;
             });
+
+            // Ensure at least one admin exists if employees exist, but NEVER overwrite the user's staff!
+            if (parsedEmp.length > 0 && !parsedEmp.some((e) => e.systemRole === 'admin')) {
+              parsedEmp[0].systemRole = 'admin';
+            }
             setEmployees(parsedEmp);
           }
         } catch (e) {
-          setEmployees(INITIAL_EMPLOYEES);
+          console.error("Failed to parse saved employees", e);
         }
       } else {
+        localStorage.setItem('sc_employees', JSON.stringify(INITIAL_EMPLOYEES));
         setEmployees(INITIAL_EMPLOYEES);
       }
 
@@ -671,7 +673,17 @@ export default function Home() {
             setExpenses(remote.expenses);
           }
           if (remote.employees && (!isLocalRecentlyMutated('employees') || force)) {
-            setEmployees(remote.employees);
+            // Guard employees: do not let stale cloud mock data overwrite user's custom employees
+            const isRemoteMockEmp = remote.employees.some(e => e.fullName === 'Farrux Aliyev') && remote.employees.some(e => e.fullName === 'Jamshid Normurodov');
+            const localRawEmp = typeof window !== 'undefined' ? localStorage.getItem('sc_employees') : null;
+            const localHasCustomEmp = localRawEmp && !localRawEmp.includes('Farrux Aliyev') && localRawEmp.length > 10;
+
+            if (isRemoteMockEmp && localHasCustomEmp) {
+              // Local has real custom staff, remote has stale mock data. Keep local and update cloud!
+              pushDataToCloudRef.current?.();
+            } else {
+              setEmployees(remote.employees);
+            }
           }
           if (remote.shipments) {
             const rawShipments: ShipmentOrder[] = remote.shipments;
@@ -702,7 +714,17 @@ export default function Home() {
             setAdvances(remote.advances);
           }
           if (remote.branches && (!isLocalRecentlyMutated('branches') || force)) {
-            setBranches(remote.branches);
+            // Guard branches: do not let stale cloud mock branches overwrite user's custom branches
+            const isRemoteMockBranch = remote.branches.some(b => b.name === 'Chilonzor-1 Filiali') && remote.branches.some(b => b.name === 'Samarqand Filiali');
+            const localRawBranch = typeof window !== 'undefined' ? localStorage.getItem('sc_branches') : null;
+            const localHasCustomBranch = localRawBranch && !localRawBranch.includes('Chilonzor-1 Filiali') && localRawBranch.length > 10;
+
+            if (isRemoteMockBranch && localHasCustomBranch) {
+              // Local has real custom branches, remote has stale mock data. Keep local and update cloud!
+              pushDataToCloudRef.current?.();
+            } else {
+              setBranches(remote.branches);
+            }
           }
           if (remote.stockTransfers && (!isLocalRecentlyMutated('stockTransfers') || force)) {
             setStockTransfers(remote.stockTransfers);
@@ -2014,26 +2036,50 @@ export default function Home() {
   // Filial qo'shish
   const handleAddBranch = (newBranch: Branch) => {
     recordLocalMutation('branches');
+    let updatedBranches: Branch[] = [];
     setBranches((prev) => {
       let updated = [...prev];
       if (newBranch.isMain) {
         updated = updated.map((b) => ({ ...b, isMain: false }));
       }
-      return [...updated, newBranch];
+      updatedBranches = [...updated, newBranch];
+      return updatedBranches;
     });
+    try {
+      const currentList = branches.filter(b => b.id !== newBranch.id);
+      const combined = newBranch.isMain ? currentList.map(b => ({ ...b, isMain: false })) : currentList;
+      const finalBranches = [...combined, newBranch];
+      localStorage.setItem('sc_branches', JSON.stringify(finalBranches));
+      pushDataToCloud({ branches: finalBranches });
+    } catch (e) {
+      console.error(e);
+    }
     showToast(`✓ Yangi filial "${newBranch.name}" muvaffaqiyatli qo'shildi!`);
   };
 
   // Filialni yangilash
   const handleUpdateBranch = (updatedBranch: Branch) => {
     recordLocalMutation('branches');
+    let updatedBranches: Branch[] = [];
     setBranches((prev) => {
-      return prev.map((b) => {
+      updatedBranches = prev.map((b) => {
         if (b.id === updatedBranch.id) return updatedBranch;
         if (updatedBranch.isMain) return { ...b, isMain: false };
         return b;
       });
+      return updatedBranches;
     });
+    try {
+      const finalBranches = branches.map(b => {
+        if (b.id === updatedBranch.id) return updatedBranch;
+        if (updatedBranch.isMain) return { ...b, isMain: false };
+        return b;
+      });
+      localStorage.setItem('sc_branches', JSON.stringify(finalBranches));
+      pushDataToCloud({ branches: finalBranches });
+    } catch (e) {
+      console.error(e);
+    }
     showToast(`✓ "${updatedBranch.name}" filiali ma'lumotlari yangilandi!`);
   };
 

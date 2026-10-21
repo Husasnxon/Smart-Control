@@ -95,7 +95,8 @@ export async function POST(req: NextRequest) {
         payrolls: [],
         advances: [],
         handovers: [],
-        branches: existing.branches,
+        employees: body.employees || existing.employees,
+        branches: body.branches || existing.branches,
         stockTransfers: [],
         exchangeRate: existing.exchangeRate || 12850,
         baseCurrency: existing.baseCurrency || 'UZS'
