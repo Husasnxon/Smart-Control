@@ -10,7 +10,50 @@ export const INITIAL_PRODUCT_CATEGORIES: ProductCategory[] = [
   { id: 'pcat-7', name: "O'rnatish & Montaj xizmatlari", description: "Kamera o'rnatish, domofon montaj, kabel tortish va sozlash", color: '#EC4899' }
 ];
 
-export const INITIAL_PRODUCTS: Product[] = [];
+export const INITIAL_PRODUCTS: Product[] = [
+  {
+    id: 'prod-tc-r3232',
+    barcode: '202610210001',
+    sku: 'SKU-3232',
+    name: 'TC-R3232 Spec:I/B/K/V3.1',
+    category: 'Video Registratorlar (NVR/DVR)',
+    costPrice: 0,
+    costPriceUSD: 0,
+    retailPrice: 0,
+    retailPriceUSD: 0,
+    wholesalePrice: 0,
+    stockQuantity: 0,
+    minStockAlert: 2,
+    unit: 'dona',
+    hasSerialNumber: true,
+    serialNumbers: [],
+    warrantyMonths: 24,
+    isService: false,
+    branchId: 'branch-1',
+    branchName: 'Bosh Filial (Namangan)'
+  },
+  {
+    id: 'prod-tc-r3110',
+    barcode: '202610210002',
+    sku: 'SKU-3110',
+    name: 'TC-R3110 Spec:I/B/L/Eu/V1.1',
+    category: 'Video Registratorlar (NVR/DVR)',
+    costPrice: 375991,
+    costPriceUSD: 29.26,
+    retailPrice: 488300,
+    retailPriceUSD: 38.00,
+    wholesalePrice: 439000,
+    stockQuantity: 1,
+    minStockAlert: 2,
+    unit: 'dona',
+    hasSerialNumber: true,
+    serialNumbers: ['SN-TC-3110-01'],
+    warrantyMonths: 24,
+    isService: false,
+    branchId: 'branch-1',
+    branchName: 'Bosh Filial (Namangan)'
+  }
+];
 
 export const INITIAL_CUSTOMERS: Customer[] = [];
 
@@ -68,6 +111,7 @@ export const INITIAL_CUSTOMER_ORDERS: CustomerOrder[] = [];
 export const INITIAL_SHIPMENTS: ShipmentOrder[] = [];
 
 export const DEFAULT_SUPPLIERS = [
+  'Isroilov Husniddinxon',
   'Hikvision Official Diler (Toshkent)',
   'Dahua Technology Uzbekistan MCHJ',
   'ZKTeco Biometrics & Access Central Asia',
@@ -76,7 +120,88 @@ export const DEFAULT_SUPPLIERS = [
   'Delta Security Systems'
 ];
 
-export const INITIAL_PURCHASES: PurchaseInvoice[] = [];
+export const INITIAL_PURCHASES: PurchaseInvoice[] = [
+  {
+    id: 'purch-1792561764821',
+    invoiceNumber: 'PR-3686',
+    supplierName: 'Isroilov Husniddinxon',
+    supplierPhone: '+998 94 908 1331',
+    createdAt: '2026-10-21 05:49',
+    warehouseName: 'Kosonsoy-1 Filiali',
+    branchId: 'branch-2',
+    currency: 'USD',
+    exchangeRate: 12850,
+    items: [
+      {
+        productId: 'prod-tc-r3110',
+        productName: 'TC-R3110 Spec:I/B/L/Eu/V1.1',
+        category: 'Video Registratorlar (NVR/DVR)',
+        quantity: 1,
+        unit: 'dona',
+        costPrice: 375991,
+        costPriceUSD: 29.26,
+        retailPrice: 488300,
+        retailPriceUSD: 38.00,
+        totalCost: 375991,
+        hasSerialNumber: true,
+        serialNumbers: ['SN-TC-3110-01']
+      }
+    ],
+    totalQuantity: 1,
+    totalAmount: 375991,
+    totalAmountUSD: 29.26,
+    paymentStatus: 'paid',
+    paymentMethod: 'usd',
+    paidAmount: 375991,
+    paidAmountUSD: 29.26,
+    debtAmount: 0,
+    debtAmountUSD: 0,
+    payments: [],
+    status: 'received',
+    receivedBy: 'Bosh Administrator',
+    receivedById: 'emp-admin'
+  },
+  {
+    id: 'purch-1792561681879',
+    invoiceNumber: 'PR-2877',
+    supplierName: 'Isroilov Husniddinxon',
+    supplierPhone: '+998 94 908 1331',
+    createdAt: '2026-10-21 05:48',
+    warehouseName: 'Kosonsoy-1 Filiali',
+    branchId: 'branch-2',
+    currency: 'USD',
+    exchangeRate: 12850,
+    items: [
+      {
+        productId: 'prod-tc-r3110',
+        productName: 'TC-R3110 Spec:I/B/L/Eu/V1.1',
+        category: 'Video Registratorlar (NVR/DVR)',
+        quantity: 1,
+        unit: 'dona',
+        costPrice: 375991,
+        costPriceUSD: 29.26,
+        retailPrice: 488300,
+        retailPriceUSD: 38.00,
+        totalCost: 375991,
+        hasSerialNumber: true,
+        serialNumbers: ['SN-TC-3110-02']
+      }
+    ],
+    totalQuantity: 1,
+    totalAmount: 375991,
+    totalAmountUSD: 29.26,
+    paymentStatus: 'paid',
+    paymentMethod: 'usd',
+    paidAmount: 375991,
+    paidAmountUSD: 29.26,
+    debtAmount: 0,
+    debtAmountUSD: 0,
+    payments: [],
+    status: 'received',
+    receivedBy: 'Bosh Administrator',
+    receivedById: 'emp-admin'
+  }
+];
 
 export const INITIAL_SERVICE_TICKETS: ServiceTicket[] = [];
 
@@ -97,15 +222,27 @@ export const INITIAL_CRM_REMINDERS: CrmReminder[] = [];
 export const INITIAL_BRANCHES: Branch[] = [
   {
     id: 'branch-1',
-    name: 'Bosh Filial',
+    name: 'Bosh Filial (Namangan)',
     code: 'BF-01',
-    address: 'Markaziy savdo shoxobchasi va ombor',
-    phone: '+998 71 200 40 50',
-    managerName: 'Administrator',
+    address: 'Namangan sh., Markaziy ombor',
+    phone: '+998 90 123 45 67',
+    managerName: 'Bosh Administrator',
     isMain: true,
     status: 'active',
     createdAt: '2026-01-01',
     notes: 'Bosh ombor va markaziy savdo shoxobchasi'
+  },
+  {
+    id: 'branch-2',
+    name: 'Kosonsoy-1 Filiali',
+    code: 'KS-02',
+    address: 'Kosonsoy tumani',
+    phone: '+998 94 908 1331',
+    managerName: 'Isroilov Husniddinxon',
+    isMain: false,
+    status: 'active',
+    createdAt: '2026-03-15',
+    notes: 'Chakana savdo va montaj xizmatlari filiali'
   }
 ];
 

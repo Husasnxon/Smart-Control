@@ -139,39 +139,6 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        // Clean zero-state reset requested by user:
-        // Barcha bo'lgan savdolar, qarzlar, maxsulotlar, prixod va chiqimlarni 0 holatga keltirish
-        const isZeroResetDone = localStorage.getItem('sc_clean_zero_state_v2');
-        if (!isZeroResetDone) {
-          localStorage.setItem('sc_products', JSON.stringify([]));
-          localStorage.setItem('sc_customers', JSON.stringify([]));
-          localStorage.setItem('sc_receipts', JSON.stringify([]));
-          localStorage.setItem('sc_expenses', JSON.stringify([]));
-          localStorage.setItem('sc_customer_orders', JSON.stringify([]));
-          localStorage.setItem('sc_shipments', JSON.stringify([]));
-          localStorage.setItem('sc_purchases', JSON.stringify([]));
-          localStorage.setItem('sc_service_tickets', JSON.stringify([]));
-          localStorage.setItem('sc_customer_debt_payments', JSON.stringify([]));
-          localStorage.setItem('sc_payrolls', JSON.stringify([]));
-          localStorage.setItem('sc_advances', JSON.stringify([]));
-          localStorage.setItem('sc_handovers', JSON.stringify([]));
-          localStorage.setItem('sc_crm_leads', JSON.stringify([]));
-          localStorage.setItem('sc_crm_objects', JSON.stringify([]));
-          localStorage.setItem('sc_crm_reminders', JSON.stringify([]));
-          localStorage.setItem('sc_stock_transfers', JSON.stringify([]));
-          localStorage.setItem('sc_z_reports', JSON.stringify([]));
-          localStorage.removeItem('sc_today_z_closed_date');
-          localStorage.removeItem('sc_last_auto_z_date');
-          localStorage.setItem('sc_clean_zero_state_v2', 'true');
-
-          // Immediately push reset to cloud serverless store
-          fetch('/api/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reset: true })
-          }).catch(() => {});
-        }
-
         const savedRate = localStorage.getItem('sc_exchange_rate');
       if (savedRate && !isNaN(Number(savedRate))) {
         setExchangeRate(Number(savedRate));
@@ -184,8 +151,11 @@ export default function Home() {
       if (savedProducts) {
         try {
           const parsed: Product[] = JSON.parse(savedProducts);
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
             setProducts(parsed);
+          } else if (INITIAL_PRODUCTS.length > 0) {
+            setProducts(INITIAL_PRODUCTS);
+            localStorage.setItem('sc_products', JSON.stringify(INITIAL_PRODUCTS));
           }
         } catch (e) {
           console.error("Failed to parse saved products", e);
@@ -351,7 +321,22 @@ export default function Home() {
       }
 
       const savedPurchases = localStorage.getItem('sc_purchases');
-      if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
+      if (savedPurchases) {
+        try {
+          const parsedPurchases = JSON.parse(savedPurchases);
+          if (Array.isArray(parsedPurchases) && parsedPurchases.length > 0) {
+            setPurchases(parsedPurchases);
+          } else if (INITIAL_PURCHASES.length > 0) {
+            setPurchases(INITIAL_PURCHASES);
+            localStorage.setItem('sc_purchases', JSON.stringify(INITIAL_PURCHASES));
+          }
+        } catch (e) {
+          setPurchases(INITIAL_PURCHASES);
+        }
+      } else {
+        localStorage.setItem('sc_purchases', JSON.stringify(INITIAL_PURCHASES));
+        setPurchases(INITIAL_PURCHASES);
+      }
 
       const isTicketsPurged = localStorage.getItem('sc_service_tickets_clean_v1');
       if (!isTicketsPurged) {
@@ -432,10 +417,16 @@ export default function Home() {
           const parsed = JSON.parse(savedBranches);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setBranches(parsed);
+          } else if (INITIAL_BRANCHES.length > 0) {
+            setBranches(INITIAL_BRANCHES);
+            localStorage.setItem('sc_branches', JSON.stringify(INITIAL_BRANCHES));
           }
         } catch (e) {
           console.error("Failed to parse saved branches", e);
         }
+      } else {
+        localStorage.setItem('sc_branches', JSON.stringify(INITIAL_BRANCHES));
+        setBranches(INITIAL_BRANCHES);
       }
 
       const savedCurrentBranchId = localStorage.getItem('sc_current_branch_id');
@@ -658,7 +649,13 @@ export default function Home() {
 
           // Guard against stale server lambda snapshots overwriting fresh local changes
           if (remote.products && (!isLocalRecentlyMutated('products') || force)) {
-            setProducts(remote.products);
+            const localRawProd = typeof window !== 'undefined' ? localStorage.getItem('sc_products') : null;
+            const localHasProds = localRawProd && localRawProd !== '[]';
+            if (remote.products.length === 0 && localHasProds && !force) {
+              pushDataToCloudRef.current?.();
+            } else {
+              setProducts(remote.products);
+            }
           }
           if (remote.serviceTickets && (!isLocalRecentlyMutated('serviceTickets') || force)) {
             setServiceTickets(remote.serviceTickets);
@@ -699,7 +696,13 @@ export default function Home() {
             setShipments(dedupedShipments);
           }
           if (remote.purchases && (!isLocalRecentlyMutated('purchases') || force)) {
-            setPurchases(remote.purchases);
+            const localRawPurch = typeof window !== 'undefined' ? localStorage.getItem('sc_purchases') : null;
+            const localHasPurch = localRawPurch && localRawPurch !== '[]';
+            if (remote.purchases.length === 0 && localHasPurch && !force) {
+              pushDataToCloudRef.current?.();
+            } else {
+              setPurchases(remote.purchases);
+            }
           }
           if (remote.handovers && (!isLocalRecentlyMutated('handovers') || force)) {
             setHandovers(remote.handovers);
