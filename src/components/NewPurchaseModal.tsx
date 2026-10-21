@@ -42,6 +42,7 @@ interface NewPurchaseModalProps {
   onClose: () => void;
   products: Product[];
   categories: ProductCategory[];
+  purchases?: PurchaseInvoice[];
   exchangeRate: number;
   baseCurrency?: Currency;
   currentUser?: Employee | null;
@@ -78,6 +79,7 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
   onClose,
   products,
   categories,
+  purchases = [],
   exchangeRate,
   baseCurrency = 'UZS',
   currentUser = null,
@@ -88,18 +90,28 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
 }) => {
   // Saved suppliers persistent state
   const [savedSuppliers, setSavedSuppliers] = useState<SupplierRecord[]>(() => {
+    let saved: SupplierRecord[] = [];
     if (typeof window !== 'undefined') {
       try {
         const raw = localStorage.getItem('sc_suppliers_v2');
         if (raw) {
           const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed)) {
+            saved = parsed;
+          }
         }
       } catch (e) {
         console.error("Error loading suppliers", e);
       }
     }
-    return DEFAULT_SUPPLIERS.map(s => ({ name: s, phone: '+998 ' }));
+    // Ensure all DEFAULT_SUPPLIERS are present
+    const combined: SupplierRecord[] = [...saved];
+    DEFAULT_SUPPLIERS.forEach(defName => {
+      if (!combined.some(s => s.name.toLowerCase() === defName.toLowerCase())) {
+        combined.push({ name: defName, phone: '+998 ' });
+      }
+    });
+    return combined;
   });
 
   // Add new supplier modal state
@@ -165,6 +177,15 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
 
   const availableSuppliers = useMemo(() => {
     const list: string[] = savedSuppliers.map(s => s.name);
+    // Include all historical suppliers from purchases
+    if (purchases && purchases.length > 0) {
+      purchases.forEach(p => {
+        if (p.supplierName && p.supplierName.trim() && !list.includes(p.supplierName.trim())) {
+          list.push(p.supplierName.trim());
+        }
+      });
+    }
+    // Always include DEFAULT_SUPPLIERS so standard diler suppliers never disappear
     DEFAULT_SUPPLIERS.forEach(s => {
       if (!list.includes(s)) list.push(s);
     });
@@ -172,13 +193,39 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
       list.unshift(editingPurchase.supplierName);
     }
     return Array.from(new Set(list));
-  }, [savedSuppliers, editingPurchase]);
+  }, [savedSuppliers, purchases, editingPurchase]);
+
+  // Check if user is actively searching with a query different from selected supplier
+  const isSearchFilterActive = useMemo(() => {
+    const q = supplierSearchText.trim().toLowerCase();
+    const curr = supplierName.trim().toLowerCase();
+    return q.length > 0 && q !== curr;
+  }, [supplierSearchText, supplierName]);
 
   const filteredSuppliers = useMemo(() => {
+    if (!isSearchFilterActive) return availableSuppliers;
     const q = supplierSearchText.trim().toLowerCase();
-    if (!q) return availableSuppliers;
     return availableSuppliers.filter((s) => s.toLowerCase().includes(q));
-  }, [availableSuppliers, supplierSearchText]);
+  }, [availableSuppliers, isSearchFilterActive, supplierSearchText]);
+
+  // Delete a custom supplier from saved suppliers
+  const handleDeleteCustomSupplier = (e: React.MouseEvent, nameToDelete: string) => {
+    e.stopPropagation();
+    const updated = savedSuppliers.filter(s => s.name.toLowerCase() !== nameToDelete.toLowerCase());
+    setSavedSuppliers(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('sc_suppliers_v2', JSON.stringify(updated));
+      } catch (err) {
+        console.error("Failed to delete supplier from localStorage", err);
+      }
+    }
+    if (supplierName.toLowerCase() === nameToDelete.toLowerCase()) {
+      const fallback = availableSuppliers.find(s => s.toLowerCase() !== nameToDelete.toLowerCase()) || DEFAULT_SUPPLIERS[0];
+      setSupplierName(fallback);
+      setSupplierSearchText(fallback);
+    }
+  };
 
   // Items table state
   const [items, setItems] = useState<DraftPurchaseItem[]>([]);
@@ -784,26 +831,46 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
                     setIsSupplierDropdownOpen(true);
                   }}
                   placeholder="Ta'minotchi nomini qidiring yoki yangisini yozing..."
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-8 py-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-14 py-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-cyan-500"
                 />
-                <button
-                  type="button"
-                  onClick={() => setIsSupplierDropdownOpen(!isSupplierDropdownOpen)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-                >
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isSupplierDropdownOpen ? 'rotate-180 text-cyan-600' : ''}`} />
-                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {supplierSearchText && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSupplierSearchText('');
+                        setSupplierName('');
+                        setIsSupplierDropdownOpen(true);
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      title="Tozalash"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsSupplierDropdownOpen(!isSupplierDropdownOpen)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                  >
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isSupplierDropdownOpen ? 'rotate-180 text-cyan-600' : ''}`} />
+                  </button>
+                </div>
               </div>
 
               {/* Autocomplete / Search Dropdown */}
               {isSupplierDropdownOpen && (
                 <div className="absolute top-full left-0 right-0 mt-1 z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto p-1 space-y-0.5 animate-in fade-in-50 zoom-in-95 duration-100">
                   <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <span>Mavjud Ta&apos;minotchilar ({filteredSuppliers.length})</span>
+                    <span>
+                      {isSearchFilterActive 
+                        ? `Qidiruv natijalari (${filteredSuppliers.length})` 
+                        : `Mavjud Barcha Ta'minotchilar (${availableSuppliers.length} ta)`}
+                    </span>
                     <button
                       type="button"
                       onClick={() => {
-                        setNewSupplierName(supplierSearchText !== DEFAULT_SUPPLIERS[0] ? supplierSearchText : '');
+                        setNewSupplierName(isSearchFilterActive ? supplierSearchText.trim() : '');
                         setIsAddSupplierModalOpen(true);
                       }}
                       className="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-0.5 font-semibold"
@@ -832,12 +899,12 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
                   ) : (
                     <>
                       {filteredSuppliers.map((s) => {
-                        const isSelected = s.toLowerCase() === supplierSearchText.toLowerCase();
+                        const isSelected = s.toLowerCase() === supplierName.toLowerCase();
+                        const isCustom = !DEFAULT_SUPPLIERS.some(def => def.toLowerCase() === s.toLowerCase());
                         const record = savedSuppliers.find(r => r.name.toLowerCase() === s.toLowerCase());
                         return (
-                          <button
+                          <div
                             key={s}
-                            type="button"
                             onClick={() => {
                               setSupplierName(s);
                               setSupplierSearchText(s);
@@ -846,26 +913,45 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
                               }
                               setIsSupplierDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition ${
+                            className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition cursor-pointer group ${
                               isSelected
                                 ? 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 font-bold border border-cyan-200 dark:border-cyan-800'
                                 : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                           >
-                            <div className="flex flex-col truncate">
-                              <span className="truncate">{s}</span>
+                            <div className="flex flex-col truncate pr-2">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="truncate">{s}</span>
+                                {isCustom && (
+                                  <span className="px-1.5 py-0.2 text-[9px] font-semibold bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 rounded border border-emerald-200 dark:border-emerald-800 shrink-0">
+                                    Qo&apos;shilgan
+                                  </span>
+                                )}
+                              </div>
                               {record?.phone && record.phone !== '+998 ' && (
                                 <span className="text-[10px] text-slate-400 font-mono">{record.phone}</span>
                               )}
                             </div>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-cyan-600 shrink-0" />}
-                          </button>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isSelected && <Check className="w-3.5 h-3.5 text-cyan-600" />}
+                              {isCustom && (
+                                <button
+                                  type="button"
+                                  title="O'chirish"
+                                  onClick={(e) => handleDeleteCustomSupplier(e, s)}
+                                  className="p-1 opacity-0 group-hover:opacity-100 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-slate-400 hover:text-rose-600 rounded transition"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         );
                       })}
                       <button
                         type="button"
                         onClick={() => {
-                          setNewSupplierName(supplierSearchText.trim() !== DEFAULT_SUPPLIERS[0] ? supplierSearchText.trim() : '');
+                          setNewSupplierName(isSearchFilterActive ? supplierSearchText.trim() : '');
                           setIsAddSupplierModalOpen(true);
                         }}
                         className="w-full text-left px-3 py-2 rounded-lg text-xs text-cyan-600 dark:text-cyan-400 bg-cyan-50/50 dark:bg-cyan-950/30 hover:bg-cyan-100/50 border border-dashed border-cyan-300 dark:border-cyan-800 font-bold flex items-center gap-1.5 mt-1"

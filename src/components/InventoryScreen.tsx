@@ -3311,6 +3311,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
         editingPurchase={editingPurchaseInvoice}
         products={products}
         categories={categories}
+        purchases={purchases}
         exchangeRate={exchangeRate}
         baseCurrency={baseCurrency}
         currentUser={currentUser}
