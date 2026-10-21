@@ -1970,20 +1970,25 @@ export default function Home() {
   const handleSavePurchase = (invoice: PurchaseInvoice, updatedProducts: Product[]) => {
     recordLocalMutation('products');
     recordLocalMutation('purchases');
+    let nextPurchases: PurchaseInvoice[] = [];
     setPurchases((prev) => {
       const exists = prev.some((p) => p.id === invoice.id);
       if (exists) {
-        return prev.map((p) => (p.id === invoice.id ? invoice : p));
+        nextPurchases = prev.map((p) => (p.id === invoice.id ? invoice : p));
+      } else {
+        nextPurchases = [invoice, ...prev];
       }
-      return [invoice, ...prev];
+      return nextPurchases;
     });
     setProducts(updatedProducts);
+    const finalPurchases = nextPurchases.length > 0 ? nextPurchases : [invoice, ...purchases.filter((p) => p.id !== invoice.id)];
     try {
+      localStorage.setItem('sc_purchases', JSON.stringify(finalPurchases));
       localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
     } catch (e) {
       console.error(e);
     }
-    pushDataToCloud({ products: updatedProducts });
+    pushDataToCloud({ purchases: finalPurchases, products: updatedProducts });
     showToast(`✓ Kirim nakladnoyi #${invoice.invoiceNumber} saqlandi va ombor qoldig'i yangilandi!`);
   };
 

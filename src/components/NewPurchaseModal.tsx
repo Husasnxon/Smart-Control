@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Product, ProductCategory, PurchaseInvoice, PurchaseItem, PurchasePaymentRecord, Currency, Employee } from '../types';
+import { Product, ProductCategory, PurchaseInvoice, PurchaseItem, PurchasePaymentRecord, Currency, Employee, Branch } from '../types';
 import { DEFAULT_SUPPLIERS } from '../data/mockData';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { 
@@ -45,6 +45,8 @@ interface NewPurchaseModalProps {
   exchangeRate: number;
   baseCurrency?: Currency;
   currentUser?: Employee | null;
+  branches?: Branch[];
+  currentBranch?: Branch | null;
   onConfirmPurchase: (purchase: PurchaseInvoice, updatedProducts: Product[]) => void;
   editingPurchase?: PurchaseInvoice | null;
 }
@@ -79,6 +81,8 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
   exchangeRate,
   baseCurrency = 'UZS',
   currentUser = null,
+  branches = [],
+  currentBranch = null,
   onConfirmPurchase,
   editingPurchase = null
 }) => {
@@ -122,7 +126,21 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
   const [isCustomSupplier, setIsCustomSupplier] = useState(false);
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState('');
   const [supplierPhone, setSupplierPhone] = useState('+998 ');
-  const [warehouseName, setWarehouseName] = useState('Asosiy Ombor');
+  
+  // Selected Branch ID & Warehouse Name
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
+    if (editingPurchase?.branchId) return editingPurchase.branchId;
+    if (currentBranch && currentBranch.id !== 'all') return currentBranch.id;
+    const mainB = branches.find(b => b.isMain) || branches[0];
+    return mainB ? mainB.id : 'branch-1';
+  });
+  const [warehouseName, setWarehouseName] = useState<string>(() => {
+    if (editingPurchase?.warehouseName) return editingPurchase.warehouseName;
+    if (currentBranch && currentBranch.id !== 'all') return currentBranch.name;
+    const mainB = branches.find(b => b.isMain) || branches[0];
+    return mainB ? mainB.name : 'Asosiy Ombor';
+  });
+
   const [invoiceCurrency, setInvoiceCurrency] = useState<'USD' | 'UZS'>(baseCurrency);
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'debt' | 'partial'>('paid');
   const [paymentMethod, setPaymentMethod] = useState<'usd' | 'bank_transfer' | 'cash' | 'card'>(baseCurrency === 'USD' ? 'usd' : 'cash');
@@ -184,7 +202,12 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
         }
         setSupplierInvoiceNumber(editingPurchase.supplierInvoiceNumber || '');
         setSupplierPhone(editingPurchase.supplierPhone || '+998 ');
-        setWarehouseName(editingPurchase.warehouseName || 'Asosiy Ombor');
+        
+        const bId = editingPurchase.branchId || (currentBranch && currentBranch.id !== 'all' ? currentBranch.id : (branches.find(b => b.isMain) || branches[0])?.id || 'branch-1');
+        setSelectedBranchId(bId);
+        const targetB = branches.find(b => b.id === bId);
+        setWarehouseName(editingPurchase.warehouseName || targetB?.name || 'Asosiy Ombor');
+
         setInvoiceCurrency(editingPurchase.currency);
         setPaymentStatus(editingPurchase.paymentStatus);
         if (editingPurchase.paymentStatus === 'partial') {
@@ -229,7 +252,14 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
         setIsCustomSupplier(false);
         setSupplierInvoiceNumber('');
         setSupplierPhone('+998 ');
-        setWarehouseName('Asosiy Ombor');
+        
+        const defaultBId = (currentBranch && currentBranch.id !== 'all')
+          ? currentBranch.id
+          : (branches.find(b => b.isMain) || branches[0])?.id || 'branch-1';
+        setSelectedBranchId(defaultBId);
+        const targetB = branches.find(b => b.id === defaultBId);
+        setWarehouseName(targetB?.name || 'Asosiy Ombor');
+
         setInvoiceCurrency(baseCurrency);
         setPaymentStatus('paid');
         setCustomPaidAmount('');
@@ -557,6 +587,8 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
     const finalSupplier = (supplierSearchText.trim() || supplierName.trim() || (isCustomSupplier ? customSupplier.trim() : '') || 'Noma\'lum Yetkazib beruvchi');
     const invNumber = editingPurchase ? editingPurchase.invoiceNumber : generatePurchaseInvoiceNumber();
 
+    const targetBranch = branches.find(b => b.id === selectedBranchId) || (currentBranch && currentBranch.id !== 'all' ? currentBranch : (branches.find(b => b.isMain) || branches[0]));
+
     const purchaseItems: PurchaseItem[] = items.map((it) => ({
       productId: it.productId,
       productName: it.productName,
@@ -580,7 +612,8 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
       supplierName: finalSupplier,
       supplierPhone: supplierPhone.trim() || undefined,
       createdAt: editingPurchase ? editingPurchase.createdAt : new Date().toISOString().replace('T', ' ').slice(0, 16),
-      warehouseName,
+      warehouseName: targetBranch?.name || warehouseName || 'Asosiy Ombor',
+      branchId: selectedBranchId || targetBranch?.id || 'branch-1',
       currency: invoiceCurrency,
       exchangeRate,
       items: purchaseItems,
@@ -662,7 +695,9 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
           hasSerialNumber: item.hasSerialNumber,
           serialNumbers: item.serialNumbers,
           warrantyMonths: 24,
-          isService: false
+          isService: false,
+          branchId: selectedBranchId || targetBranch?.id || 'branch-1',
+          branchName: targetBranch?.name || warehouseName || 'Asosiy Ombor'
         };
         updatedProducts.push(newProduct);
       }
@@ -878,17 +913,50 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
               </div>
             </div>
 
-            {/* Warehouse */}
+            {/* Warehouse / Branch Selection */}
             <div>
-              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                Qabul qiluvchi Ombor:
-              </label>
-              <input
-                type="text"
-                value={warehouseName}
-                onChange={(e) => setWarehouseName(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-white outline-none"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                  <Building2 className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+                  * Qabul qiluvchi Ombor:
+                </label>
+                {branches && branches.length > 0 && (
+                  <span className="text-[9px] font-bold text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-950/60 px-1.5 py-0.5 rounded">
+                    {branches.length} ta ombor
+                  </span>
+                )}
+              </div>
+              {branches && branches.length > 0 ? (
+                <div className="relative">
+                  <select
+                    value={selectedBranchId}
+                    onChange={(e) => {
+                      const bId = e.target.value;
+                      setSelectedBranchId(bId);
+                      const targetBranch = branches.find(b => b.id === bId);
+                      if (targetBranch) {
+                        setWarehouseName(targetBranch.name);
+                      }
+                    }}
+                    className="w-full bg-white dark:bg-slate-900 border-2 border-cyan-500/50 focus:border-cyan-500 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white outline-none appearance-none pr-8 cursor-pointer shadow-sm hover:border-cyan-500 transition"
+                  >
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        🏢 {b.name} {b.isMain ? "(Asosiy bosh ombor)" : `(${b.code || 'Filial'})`}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={warehouseName}
+                  onChange={(e) => setWarehouseName(e.target.value)}
+                  placeholder="Asosiy Ombor"
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+              )}
             </div>
 
             {/* Received by (Locked for audit & personal accountability) */}

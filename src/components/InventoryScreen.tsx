@@ -3314,6 +3314,8 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
         exchangeRate={exchangeRate}
         baseCurrency={baseCurrency}
         currentUser={currentUser}
+        branches={branches}
+        currentBranch={currentBranch}
         onConfirmPurchase={(invoice, updatedProducts) => {
           if (onSavePurchase) {
             onSavePurchase(invoice, updatedProducts);
