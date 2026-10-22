@@ -321,14 +321,13 @@ export default function Home() {
       }
 
       const savedPurchases = localStorage.getItem('sc_purchases');
-      if (savedPurchases) {
+      if (savedPurchases !== null) {
         try {
           const parsedPurchases = JSON.parse(savedPurchases);
-          if (Array.isArray(parsedPurchases) && parsedPurchases.length > 0) {
+          if (Array.isArray(parsedPurchases)) {
             setPurchases(parsedPurchases);
-          } else if (INITIAL_PURCHASES.length > 0) {
+          } else {
             setPurchases(INITIAL_PURCHASES);
-            localStorage.setItem('sc_purchases', JSON.stringify(INITIAL_PURCHASES));
           }
         } catch (e) {
           setPurchases(INITIAL_PURCHASES);
@@ -2030,10 +2029,96 @@ export default function Home() {
 
   // Kirim nakladnoyini bekor qilish
   const handleCancelPurchase = (invoiceId: string) => {
-    setPurchases((prev) =>
-      prev.map((p) => (p.id === invoiceId ? { ...p, status: 'cancelled' as const } : p))
-    );
-    showToast(`✓ Kirim nakladnoyi bekor qilindi.`);
+    const target = purchases.find((p) => p.id === invoiceId);
+    if (!target || target.status === 'cancelled') return;
+
+    recordLocalMutation('purchases');
+    recordLocalMutation('products');
+
+    let updatedProducts = [...products];
+    if (target.items && target.items.length > 0) {
+      target.items.forEach((item) => {
+        updatedProducts = updatedProducts.map((prod) => {
+          if (prod.id === item.productId || prod.name === item.productName) {
+            const currentStock = prod.stockQuantity || 0;
+            const newStock = Math.max(0, currentStock - (item.quantity || 1));
+            let newSerialNumbers = prod.serialNumbers || [];
+            if (item.serialNumbers && item.serialNumbers.length > 0) {
+              const itemSns = new Set(item.serialNumbers);
+              newSerialNumbers = newSerialNumbers.filter((sn) => !itemSns.has(sn));
+            }
+            return {
+              ...prod,
+              stockQuantity: newStock,
+              serialNumbers: newSerialNumbers,
+            };
+          }
+          return prod;
+        });
+      });
+    }
+
+    const nextPurchases = purchases.map((p) => (p.id === invoiceId ? { ...p, status: 'cancelled' as const } : p));
+    setPurchases(nextPurchases);
+    setProducts(updatedProducts);
+
+    try {
+      localStorage.setItem('sc_purchases', JSON.stringify(nextPurchases));
+      localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
+    } catch (e) {
+      console.error(e);
+    }
+
+    pushDataToCloud({ purchases: nextPurchases, products: updatedProducts });
+    showToast(`✓ #${target.invoiceNumber} kirim nakladnoyi bekor qilindi va tovarlar qoldiqdan chiqarildi.`);
+  };
+
+  // Kirim nakladnoyini (Prixodni) butunlay o'chirish va ombor qoldig'ini qaytarish
+  const handleDeletePurchase = (invoiceId: string) => {
+    const target = purchases.find((p) => p.id === invoiceId);
+    if (!target) return;
+
+    recordLocalMutation('purchases');
+    recordLocalMutation('products');
+
+    // Agar prixod bekor qilinmagan bo'lsa (ya'ni tovarlar omborga kirgan bo'lsa),
+    // ushbu tovarlar sonini ombor qoldig'idan kamaytirish va seriya raqamlarini tozalash
+    let updatedProducts = [...products];
+    if (target.status !== 'cancelled' && target.items && target.items.length > 0) {
+      target.items.forEach((item) => {
+        updatedProducts = updatedProducts.map((prod) => {
+          if (prod.id === item.productId || prod.name === item.productName) {
+            const currentStock = prod.stockQuantity || 0;
+            const newStock = Math.max(0, currentStock - (item.quantity || 1));
+            let newSerialNumbers = prod.serialNumbers || [];
+            if (item.serialNumbers && item.serialNumbers.length > 0) {
+              const itemSns = new Set(item.serialNumbers);
+              newSerialNumbers = newSerialNumbers.filter((sn) => !itemSns.has(sn));
+            }
+            return {
+              ...prod,
+              stockQuantity: newStock,
+              serialNumbers: newSerialNumbers,
+            };
+          }
+          return prod;
+        });
+      });
+    }
+
+    const nextPurchases = purchases.filter((p) => p.id !== invoiceId);
+    setPurchases(nextPurchases);
+    setProducts(updatedProducts);
+
+    try {
+      localStorage.setItem('sc_purchases', JSON.stringify(nextPurchases));
+      localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
+    } catch (e) {
+      console.error(e);
+    }
+
+    pushDataToCloud({ purchases: nextPurchases, products: updatedProducts });
+    showToast(`✓ #${target.invoiceNumber} prixod butunlay o'chirildi va ombor qoldig'i to'g'rilandi!`);
   };
 
   // Filial qo'shish
@@ -3237,6 +3322,7 @@ export default function Home() {
               onSavePurchase={handleSavePurchase}
               onRecordSupplierPayment={handleRecordSupplierPayment}
               onCancelPurchase={handleCancelPurchase}
+              onDeletePurchase={handleDeletePurchase}
               onAddProduct={handleAddProduct}
               onUpdateProduct={handleUpdateProduct}
               onDeleteProduct={handleDeleteProduct}

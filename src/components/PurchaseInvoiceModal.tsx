@@ -15,17 +15,20 @@ import {
   Clock, 
   AlertCircle,
   FileText,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 
 interface PurchaseInvoiceModalProps {
   invoice: PurchaseInvoice | null;
   onClose: () => void;
+  onDelete?: (invoiceId: string) => void;
 }
 
 export const PurchaseInvoiceModal: React.FC<PurchaseInvoiceModalProps> = ({
   invoice,
-  onClose
+  onClose,
+  onDelete
 }) => {
   // Escape key handler to close modal
   useEffect(() => {
@@ -65,6 +68,23 @@ export const PurchaseInvoiceModal: React.FC<PurchaseInvoiceModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {onDelete && (
+              <button
+                onClick={() => {
+                  const confirmMsg = `Haqiqatan ham #${invoice.invoiceNumber} kirim fakturasini (prixodni) butunlay o'chirib tashlamoqchimisiz?\n\n` +
+                    `Diqqat: Ushbu prixod orqali omborga kiritilgan mahsulotlar qoldig'i avtomatik kamaytiriladi!`;
+                  if (window.confirm(confirmMsg)) {
+                    onDelete(invoice.id);
+                    onClose();
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-600 hover:text-white text-rose-600 dark:text-rose-400 font-bold text-xs flex items-center gap-1.5 transition"
+                title="Kirim fakturasini (prixodni) butunlay o'chirish"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>O&apos;chirish</span>
+              </button>
+            )}
             <button
               onClick={handlePrint}
               className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition"

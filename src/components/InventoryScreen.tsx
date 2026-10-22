@@ -63,6 +63,7 @@ interface InventoryScreenProps {
   onSavePurchase?: (invoice: PurchaseInvoice, updatedProducts: Product[]) => void;
   onRecordSupplierPayment?: (payment: PurchasePaymentRecord, updatedInvoice: PurchaseInvoice) => void;
   onCancelPurchase?: (invoiceId: string) => void;
+  onDeletePurchase?: (invoiceId: string) => void;
   onAddProduct: (product: Product) => void;
   onUpdateProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
@@ -87,6 +88,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   onSavePurchase,
   onRecordSupplierPayment,
   onCancelPurchase,
+  onDeletePurchase,
   onAddProduct,
   onUpdateProduct,
   onDeleteProduct,
@@ -1530,10 +1532,28 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                                   onCancelPurchase(purchase.id);
                                 }
                               }}
-                              className="p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-500 transition"
+                              className="p-1 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-400 hover:text-amber-500 transition"
                               title="Bekor qilish"
                             >
                               <Ban className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Delete Invoice (Prixodni butunlay o'chirish) */}
+                          {onDeletePurchase && (
+                            <button
+                              onClick={() => {
+                                const confirmMsg = `Haqiqatan ham #${purchase.invoiceNumber} kirim fakturasini (prixodni) butunlay o'chirib tashlamoqchimisiz?\n\n` +
+                                  `Diqqat: Ushbu prixod orqali omborga kiritilgan mahsulotlar qoldig'i avtomatik kamaytiriladi!`;
+                                if (window.confirm(confirmMsg)) {
+                                  onDeletePurchase(purchase.id);
+                                }
+                              }}
+                              className="px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-600 hover:text-white text-rose-600 dark:text-rose-400 font-bold text-[11px] transition flex items-center gap-1 shadow-sm"
+                              title="Prixodni butunlay o'chirish"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>O&apos;chirish</span>
                             </button>
                           )}
                         </div>
@@ -3383,6 +3403,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       <PurchaseInvoiceModal
         invoice={viewingPurchaseInvoice}
         onClose={() => setViewingPurchaseInvoice(null)}
+        onDelete={onDeletePurchase}
       />
 
       {/* MODAL 7: SUPPLIER PAYMENT MODAL */}
