@@ -37,6 +37,8 @@ interface SyncStore {
   stockTransfers?: StockTransfer[];
   exchangeRate?: number;
   baseCurrency?: string;
+  deletedProductIds?: string[];
+  deletedPurchaseIds?: string[];
 }
 
 // Global persistence for warm serverless instances
@@ -79,6 +81,15 @@ export async function POST(req: NextRequest) {
 
     const existing = globalThis.__smartControlSyncStore || { timestamp: 0 };
 
+    const mergedDeletedProducts = Array.from(new Set([
+      ...(existing.deletedProductIds || []),
+      ...(body.deletedProductIds || [])
+    ]));
+    const mergedDeletedPurchases = Array.from(new Set([
+      ...(existing.deletedPurchaseIds || []),
+      ...(body.deletedPurchaseIds || [])
+    ]));
+
     let updatedStore: SyncStore;
     if ((body as { reset?: boolean }).reset) {
       updatedStore = {
@@ -99,12 +110,28 @@ export async function POST(req: NextRequest) {
         branches: body.branches || existing.branches,
         stockTransfers: [],
         exchangeRate: existing.exchangeRate || 12850,
-        baseCurrency: existing.baseCurrency || 'UZS'
+        baseCurrency: existing.baseCurrency || 'UZS',
+        deletedProductIds: mergedDeletedProducts,
+        deletedPurchaseIds: mergedDeletedPurchases
       };
     } else {
+      let nextProducts = body.products !== undefined ? body.products : existing.products;
+      if (nextProducts) {
+        nextProducts = nextProducts.filter(p => !mergedDeletedProducts.includes(p.id));
+      }
+
+      let nextPurchases = body.purchases !== undefined ? body.purchases : existing.purchases;
+      if (nextPurchases) {
+        nextPurchases = nextPurchases.filter(p => !mergedDeletedPurchases.includes(p.id));
+      }
+
       updatedStore = {
         ...existing,
         ...body,
+        products: nextProducts,
+        purchases: nextPurchases,
+        deletedProductIds: mergedDeletedProducts,
+        deletedPurchaseIds: mergedDeletedPurchases,
         timestamp: Date.now()
       };
     }

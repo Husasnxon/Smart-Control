@@ -12,27 +12,6 @@ export const INITIAL_PRODUCT_CATEGORIES: ProductCategory[] = [
 
 export const INITIAL_PRODUCTS: Product[] = [
   {
-    id: 'prod-tc-r3232',
-    barcode: '202610210001',
-    sku: 'SKU-3232',
-    name: 'TC-R3232 Spec:I/B/K/V3.1',
-    category: 'Video Registratorlar (NVR/DVR)',
-    costPrice: 0,
-    costPriceUSD: 0,
-    retailPrice: 0,
-    retailPriceUSD: 0,
-    wholesalePrice: 0,
-    stockQuantity: 0,
-    minStockAlert: 2,
-    unit: 'dona',
-    hasSerialNumber: true,
-    serialNumbers: [],
-    warrantyMonths: 24,
-    isService: false,
-    branchId: 'branch-1',
-    branchName: 'Bosh Filial (Namangan)'
-  },
-  {
     id: 'prod-tc-r3110',
     barcode: '202610210002',
     sku: 'SKU-3110',

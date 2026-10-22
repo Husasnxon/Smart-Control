@@ -71,6 +71,8 @@ interface CloudSyncPayload {
   stockTransfers?: StockTransfer[];
   exchangeRate?: number;
   baseCurrency?: Currency;
+  deletedProductIds?: string[];
+  deletedPurchaseIds?: string[];
 }
 
 interface CloudSyncResponse {
@@ -107,6 +109,8 @@ export default function Home() {
   const [branches, setBranches] = useState<Branch[]>(INITIAL_BRANCHES);
   const [currentBranchId, setCurrentBranchId] = useState<string>('branch-1');
   const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>(INITIAL_STOCK_TRANSFERS);
+  const [deletedProductIds, setDeletedProductIds] = useState<string[]>([]);
+  const [deletedPurchaseIds, setDeletedPurchaseIds] = useState<string[]>([]);
   const [exchangeRate, setExchangeRate] = useState<number>(12850);
   const [baseCurrency, setBaseCurrency] = useState<Currency>('UZS');
   const [technicianSubTab, setTechnicianSubTab] = useState<string>('active_jobs');
@@ -147,22 +151,48 @@ export default function Home() {
       if (savedCurrency === 'UZS' || savedCurrency === 'USD') {
         setBaseCurrency(savedCurrency);
       }
+      const savedDeletedProdIds = localStorage.getItem('sc_deleted_product_ids');
+      let activeDeletedProdIds: string[] = [];
+      if (savedDeletedProdIds) {
+        try {
+          const parsedDelProds = JSON.parse(savedDeletedProdIds);
+          if (Array.isArray(parsedDelProds)) {
+            activeDeletedProdIds = parsedDelProds;
+            setDeletedProductIds(parsedDelProds);
+          }
+        } catch (e) {}
+      }
+
+      const savedDeletedPurchIds = localStorage.getItem('sc_deleted_purchase_ids');
+      let activeDeletedPurchIds: string[] = [];
+      if (savedDeletedPurchIds) {
+        try {
+          const parsedDelPurch = JSON.parse(savedDeletedPurchIds);
+          if (Array.isArray(parsedDelPurch)) {
+            activeDeletedPurchIds = parsedDelPurch;
+            setDeletedPurchaseIds(parsedDelPurch);
+          }
+        } catch (e) {}
+      }
+
       const savedProducts = localStorage.getItem('sc_products');
-      if (savedProducts) {
+      if (savedProducts !== null) {
         try {
           const parsed: Product[] = JSON.parse(savedProducts);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setProducts(parsed);
-          } else if (INITIAL_PRODUCTS.length > 0) {
-            setProducts(INITIAL_PRODUCTS);
-            localStorage.setItem('sc_products', JSON.stringify(INITIAL_PRODUCTS));
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter(p => !activeDeletedProdIds.includes(p.id));
+            setProducts(filtered);
+          } else {
+            const initFiltered = INITIAL_PRODUCTS.filter(p => !activeDeletedProdIds.includes(p.id));
+            setProducts(initFiltered);
           }
         } catch (e) {
           console.error("Failed to parse saved products", e);
         }
       } else {
-        localStorage.setItem('sc_products', JSON.stringify(INITIAL_PRODUCTS));
-        setProducts(INITIAL_PRODUCTS);
+        const initFiltered = INITIAL_PRODUCTS.filter(p => !activeDeletedProdIds.includes(p.id));
+        localStorage.setItem('sc_products', JSON.stringify(initFiltered));
+        setProducts(initFiltered);
       }
 
       const savedCustomers = localStorage.getItem('sc_customers');
@@ -325,16 +355,18 @@ export default function Home() {
         try {
           const parsedPurchases = JSON.parse(savedPurchases);
           if (Array.isArray(parsedPurchases)) {
-            setPurchases(parsedPurchases);
+            const filteredPurchases = parsedPurchases.filter(p => !activeDeletedPurchIds.includes(p.id));
+            setPurchases(filteredPurchases);
           } else {
-            setPurchases(INITIAL_PURCHASES);
+            setPurchases(INITIAL_PURCHASES.filter(p => !activeDeletedPurchIds.includes(p.id)));
           }
         } catch (e) {
-          setPurchases(INITIAL_PURCHASES);
+          setPurchases(INITIAL_PURCHASES.filter(p => !activeDeletedPurchIds.includes(p.id)));
         }
       } else {
-        localStorage.setItem('sc_purchases', JSON.stringify(INITIAL_PURCHASES));
-        setPurchases(INITIAL_PURCHASES);
+        const initPurchasesFiltered = INITIAL_PURCHASES.filter(p => !activeDeletedPurchIds.includes(p.id));
+        localStorage.setItem('sc_purchases', JSON.stringify(initPurchasesFiltered));
+        setPurchases(initPurchasesFiltered);
       }
 
       const isTicketsPurged = localStorage.getItem('sc_service_tickets_clean_v1');
@@ -488,6 +520,8 @@ export default function Home() {
         stockTransfers,
         exchangeRate,
         baseCurrency,
+        deletedProductIds,
+        deletedPurchaseIds,
         ...(overrideData || {})
       };
       const res = await fetch('/api/sync', {
@@ -647,13 +681,30 @@ export default function Home() {
           }
 
           // Guard against stale server lambda snapshots overwriting fresh local changes
-          if (remote.products && (!isLocalRecentlyMutated('products') || force)) {
+          if (remote.deletedProductIds && Array.isArray(remote.deletedProductIds)) {
+            setDeletedProductIds((prev) => {
+              const merged = Array.from(new Set([...prev, ...remote.deletedProductIds!]));
+              try { localStorage.setItem('sc_deleted_product_ids', JSON.stringify(merged)); } catch (e) {}
+              return merged;
+            });
+          }
+          if (remote.deletedPurchaseIds && Array.isArray(remote.deletedPurchaseIds)) {
+            setDeletedPurchaseIds((prev) => {
+              const merged = Array.from(new Set([...prev, ...remote.deletedPurchaseIds!]));
+              try { localStorage.setItem('sc_deleted_purchase_ids', JSON.stringify(merged)); } catch (e) {}
+              return merged;
+            });
+          }
+
+          if (remote.products && !isLocalRecentlyMutated('products')) {
             const localRawProd = typeof window !== 'undefined' ? localStorage.getItem('sc_products') : null;
             const localHasProds = localRawProd && localRawProd !== '[]';
             if (remote.products.length === 0 && localHasProds && !force) {
               pushDataToCloudRef.current?.();
             } else {
-              setProducts(remote.products);
+              const allDelProds = new Set([...deletedProductIds, ...(remote.deletedProductIds || [])]);
+              const sanitizedProducts = remote.products.filter(p => !allDelProds.has(p.id));
+              setProducts(sanitizedProducts);
             }
           }
           if (remote.serviceTickets && (!isLocalRecentlyMutated('serviceTickets') || force)) {
@@ -694,13 +745,15 @@ export default function Home() {
             });
             setShipments(dedupedShipments);
           }
-          if (remote.purchases && (!isLocalRecentlyMutated('purchases') || force)) {
+          if (remote.purchases && !isLocalRecentlyMutated('purchases')) {
             const localRawPurch = typeof window !== 'undefined' ? localStorage.getItem('sc_purchases') : null;
             const localHasPurch = localRawPurch && localRawPurch !== '[]';
             if (remote.purchases.length === 0 && localHasPurch && !force) {
               pushDataToCloudRef.current?.();
             } else {
-              setPurchases(remote.purchases);
+              const allDelPurch = new Set([...deletedPurchaseIds, ...(remote.deletedPurchaseIds || [])]);
+              const sanitizedPurchases = remote.purchases.filter(p => !allDelPurch.has(p.id));
+              setPurchases(sanitizedPurchases);
             }
           }
           if (remote.handovers && (!isLocalRecentlyMutated('handovers') || force)) {
@@ -1920,30 +1973,27 @@ export default function Home() {
   // Add Product
   const handleAddProduct = (newProd: Product) => {
     recordLocalMutation('products');
-    let nextList: Product[] = [];
-    setProducts((prev) => {
-      nextList = [newProd, ...prev];
-      return nextList;
-    });
-    const finalProducts = nextList.length > 0 ? nextList : [newProd, ...products];
+    const finalProducts = [newProd, ...products.filter(p => p.id !== newProd.id)];
+    setProducts(finalProducts);
+
+    const updatedDeletedIds = deletedProductIds.filter(id => id !== newProd.id);
+    setDeletedProductIds(updatedDeletedIds);
+
     try {
       localStorage.setItem('sc_products', JSON.stringify(finalProducts));
+      localStorage.setItem('sc_deleted_product_ids', JSON.stringify(updatedDeletedIds));
     } catch (e) {
       console.error(e);
     }
-    pushDataToCloud({ products: finalProducts });
+    pushDataToCloud({ products: finalProducts, deletedProductIds: updatedDeletedIds });
     showToast(`✓ "${newProd.name}" omborga muvaffaqiyatli qo'shildi.`);
   };
 
   // Update Stock
   const handleUpdateStock = (productId: string, newStock: number) => {
     recordLocalMutation('products');
-    let nextList: Product[] = [];
-    setProducts((prev) => {
-      nextList = prev.map((p) => (p.id === productId ? { ...p, stockQuantity: newStock } : p));
-      return nextList;
-    });
-    const finalProducts = nextList.length > 0 ? nextList : products.map((p) => (p.id === productId ? { ...p, stockQuantity: newStock } : p));
+    const finalProducts = products.map((p) => (p.id === productId ? { ...p, stockQuantity: newStock } : p));
+    setProducts(finalProducts);
     try {
       localStorage.setItem('sc_products', JSON.stringify(finalProducts));
     } catch (e) {
@@ -1956,12 +2006,8 @@ export default function Home() {
   // Update Product (Redakt qilish)
   const handleUpdateProduct = (updatedProduct: Product) => {
     recordLocalMutation('products');
-    let nextList: Product[] = [];
-    setProducts((prev) => {
-      nextList = prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
-      return nextList;
-    });
-    const finalProducts = nextList.length > 0 ? nextList : products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
+    const finalProducts = products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
+    setProducts(finalProducts);
     try {
       localStorage.setItem('sc_products', JSON.stringify(finalProducts));
     } catch (e) {
@@ -1975,19 +2021,20 @@ export default function Home() {
   const handleDeleteProduct = (productId: string) => {
     recordLocalMutation('products');
     const prod = products.find((p) => p.id === productId);
-    let nextList: Product[] = [];
-    setProducts((prev) => {
-      nextList = prev.filter((p) => p.id !== productId);
-      return nextList;
-    });
-    const finalProducts = nextList.length > 0 || products.length === 1 ? nextList : products.filter((p) => p.id !== productId);
+    const finalProducts = products.filter((p) => p.id !== productId);
+    setProducts(finalProducts);
+
+    const updatedDeletedIds = Array.from(new Set([...deletedProductIds, productId]));
+    setDeletedProductIds(updatedDeletedIds);
+
     try {
       localStorage.setItem('sc_products', JSON.stringify(finalProducts));
+      localStorage.setItem('sc_deleted_product_ids', JSON.stringify(updatedDeletedIds));
     } catch (e) {
       console.error(e);
     }
-    pushDataToCloud({ products: finalProducts });
-    showToast(`✓ "${prod?.name || 'Tovar'}" ombordan o'chirildi.`);
+    pushDataToCloud({ products: finalProducts, deletedProductIds: updatedDeletedIds });
+    showToast(`✓ "${prod?.name || 'Tovar'}" ombordan butunlay o'chirildi.`);
   };
 
   // Omborga tovar kirimi (Prixod / Nakladnoy) - Yangi qo'shish va Tahrirlash (Redakt)
@@ -2107,17 +2154,24 @@ export default function Home() {
     }
 
     const nextPurchases = purchases.filter((p) => p.id !== invoiceId);
+    const updatedDeletedPurchases = Array.from(new Set([...deletedPurchaseIds, invoiceId]));
+    setDeletedPurchaseIds(updatedDeletedPurchases);
     setPurchases(nextPurchases);
     setProducts(updatedProducts);
 
     try {
       localStorage.setItem('sc_purchases', JSON.stringify(nextPurchases));
       localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
+      localStorage.setItem('sc_deleted_purchase_ids', JSON.stringify(updatedDeletedPurchases));
     } catch (e) {
       console.error(e);
     }
 
-    pushDataToCloud({ purchases: nextPurchases, products: updatedProducts });
+    pushDataToCloud({
+      purchases: nextPurchases,
+      products: updatedProducts,
+      deletedPurchaseIds: updatedDeletedPurchases
+    });
     showToast(`✓ #${target.invoiceNumber} prixod butunlay o'chirildi va ombor qoldig'i to'g'rilandi!`);
   };
 
