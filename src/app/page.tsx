@@ -256,50 +256,47 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        const isZeroClean = localStorage.getItem('sc_zero_clean_slate_v5');
-        if (!isZeroClean) {
-          localStorage.setItem('sc_receipts', '[]');
-          localStorage.setItem('sc_expenses', '[]');
-          localStorage.setItem('sc_advances', '[]');
-          localStorage.setItem('sc_payrolls', '[]');
-          localStorage.setItem('sc_customer_orders', '[]');
-          localStorage.setItem('sc_shipments', '[]');
-          localStorage.setItem('sc_handovers', '[]');
-          localStorage.setItem('sc_purchases', '[]');
-          localStorage.setItem('sc_service_tickets', '[]');
-          localStorage.setItem('sc_customer_debt_payments', '[]');
-          localStorage.setItem('sc_exchange_rate', '12850');
-
-          const existingProdsRaw = localStorage.getItem('sc_products');
-          let prodsToZero: Product[] = INITIAL_PRODUCTS;
-          if (existingProdsRaw) {
+        // Seed migration: ensure the user's 110 products, 6 employees, and purchases are properly populated
+        const isV2Seeded = localStorage.getItem('sc_v2_110_seeded');
+        if (!isV2Seeded) {
+          const rawProds = localStorage.getItem('sc_products');
+          let hasExistingProds = false;
+          if (rawProds) {
             try {
-              const parsed = JSON.parse(existingProdsRaw);
-              if (Array.isArray(parsed)) prodsToZero = parsed;
+              const p = JSON.parse(rawProds);
+              if (Array.isArray(p) && p.length > 5) hasExistingProds = true;
             } catch (e) {}
           }
-          const zeroedProds = prodsToZero.map(p => ({ ...p, stockQuantity: 0, serialNumbers: [] }));
-          localStorage.setItem('sc_products', JSON.stringify(zeroedProds));
+          if (!hasExistingProds) {
+            localStorage.setItem('sc_products', JSON.stringify(INITIAL_PRODUCTS));
+          }
+
+          const rawEmp = localStorage.getItem('sc_employees');
+          let hasExistingEmp = false;
+          if (rawEmp) {
+            try {
+              const e = JSON.parse(rawEmp);
+              if (Array.isArray(e) && e.length >= 4) hasExistingEmp = true;
+            } catch (e) {}
+          }
+          if (!hasExistingEmp) {
+            localStorage.setItem('sc_employees', JSON.stringify(INITIAL_EMPLOYEES));
+          }
+
+          const rawPurch = localStorage.getItem('sc_purchases');
+          let hasExistingPurch = false;
+          if (rawPurch) {
+            try {
+              const pu = JSON.parse(rawPurch);
+              if (Array.isArray(pu) && pu.length > 0) hasExistingPurch = true;
+            } catch (e) {}
+          }
+          if (!hasExistingPurch) {
+            localStorage.setItem('sc_purchases', JSON.stringify(INITIAL_PURCHASES));
+          }
+
           localStorage.setItem('sc_zero_clean_slate_v5', 'true');
-
-          setReceipts([]);
-          setExpenses([]);
-          setAdvances([]);
-          setPayrolls([]);
-          setCustomerOrders([]);
-          setShipments([]);
-          setHandovers([]);
-          setPurchases([]);
-          setServiceTickets([]);
-          setCustomerDebtPayments([]);
-          setExchangeRate(12850);
-          setProducts(zeroedProds);
-
-          fetch('/api/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reset: true, products: zeroedProds, exchangeRate: 12850 })
-          }).catch(() => {});
+          localStorage.setItem('sc_v2_110_seeded', 'true');
         }
 
         const savedRate = localStorage.getItem('sc_exchange_rate');
@@ -338,7 +335,7 @@ export default function Home() {
       if (savedProducts !== null) {
         try {
           const parsed: Product[] = JSON.parse(savedProducts);
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
             let filtered = parsed.filter(p => !activeDeletedProdIds.includes(p.id));
             filtered = filtered.map(p => {
               if (p.isService || p.id === 'prod-10' || p.sku === 'SRV-CAM-INST' || p.name.toLowerCase().includes('montaj') || p.name.toLowerCase().includes('xizmat')) {
@@ -465,6 +462,9 @@ export default function Home() {
       if (savedEmployees) {
         try {
           let parsedEmp: Employee[] = JSON.parse(savedEmployees);
+          if (!Array.isArray(parsedEmp) || parsedEmp.length < 2) {
+            parsedEmp = INITIAL_EMPLOYEES;
+          }
           if (Array.isArray(parsedEmp)) {
             // Guarantee technician_portal is included for all technicians
             parsedEmp = parsedEmp.map((emp) => {
@@ -589,11 +589,13 @@ export default function Home() {
       if (savedPurchases !== null) {
         try {
           const parsedPurchases = JSON.parse(savedPurchases);
-          if (Array.isArray(parsedPurchases)) {
+          if (Array.isArray(parsedPurchases) && parsedPurchases.length > 0) {
             const filteredPurchases = parsedPurchases.filter(p => !activeDeletedPurchIds.includes(p.id));
             setPurchases(filteredPurchases);
           } else {
-            setPurchases(INITIAL_PURCHASES.filter(p => !activeDeletedPurchIds.includes(p.id)));
+            const initPurchasesFiltered = INITIAL_PURCHASES.filter(p => !activeDeletedPurchIds.includes(p.id));
+            localStorage.setItem('sc_purchases', JSON.stringify(initPurchasesFiltered));
+            setPurchases(initPurchasesFiltered);
           }
         } catch (e) {
           setPurchases(INITIAL_PURCHASES.filter(p => !activeDeletedPurchIds.includes(p.id)));
