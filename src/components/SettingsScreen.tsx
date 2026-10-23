@@ -483,6 +483,35 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   // Full System Data Backup Download
   const handleExportFullBackup = () => {
+    let currentAuditLogs = auditLogs || [];
+    if (currentAuditLogs.length === 0 && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('sc_audit_logs');
+        if (saved) currentAuditLogs = JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    let customerOrdersList = [];
+    let shipmentsList = [];
+    let payrollsList = [];
+    let advancesList = [];
+    let handoversList = [];
+
+    if (typeof window !== 'undefined') {
+      try {
+        const savedOrders = localStorage.getItem('sc_customer_orders');
+        if (savedOrders) customerOrdersList = JSON.parse(savedOrders);
+        const savedShip = localStorage.getItem('sc_shipments');
+        if (savedShip) shipmentsList = JSON.parse(savedShip);
+        const savedPay = localStorage.getItem('sc_payrolls');
+        if (savedPay) payrollsList = JSON.parse(savedPay);
+        const savedAdv = localStorage.getItem('sc_advances');
+        if (savedAdv) advancesList = JSON.parse(savedAdv);
+        const savedHand = localStorage.getItem('sc_handovers');
+        if (savedHand) handoversList = JSON.parse(savedHand);
+      } catch (e) {}
+    }
+
     const backupData = {
       system: 'SMART CONTROL ERP',
       exportedAt: new Date().toISOString(),
@@ -499,7 +528,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       customers,
       debtPayments,
       serviceTickets,
-      purchases
+      purchases,
+      branches,
+      customerOrders: customerOrdersList,
+      shipments: shipmentsList,
+      payrolls: payrollsList,
+      advances: advancesList,
+      handovers: handoversList,
+      auditLogs: currentAuditLogs
     };
 
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
@@ -518,16 +554,32 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
-        const json = JSON.parse(event.target?.result as string);
-        if (!json.products && !json.receipts) {
-          alert('Noto\'g\'ri zaxira fayli formati!');
+        const fileContent = event.target?.result as string;
+        if (!fileContent) {
+          alert('Fayl bo\'sh yoki uni o\'qib bo\'lmadi!');
           return;
         }
 
+        const json = JSON.parse(fileContent);
+        if (!json.products && !json.receipts && !json.employees) {
+          alert('Noto\'g\'ri zaxira fayli formati! Ushbu faylda tizim ma\'lumotlari topilmadi.');
+          return;
+        }
+
+        const productCount = json.products?.length || 0;
+        const employeeCount = json.employees?.length || 0;
+        const customerCount = json.customers?.length || 0;
+        const receiptCount = json.receipts?.length || 0;
+
         const confirmRestore = window.confirm(
-          `Ushbu zaxira faylida ${json.products?.length || 0} ta tovar va ${json.receipts?.length || 0} ta chek mavjud.\n\nBarcha ma'lumotlarni tiklashni tasdiqlaysizmi?`
+          `Ushbu zaxira faylida quyidagi ma'lumotlar mavjud:\n` +
+          `• Mahsulotlar (Tovarlar): ${productCount} ta\n` +
+          `• Xodimlar: ${employeeCount} ta\n` +
+          `• Mijozlar: ${customerCount} ta\n` +
+          `• Sotuv cheklari: ${receiptCount} ta\n\n` +
+          `Barcha ma'lumotlarni Vercel tizimiga to'liq tiklashni tasdiqlaysizmi?`
         );
 
         if (confirmRestore) {
@@ -539,16 +591,53 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           if (json.debtPayments) localStorage.setItem('sc_customer_debt_payments', JSON.stringify(json.debtPayments));
           if (json.serviceTickets) localStorage.setItem('sc_service_tickets', JSON.stringify(json.serviceTickets));
           if (json.purchases) localStorage.setItem('sc_purchases', JSON.stringify(json.purchases));
+          if (json.branches) localStorage.setItem('sc_branches', JSON.stringify(json.branches));
+          if (json.customerOrders) localStorage.setItem('sc_customer_orders', JSON.stringify(json.customerOrders));
+          if (json.shipments) localStorage.setItem('sc_shipments', JSON.stringify(json.shipments));
+          if (json.payrolls) localStorage.setItem('sc_payrolls', JSON.stringify(json.payrolls));
+          if (json.advances) localStorage.setItem('sc_advances', JSON.stringify(json.advances));
+          if (json.handovers) localStorage.setItem('sc_handovers', JSON.stringify(json.handovers));
+          if (json.auditLogs) localStorage.setItem('sc_audit_logs', JSON.stringify(json.auditLogs));
           if (json.exchangeRate) localStorage.setItem('sc_exchange_rate', String(json.exchangeRate));
+          if (json.baseCurrency) localStorage.setItem('sc_base_currency', String(json.baseCurrency));
 
-          alert('Ma\'lumotlar muvaffaqiyatli tiklandi! Tizim qayta yuklanmoqda...');
+          // Also push to /api/sync so serverless cache is warm
+          try {
+            await fetch('/api/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                products: json.products,
+                receipts: json.receipts,
+                expenses: json.expenses,
+                employees: json.employees,
+                customers: json.customers,
+                customerDebtPayments: json.debtPayments,
+                serviceTickets: json.serviceTickets,
+                purchases: json.purchases,
+                branches: json.branches,
+                payrolls: json.payrolls,
+                advances: json.advances,
+                customerOrders: json.customerOrders,
+                shipments: json.shipments,
+                handovers: json.handovers,
+                exchangeRate: json.exchangeRate,
+                baseCurrency: json.baseCurrency
+              })
+            });
+          } catch (e) {
+            console.error('Cloud sync push error', e);
+          }
+
+          alert('✓ Barcha ma\'lumotlar muvaffaqiyatli tiklandi! Tizim yangilanmoqda...');
           window.location.reload();
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Noma\'lum xatolik';
-        alert('Faylni o\'qishda xatolik: ' + message);
+        alert('Faylni o\'qishda xatolik yuz berdi: ' + message);
       }
     };
+    reader.readAsText(file);
   };
 
   // Branch Management Handlers
@@ -1913,7 +2002,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <span>Zaxira Faylini Tanlash (.json)</span>
                   <input
                     type="file"
-                    accept=".json"
+                    accept=".json,application/json"
+                    onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
                     onChange={handleRestoreFile}
                     className="hidden"
                   />
