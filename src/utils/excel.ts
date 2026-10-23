@@ -155,7 +155,8 @@ export const downloadProductImportTemplate = () => {
  * Parse products from an uploaded Excel / CSV file
  */
 export const parseProductsFromExcel = async (
-  file: File
+  file: File,
+  exchangeRate = 12850
 ): Promise<{ products: Product[]; errors: string[] }> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -166,42 +167,111 @@ export const parseProductsFromExcel = async (
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const rawJson: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet);
+        const rawJson: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
         const products: Product[] = [];
         const errors: string[] = [];
 
         rawJson.forEach((row, idx) => {
+          // Normalize row keys (trim and lowercase) for robust matching
+          const normalizedRow: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(row)) {
+            if (k) {
+              normalizedRow[k.trim().toLowerCase()] = v;
+            }
+          }
+
           const getCellValue = (...keys: string[]) => {
+            // 1. Direct match
             for (const key of keys) {
-              const value = row[key];
-              if (value !== undefined && value !== null && value !== '') return value;
+              const val = row[key];
+              if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+            }
+            // 2. Normalized lowercase match
+            for (const key of keys) {
+              const normKey = key.trim().toLowerCase();
+              const val = normalizedRow[normKey];
+              if (val !== undefined && val !== null && String(val).trim() !== '') return val;
             }
             return undefined;
           };
 
-          // Normalize column names
-          const name = getCellValue('Mahsulot Nomi', 'Nomi', 'Name', 'Наименование', 'nomi');
-          if (!name) {
-            errors.push(`Qator ${idx + 2}: Mahsulot nomi ko'rsatilmagan`);
+          // Normalize column names with broad aliases
+          const nameVal = getCellValue(
+            'Mahsulot Nomi', 'Nomi', 'Name', 'Наименование', 'nomi', 
+            'Mahsulot', 'Товар', 'Наименование товара', 'Model', 'Модель', 
+            'Product Name', 'Tovar', 'Product'
+          );
+
+          if (!nameVal || String(nameVal).trim() === '') {
+            // If row is entirely blank, skip silently; otherwise record error
+            const hasAnyContent = Object.values(row).some(v => v !== undefined && v !== null && String(v).trim() !== '');
+            if (hasAnyContent) {
+              errors.push(`Qator ${idx + 2}: Mahsulot nomi ko'rsatilmagan`);
+            }
             return;
           }
 
-          const category = String(getCellValue('Kategoriya', 'Category', 'Категория') ?? 'Kuzatuv kameralari (CCTV)');
-          const sku = String(getCellValue('Artikul (SKU)', 'SKU', 'Artikul', 'Артикул') ?? `SKU-${Date.now()}-${idx}`);
-          const barcode = String(getCellValue('Shtrix-kod (Barcode)', 'Barcode', 'Shtrix-kod', 'Штрихкод') ?? `BC-${Date.now()}-${idx}`);
-          const stockQty = Number(getCellValue('Qoldiq Miqdori', 'Qoldiq', 'Stock', 'Количество') ?? 0);
-          const unit = String(getCellValue('O\'lchov Birligi', 'Birlik', 'Unit', 'Ед. изм.') ?? 'dona');
-          const costPrice = Number(getCellValue('Tannarx (So\'m)', 'Tannarx', 'Cost', 'Себестоимость') ?? 0);
-          const costPriceUSDValue = getCellValue('Tannarx ($ USD)', 'Tannarx ($)', 'Cost USD');
-          const costPriceUSD = costPriceUSDValue === undefined ? undefined : Number(costPriceUSDValue);
-          const retailPrice = Number(getCellValue('Sotish Narxi (So\'m)', 'Narxi', 'Price', 'Цена') ?? 0);
-          const retailPriceUSDValue = getCellValue('Sotish Narxi ($ USD)', 'Narxi ($)', 'Price USD');
-          const retailPriceUSD = retailPriceUSDValue === undefined ? undefined : Number(retailPriceUSDValue);
-          const warrantyMonths = Number(getCellValue('Kafolat Muddati (Oy)', 'Kafolat', 'Warranty', 'Гарантия') ?? 12);
+          const name = String(nameVal).trim();
+          const category = String(getCellValue('Kategoriya', 'Category', 'Категория', 'Guruh', 'Группа', 'Turi', 'Тип') ?? 'Kuzatuv kameralari (CCTV)');
+          
+          const rawSku = getCellValue('Artikul (SKU)', 'Artikul', 'SKU', 'Артикул', 'Tovar kodi', 'Kod');
+          const sku = rawSku ? String(rawSku).trim() : `SKU-${Date.now().toString().slice(-6)}-${idx + 1}`;
+
+          const rawBarcode = getCellValue('Shtrix-kod (Barcode)', 'Shtrix-kod', 'Shtrix kod', 'Barcode', 'Штрихкод', 'Штрих-код', 'Barkod', 'Bar-code');
+          const barcode = rawBarcode ? String(rawBarcode).trim() : `BC-${Date.now().toString().slice(-6)}-${idx + 1}`;
+
+          const stockQty = Number(getCellValue('Qoldiq Miqdori', 'Qoldiq', 'Miqdori', 'Miqdor', 'Stock', 'Количество', 'Кол-во', 'Кол во', 'Soni', 'Остаток') ?? 0);
+          const unit = String(getCellValue("O'lchov Birligi", "O'lchov birligi", "Birlik", "Birligi", "Unit", "Ед. изм.", "Ед.изм.", "Ед изм") ?? 'dona');
+
+          // Currency and Price parsing
+          let costPrice = Number(getCellValue("Tannarx (So'm)", "Tannarx (som)", "Tannarx (UZS)", "Tannarx", "Cost", "Себестоимость", "Kirim narxi", "Приходная цена") ?? 0);
+          const costPriceUSDValue = getCellValue("Tannarx ($ USD)", "Tannarx ($)", "Tannarx (USD)", "Tannarx USD", "Cost USD", "Cost ($)", "Себестоимость ($)", "Себестоимость USD", "Kirim narxi ($)");
+          let costPriceUSD = costPriceUSDValue === undefined ? undefined : Number(costPriceUSDValue);
+
+          let retailPrice = Number(getCellValue("Sotish Narxi (So'm)", "Sotish Narxi", "Sotish narxi", "Narxi", "Price", "Цена", "Sotish (UZS)", "Roznitsa") ?? 0);
+          const retailPriceUSDValue = getCellValue("Sotish Narxi ($ USD)", "Sotish Narxi ($)", "Sotish narxi (USD)", "Sotish USD", "Price USD", "Price ($)", "Цена ($)", "Цена USD");
+          let retailPriceUSD = retailPriceUSDValue === undefined ? undefined : Number(retailPriceUSDValue);
+
+          let wholesalePrice = Number(getCellValue("Ulgurji Narxi (So'm)", "Ulgurji Narxi", "Ulgurji narxi", "Ulgurji", "Optom", "Оптовая цена", "Optom narx") ?? 0);
+          const wholesalePriceUSDValue = getCellValue("Ulgurji Narxi ($ USD)", "Ulgurji ($)", "Optom ($)", "Оптовая цена ($)");
+          let wholesalePriceUSD = wholesalePriceUSDValue === undefined ? undefined : Number(wholesalePriceUSDValue);
+
+          const rate = exchangeRate > 0 ? exchangeRate : 12850;
+
+          // Dual-currency auto-conversion
+          if (costPriceUSD !== undefined && costPriceUSD > 0 && costPrice === 0) {
+            costPrice = Math.round(costPriceUSD * rate);
+          } else if (costPrice > 0 && (costPriceUSD === undefined || costPriceUSD === 0)) {
+            costPriceUSD = Number((costPrice / rate).toFixed(2));
+          }
+
+          if (retailPriceUSD !== undefined && retailPriceUSD > 0 && retailPrice === 0) {
+            retailPrice = Math.round(retailPriceUSD * rate);
+          } else if (retailPrice > 0 && (retailPriceUSD === undefined || retailPriceUSD === 0)) {
+            retailPriceUSD = Number((retailPrice / rate).toFixed(2));
+          }
+
+          // If retail price is not provided, default to costPrice * 1.3
+          if (retailPrice === 0 && costPrice > 0) {
+            retailPrice = Math.round(costPrice * 1.3);
+            if (costPriceUSD && (!retailPriceUSD || retailPriceUSD === 0)) {
+              retailPriceUSD = Number((costPriceUSD * 1.3).toFixed(2));
+            }
+          }
+
+          if (wholesalePriceUSD !== undefined && wholesalePriceUSD > 0 && wholesalePrice === 0) {
+            wholesalePrice = Math.round(wholesalePriceUSD * rate);
+          } else if (wholesalePrice > 0 && (wholesalePriceUSD === undefined || wholesalePriceUSD === 0)) {
+            wholesalePriceUSD = Number((wholesalePrice / rate).toFixed(2));
+          }
+
+          const techWageUZS = Number(getCellValue("Usta Ish Haqqi (So'm)", "Usta haqqi (UZS)", "Usta haqqi", "Usta ish haqqi", "Ish haqqi") ?? 0);
+          const techWageUSD = Number(getCellValue("Usta Ish Haqqi ($ USD)", "Usta haqqi ($)", "Usta USD") ?? 0);
+          const warrantyMonths = Number(getCellValue("Kafolat Muddati (Oy)", "Kafolat (oy)", "Kafolat muddati", "Kafolat", "Warranty", "Гарантия") ?? 12);
           
           // Serial numbers parsing
-          const serialsRaw = getCellValue('Seriya Raqamlari (Vergul bilan)', 'Seriya raqamlari', 'S/N', 'Серийные номера');
+          const serialsRaw = getCellValue("Seriya Raqamlari (Vergul bilan)", "Seriya raqamlari", "Seriya raqami", "S/N", "SN", "Серийные номера", "Серийный номер", "Seriyalar");
           let serialNumbers: string[] = [];
           if (serialsRaw) {
             serialNumbers = String(serialsRaw)
@@ -210,12 +280,13 @@ export const parseProductsFromExcel = async (
               .filter(s => s.length > 0);
           }
 
-          const isService = category.toLowerCase().includes('xizmat') || category.toLowerCase().includes('montaj') || unit === 'xizmat' || unit === 'nuqta';
-          const hasSerialNumber = serialNumbers.length > 0 || String(getCellValue('S/N Nazorati') || '').toLowerCase() === 'mavjud';
+          const isService = category.toLowerCase().includes('xizmat') || category.toLowerCase().includes('montaj') || unit.toLowerCase() === 'xizmat' || unit.toLowerCase() === 'nuqta';
+          const snRaw = String(getCellValue('S/N Nazorati', 'SN Nazorati', 'S/N', 'Серийный учет') || '').toLowerCase();
+          const hasSerialNumber = serialNumbers.length > 0 || snRaw.includes('mavjud') || snRaw.includes('ha') || snRaw === '1' || snRaw === 'true';
 
           products.push({
-            id: `prod-import-${Date.now()}-${idx}`,
-            name: String(name).trim(),
+            id: `prod-import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+            name,
             category: String(category).trim(),
             sku: String(sku).trim(),
             barcode: String(barcode).trim(),
@@ -224,8 +295,11 @@ export const parseProductsFromExcel = async (
             unit: String(unit).trim(),
             costPrice,
             costPriceUSD,
-            retailPrice: retailPrice > 0 ? retailPrice : Math.round(costPrice * 1.3),
+            retailPrice,
             retailPriceUSD,
+            wholesalePrice: wholesalePrice > 0 ? wholesalePrice : undefined,
+            technicianWageUZS: techWageUZS > 0 ? techWageUZS : undefined,
+            technicianWageUSD: techWageUSD > 0 ? techWageUSD : undefined,
             warrantyMonths,
             hasSerialNumber,
             serialNumbers: hasSerialNumber ? serialNumbers : undefined,

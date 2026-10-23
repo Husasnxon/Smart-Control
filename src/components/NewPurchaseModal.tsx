@@ -50,6 +50,7 @@ interface NewPurchaseModalProps {
   currentBranch?: Branch | null;
   onConfirmPurchase: (purchase: PurchaseInvoice, updatedProducts: Product[]) => void;
   editingPurchase?: PurchaseInvoice | null;
+  initialProductId?: string | null;
 }
 
 interface DraftPurchaseItem {
@@ -58,6 +59,7 @@ interface DraftPurchaseItem {
   productName: string;
   category: string;
   sku: string;
+  barcode?: string;
   quantity: number;
   unit: string;
   costPrice: number;       // So'm
@@ -86,7 +88,8 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
   branches = [],
   currentBranch = null,
   onConfirmPurchase,
-  editingPurchase = null
+  editingPurchase = null,
+  initialProductId = null
 }) => {
   // Saved suppliers persistent state
   const [savedSuppliers, setSavedSuppliers] = useState<SupplierRecord[]>(() => {
@@ -313,13 +316,44 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
         setPaymentMethod(baseCurrency === 'USD' ? 'usd' : 'cash');
         setNotes('');
         setReceivedBy(loggedInUserFormatted);
-        setItems([]);
+
+        if (initialProductId) {
+          const preProd = products.find(p => p.id === initialProductId);
+          if (preProd) {
+            const costUSD = preProd.costPriceUSD || (preProd.costPrice > 0 ? Number((preProd.costPrice / exchangeRate).toFixed(2)) : 0);
+            const retailUZS = preProd.retailPrice || 0;
+            const retailUSD = preProd.retailPriceUSD || (retailUZS > 0 ? Number((retailUZS / exchangeRate).toFixed(2)) : 0);
+            setItems([{
+              id: `draft-init-${Date.now()}`,
+              productId: preProd.id,
+              productName: preProd.name,
+              category: preProd.category,
+              sku: preProd.sku,
+              barcode: preProd.barcode,
+              quantity: 1,
+              unit: preProd.unit || 'dona',
+              costPrice: preProd.costPrice,
+              costPriceUSD: costUSD,
+              retailPrice: retailUZS,
+              retailPriceUSD: retailUSD,
+              hasSerialNumber: !!preProd.hasSerialNumber,
+              serialNumbers: [],
+              manualSerialInput: '',
+              isBulkPasteOpen: false,
+              bulkPasteText: ''
+            }]);
+          } else {
+            setItems([]);
+          }
+        } else {
+          setItems([]);
+        }
       }
       setProductSearchText('');
       setIsSearchDropdownOpen(false);
     }, 0);
     return () => clearTimeout(timer);
-  }, [isOpen, editingPurchase, baseCurrency, exchangeRate, categories, loggedInUserFormatted, currentBranch, branches]);
+  }, [isOpen, editingPurchase, initialProductId, products, baseCurrency, exchangeRate, categories, loggedInUserFormatted, currentBranch, branches]);
 
   // Add new custom supplier to list and select it
   const handleCreateSupplier = (e?: React.FormEvent) => {

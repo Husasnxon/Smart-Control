@@ -46,7 +46,10 @@ import {
   FileSpreadsheet,
   Download,
   Upload,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Sliders,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { exportProductsToExcel, exportPurchasesToExcel } from '../utils/excel';
 import { ExcelImportModal } from './ExcelImportModal';
@@ -65,9 +68,12 @@ interface InventoryScreenProps {
   onCancelPurchase?: (invoiceId: string) => void;
   onDeletePurchase?: (invoiceId: string) => void;
   onAddProduct: (product: Product) => void;
+  onImportProductsBatch?: (products: Product[], mode: 'append' | 'merge') => void;
   onUpdateProduct: (product: Product) => void;
+  onUpdateProductsBatch?: (products: Product[]) => void;
   onDeleteProduct: (productId: string) => void;
   onUpdateStock: (productId: string, newStock: number) => void;
+  onClearAllStock?: () => void;
   onAddProductCategory: (category: ProductCategory) => void;
   onUpdateProductCategory: (categoryId: string, newName: string, newDesc?: string) => void;
   onDeleteProductCategory: (categoryId: string) => void;
@@ -90,9 +96,12 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   onCancelPurchase,
   onDeletePurchase,
   onAddProduct,
+  onImportProductsBatch,
   onUpdateProduct,
+  onUpdateProductsBatch,
   onDeleteProduct,
   onUpdateStock,
+  onClearAllStock,
   onAddProductCategory,
   onUpdateProductCategory,
   onDeleteProductCategory,
@@ -100,7 +109,8 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   baseCurrency = 'UZS',
   currentUser = null
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'products' | 'purchases' | 'transfers' | 'supplier_payments'>('products');
+  const [activeSubTab, setActiveSubTab] = useState<'stock' | 'products' | 'purchases' | 'transfers' | 'supplier_payments'>('stock');
+  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'has_serial'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Barchasi');
 
@@ -159,18 +169,65 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [viewingSerialProduct, setViewingSerialProduct] = useState<Product | null>(null);
-  const [quickStockProduct, setQuickStockProduct] = useState<Product | null>(null);
-  const [quickNewSerialsText, setQuickNewSerialsText] = useState('');
+  const [purchaseModalInitialProductId, setPurchaseModalInitialProductId] = useState<string | null>(null);
   const [copiedSn, setCopiedSn] = useState<string | null>(null);
   const [isExcelImportModalOpen, setIsExcelImportModalOpen] = useState(false);
+  const [isBulkSerialModalOpen, setIsBulkSerialModalOpen] = useState(false);
+  const [selectedBulkCategories, setSelectedBulkCategories] = useState<string[]>([]);
+  const [bulkSerialAction, setBulkSerialAction] = useState<'enable' | 'disable'>('enable');
+
+  const handleOpenPurchaseForProduct = (productId?: string) => {
+    setEditingPurchaseInvoice(null);
+    setPurchaseModalInitialProductId(productId || null);
+    setIsNewPurchaseModalOpen(true);
+  };
+
+  const handleToggleSingleProductSN = (product: Product) => {
+    if (product.isService) return;
+    const nextHasSN = !product.hasSerialNumber;
+    const updated: Product = {
+      ...product,
+      hasSerialNumber: nextHasSN,
+      stockQuantity: nextHasSN ? (product.serialNumbers?.length || 0) : product.stockQuantity
+    };
+    onUpdateProduct(updated);
+  };
+
+  const handleApplyBulkSerial = () => {
+    if (selectedBulkCategories.length === 0) return;
+    const targetProducts = products.filter(p => !p.isService && selectedBulkCategories.includes(p.category));
+    if (targetProducts.length === 0) return;
+
+    const shouldEnable = bulkSerialAction === 'enable';
+    const updatedList: Product[] = targetProducts.map(p => ({
+      ...p,
+      hasSerialNumber: shouldEnable,
+      stockQuantity: shouldEnable ? (p.serialNumbers?.length || 0) : p.stockQuantity
+    }));
+
+    if (onUpdateProductsBatch) {
+      onUpdateProductsBatch(updatedList);
+    } else {
+      updatedList.forEach(p => onUpdateProduct(p));
+    }
+    setIsBulkSerialModalOpen(false);
+  };
 
   const handleImportProducts = (importedProducts: Product[], mode: 'append' | 'merge') => {
+    if (onImportProductsBatch) {
+      onImportProductsBatch(importedProducts, mode);
+      return;
+    }
     if (mode === 'append') {
       importedProducts.forEach(p => onAddProduct(p));
     } else {
       // Merge mode
       importedProducts.forEach(newP => {
-        const existing = products.find(p => (p.sku && p.sku === newP.sku) || (p.barcode && p.barcode === newP.barcode));
+        const existing = products.find(p => 
+          (p.name && p.name.trim().toLowerCase() === newP.name.trim().toLowerCase()) ||
+          (p.sku && p.sku === newP.sku && !p.sku.startsWith('SKU-')) || 
+          (p.barcode && p.barcode === newP.barcode && !p.barcode.startsWith('BC-'))
+        );
         if (existing) {
           const mergedSerials = [...(existing.serialNumbers || [])];
           if (newP.serialNumbers) {
@@ -199,6 +256,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   const [newCategory, setNewCategory] = useState(categories[0]?.name || 'Kuzatuv kameralari (CCTV)');
   const [newCostPrice, setNewCostPrice] = useState<number>(0);
   const [newRetailPrice, setNewRetailPrice] = useState<number>(0);
+  const [newWholesalePrice, setNewWholesalePrice] = useState<number>(0);
   const [newStock, setNewStock] = useState<number>(0);
   const [newUnit, setNewUnit] = useState('dona');
   const [newHasSerialNumber, setNewHasSerialNumber] = useState<boolean>(true);
@@ -238,15 +296,93 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
 
   const filterCategoryNames = ['Barchasi', ...categories.map((c) => c.name)];
 
-  const filtered = products.filter((p) => {
-    const matchCat = selectedCategory === 'Barchasi' || p.category === selectedCategory;
-    const matchSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.barcode.includes(searchQuery) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.serialNumbers && p.serialNumbers.some((sn) => sn.toLowerCase().includes(searchQuery.toLowerCase())));
-    return matchCat && matchSearch;
-  });
+  const handleOpenAddModal = () => {
+    setIsAddModalOpen(true);
+    setNewName('');
+    setNewBarcode(Math.floor(100000000000 + Math.random() * 900000000000).toString());
+    setNewCostPrice(0);
+    setNewRetailPrice(0);
+    setNewStock(0);
+    setNewUnit('dona');
+    setNewHasSerialNumber(false);
+    setNewSerialNumbersText('');
+    setNewIsService(false);
+    setNewTechnicianWageUSD(0);
+    setNewTechnicianWageUZS(0);
+    setNewWarrantyMonths(12);
+    setNewImageUrl('');
+    // Strictly set category to first available category from categories
+    if (categories.length > 0) {
+      setNewCategory(categories[0].name);
+    }
+  };
+
+  // Stock Tab filtered products
+  const filteredStockProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchCat = selectedCategory === 'Barchasi' || p.category === selectedCategory;
+      const matchSearch =
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.barcode.includes(searchQuery) ||
+        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.serialNumbers && p.serialNumbers.some((sn) => sn.toLowerCase().includes(searchQuery.toLowerCase())));
+
+      if (!matchCat || !matchSearch) return false;
+
+      if (stockFilter === 'in_stock') {
+        return p.isService || p.stockQuantity > 0;
+      }
+      if (stockFilter === 'low_stock') {
+        return !p.isService && p.stockQuantity > 0 && p.stockQuantity <= p.minStockAlert;
+      }
+      if (stockFilter === 'out_of_stock') {
+        return !p.isService && p.stockQuantity === 0;
+      }
+      if (stockFilter === 'has_serial') {
+        return !p.isService && !!p.hasSerialNumber;
+      }
+      return true;
+    });
+  }, [products, selectedCategory, searchQuery, stockFilter]);
+
+  // Catalog Tab filtered products
+  const filteredCatalogProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchCat = selectedCategory === 'Barchasi' || p.category === selectedCategory;
+      const matchSearch =
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.barcode.includes(searchQuery) ||
+        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.serialNumbers && p.serialNumbers.some((sn) => sn.toLowerCase().includes(searchQuery.toLowerCase())));
+      return matchCat && matchSearch;
+    });
+  }, [products, selectedCategory, searchQuery]);
+
+  const totalPhysicalUnits = useMemo(() => {
+    return products.reduce((acc, p) => acc + (p.isService ? 0 : (p.stockQuantity || 0)), 0);
+  }, [products]);
+
+  const totalStockCostUZS = useMemo(() => {
+    return products.reduce((acc, p) => acc + (p.isService ? 0 : ((p.stockQuantity || 0) * (p.costPrice || 0))), 0);
+  }, [products]);
+
+  const lowStockCount = useMemo(() => {
+    return products.filter(p => !p.isService && p.stockQuantity > 0 && p.stockQuantity <= p.minStockAlert).length;
+  }, [products]);
+
+  const outOfStockCount = useMemo(() => {
+    return products.filter(p => !p.isService && p.stockQuantity === 0).length;
+  }, [products]);
+
+  const inStockCount = useMemo(() => {
+    return products.filter(p => p.isService || p.stockQuantity > 0).length;
+  }, [products]);
+
+  const serializedProductsCount = useMemo(() => {
+    return products.filter(p => !p.isService && !!p.hasSerialNumber).length;
+  }, [products]);
+
+  const filtered = filteredCatalogProducts;
 
   // Global Escape key listener to close any open modal
   useEffect(() => {
@@ -255,12 +391,12 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
         setIsAddModalOpen(false);
         setEditingProduct(null);
         setViewingSerialProduct(null);
-        setQuickStockProduct(null);
         setIsCategoryManageModalOpen(false);
         setIsExcelImportModalOpen(false);
         setViewingPurchaseInvoice(null);
         setIsNewPurchaseModalOpen(false);
         setIsSupplierPaymentModalOpen(false);
+        setIsBulkSerialModalOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -280,9 +416,11 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
     if (newCurr === 'USD') {
       setNewCostPrice(newCostPrice > 0 ? Number((newCostPrice / rate).toFixed(2)) : 0);
       setNewRetailPrice(newRetailPrice > 0 ? Number((newRetailPrice / rate).toFixed(2)) : 0);
+      setNewWholesalePrice(newWholesalePrice > 0 ? Number((newWholesalePrice / rate).toFixed(2)) : 0);
     } else {
       setNewCostPrice(newCostPrice > 0 ? Math.round(newCostPrice * rate) : 0);
       setNewRetailPrice(newRetailPrice > 0 ? Math.round(newRetailPrice * rate) : 0);
+      setNewWholesalePrice(newWholesalePrice > 0 ? Math.round(newWholesalePrice * rate) : 0);
     }
     setNewProductCurrency(newCurr);
   };
@@ -336,7 +474,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       costPriceUSD: costPriceUSD,
       retailPrice: retailPriceUZS,
       retailPriceUSD: retailPriceUSD,
-      wholesalePrice: Math.round(retailPriceUZS * 0.9),
+      wholesalePrice: newIsService ? undefined : (newWholesalePrice > 0 ? (isUSD ? Math.round(newWholesalePrice * rate) : newWholesalePrice) : undefined),
       stockQuantity: finalStock,
       minStockAlert: newIsService ? 0 : 2,
       unit: newIsService ? (newUnit === 'dona' ? 'nuqta' : newUnit) : newUnit,
@@ -375,18 +513,25 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
     setEditName(prod.name);
     setEditBarcode(prod.barcode);
     setEditSku(prod.sku);
-    setEditCategory(prod.category);
+
+    const isServiceItem = !!prod.isService || prod.sku === 'SRV-CAM-INST' || prod.id === 'prod-10' || prod.name.toLowerCase().includes('montaj') || prod.name.toLowerCase().includes('xizmat');
+    let initialCategory = prod.category;
+    if (isServiceItem) {
+      const montajCat = categories.find(c => c.name.toLowerCase() === 'montaj' || c.name.toLowerCase().includes('montaj'));
+      initialCategory = montajCat ? montajCat.name : 'Montaj';
+    }
+    setEditCategory(initialCategory);
 
     if (isUSD) {
       const costUSD = prod.costPriceUSD ?? (prod.costPrice > 0 ? Number((prod.costPrice / rate).toFixed(2)) : 0);
       const retailUSD = prod.retailPriceUSD ?? (prod.retailPrice > 0 ? Number((prod.retailPrice / rate).toFixed(2)) : 0);
       setEditCostPrice(costUSD);
       setEditRetailPrice(retailUSD);
-      setEditWholesalePrice(Number((retailUSD * 0.9).toFixed(2)));
+      setEditWholesalePrice(!isServiceItem && prod.wholesalePrice ? Number((prod.wholesalePrice / rate).toFixed(2)) : 0);
     } else {
       setEditCostPrice(prod.costPrice);
       setEditRetailPrice(prod.retailPrice);
-      setEditWholesalePrice(prod.wholesalePrice || Math.round(prod.retailPrice * 0.9));
+      setEditWholesalePrice(!isServiceItem && prod.wholesalePrice ? prod.wholesalePrice : 0);
     }
 
     setEditStock(prod.stockQuantity);
@@ -425,14 +570,24 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
     const retailPriceUZS = isUSD ? Math.round(editRetailPrice * rate) : editRetailPrice;
     const retailPriceUSD = isUSD ? editRetailPrice : (retailPriceUZS > 0 ? Number((retailPriceUZS / rate).toFixed(2)) : undefined);
 
-    const wholesalePriceUZS = isUSD ? Math.round(editWholesalePrice * rate) : (editWholesalePrice || Math.round(retailPriceUZS * 0.9));
+    const wholesalePriceUZS = editIsService 
+      ? undefined 
+      : (editWholesalePrice > 0 ? (isUSD ? Math.round(editWholesalePrice * rate) : editWholesalePrice) : undefined);
+
+    let finalCategory = editCategory;
+    if (editIsService) {
+      if (!finalCategory || finalCategory.toLowerCase() === 'nvr' || (!finalCategory.toLowerCase().includes('montaj') && !finalCategory.toLowerCase().includes('xizmat'))) {
+        const montajCat = categories.find(c => c.name.toLowerCase() === 'montaj' || c.name.toLowerCase().includes('montaj'));
+        finalCategory = montajCat ? montajCat.name : 'Montaj';
+      }
+    }
 
     const updated: Product = {
       ...editingProduct,
       name: editName,
       barcode: editBarcode,
       sku: editSku,
-      category: editCategory,
+      category: finalCategory,
       costPrice: costPriceUZS,
       costPriceUSD: costPriceUSD,
       retailPrice: retailPriceUZS,
@@ -452,28 +607,6 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
 
     onUpdateProduct(updated);
     setEditingProduct(null);
-  };
-
-  // Quick addition of serial numbers to stock
-  const handleQuickAddSerials = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickStockProduct) return;
-
-    const newSerials = parseSerials(quickNewSerialsText);
-    if (newSerials.length === 0) return;
-
-    const currentSerials = quickStockProduct.serialNumbers || [];
-    const combined = [...currentSerials, ...newSerials];
-
-    const updatedProduct: Product = {
-      ...quickStockProduct,
-      serialNumbers: combined,
-      stockQuantity: combined.length
-    };
-
-    onUpdateProduct(updatedProduct);
-    setQuickStockProduct(null);
-    setQuickNewSerialsText('');
   };
 
   const handleCopySerial = (sn: string) => {
@@ -517,9 +650,6 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   // Retail Valuation ($ and UZS)
   const totalRetailUZS = useMemo(() => physicalProducts.reduce((sum, p) => sum + (p.retailPrice * p.stockQuantity), 0), [physicalProducts]);
   const totalRetailUSD = useMemo(() => physicalProducts.reduce((sum, p) => sum + ((p.retailPriceUSD || (p.retailPrice / (exchangeRate || 12850))) * p.stockQuantity), 0), [physicalProducts, exchangeRate]);
-
-  // Low stock alerts
-  const lowStockCount = useMemo(() => physicalProducts.filter((p) => p.stockQuantity <= p.minStockAlert).length, [physicalProducts]);
 
   // Branch filter for purchases tab (default to 'all' so no incoming purchases are hidden)
   const [purchaseBranchFilter, setPurchaseBranchFilter] = useState<string>('all');
@@ -748,7 +878,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
 
           {/* Add Product Button */}
           <button
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={handleOpenAddModal}
             className="px-4 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />
@@ -865,24 +995,47 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       </div>
 
       {/* Sub-Tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto no-scrollbar">
+        {/* 1. Mahsulot Qoldig'i (Alohida bo'lim) */}
         <button
-          onClick={() => setActiveSubTab('products')}
+          onClick={() => setActiveSubTab('stock')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
-            activeSubTab === 'products'
+            activeSubTab === 'stock'
               ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/20'
               : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
           }`}
         >
           <Package className="w-4 h-4" />
-          <span>Mahsulotlar & Xizmatlar</span>
+          <span>Mahsulot Qoldig&apos;i</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+            activeSubTab === 'stock' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+          }`}>
+            {totalPhysicalUnits} dona
+          </span>
+          {lowStockCount > 0 && (
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Kam qolgan tovarlar bor" />
+          )}
+        </button>
+
+        {/* 2. Mahsulotlar Ro'yxati (Alohida Nomenklatura bo'limi) */}
+        <button
+          onClick={() => setActiveSubTab('products')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
+            activeSubTab === 'products'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Mahsulotlar Ro&apos;yxati</span>
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
             activeSubTab === 'products' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
           }`}>
-            {products.length}
+            {products.length} ta
           </span>
         </button>
 
+        {/* 3. Omborga Kirimlar (Prixod) */}
         <button
           onClick={() => setActiveSubTab('purchases')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
@@ -903,6 +1056,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
           )}
         </button>
 
+        {/* 4. Filiallararo Peremesheniya */}
         <button
           onClick={() => setActiveSubTab('transfers')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
@@ -920,6 +1074,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
           </span>
         </button>
 
+        {/* 5. Ta'minotchi Qarz & To'lovlar */}
         <button
           onClick={() => setActiveSubTab('supplier_payments')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition ${
@@ -944,250 +1099,582 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
         </button>
       </div>
 
-      {/* CONDITIONAL SUB-TAB: PRODUCTS */}
-      {activeSubTab === 'products' && (
-        <div className="space-y-6">
+      {/* ============================================================ */}
+      {/* 1. ALOHIDA BO'LIM: MAHSULOT QOLDIG'I (STOCK BALANCE) */}
+      {/* ============================================================ */}
+      {activeSubTab === 'stock' && (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Stock Header & Top Info */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Package className="w-5 h-5 text-cyan-500" />
+                <span>Ombor Mahsulot Qoldig&apos;i</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Mavjud qoldiq miqdorlari, seriya raqamlari (S/N) va minimal qoldiq nazorati
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                Jami qoldiq tannarxi: <strong className="text-emerald-600 dark:text-emerald-400 font-mono ml-1">{formatMoney(totalStockCostUZS, baseCurrency, exchangeRate)}</strong>
+              </span>
+            </div>
+          </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Nomi, S/N seriya raqami, shtrix-kod..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/40 text-slate-800 dark:text-slate-100"
-          />
-        </div>
+          {/* Search, Stock Condition Filter & Category Bar */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+              {/* Search */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Qoldiqdan qidirish (nomi, S/N, shtrix-kod)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-3 py-2 text-xs focus:ring-2 focus:ring-cyan-500/40 text-slate-800 dark:text-slate-100"
+                />
+              </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto no-scrollbar">
-          {filterCategoryNames.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                selectedCategory === cat
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
+              {/* Stock Status Pills */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  onClick={() => setStockFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    stockFilter === 'all'
+                      ? 'bg-cyan-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  Barchasi ({products.length})
+                </button>
+                <button
+                  onClick={() => setStockFilter('in_stock')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    stockFilter === 'in_stock'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100'
+                  }`}
+                >
+                  Mavjud (&gt;0) ({inStockCount})
+                </button>
+                <button
+                  onClick={() => setStockFilter('low_stock')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    stockFilter === 'low_stock'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100'
+                  }`}
+                >
+                  Kam qolganlar ({lowStockCount})
+                </button>
+                <button
+                  onClick={() => setStockFilter('out_of_stock')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    stockFilter === 'out_of_stock'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100'
+                  }`}
+                >
+                  Tugagan (0) ({outOfStockCount})
+                </button>
+                <button
+                  onClick={() => setStockFilter('has_serial')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    stockFilter === 'has_serial'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100'
+                  }`}
+                >
+                  S/N li tovarlar ({serializedProductsCount})
+                </button>
 
-      {/* Products Table */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
-              <tr>
-                <th className="py-3 px-4">Qurilma / Xizmat Nomi</th>
-                <th className="py-3 px-4">Kategoriya & Turi</th>
-                <th className="py-3 px-4 text-center">Seriya Raqami (S/N)</th>
-                <th className="py-3 px-4 text-center">Kafolat</th>
-                <th className="py-3 px-4 text-right">Tannarx</th>
-                <th className="py-3 px-4 text-right">Sotish Narxi</th>
-                <th className="py-3 px-4 text-center">Qoldiq</th>
-                <th className="py-3 px-4 text-right">Amallar & Kirim</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filtered.map((product) => {
-                const catObj = categories.find((c) => c.name === product.category);
-                const catColor = catObj?.color || '#06B6D4';
-                const isService = !!product.isService;
-                const hasSN = !!product.hasSerialNumber;
-                const snCount = product.serialNumbers?.length || 0;
-                const isLow = !isService && product.stockQuantity <= product.minStockAlert;
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nonServiceCats = Array.from(new Set(products.filter(p => !p.isService).map(p => p.category)));
+                    setSelectedBulkCategories(nonServiceCats);
+                    setBulkSerialAction('enable');
+                    setIsBulkSerialModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition flex items-center gap-1.5 shrink-0 ml-auto"
+                  title="Tovarlarga seriya raqam (S/N) nazoratini ommaviy yoqish yoki o'chirish"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>S/N Nazoratini Sozlash</span>
+                </button>
 
-                return (
-                  <tr key={product.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                    {/* Device / Service Name */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        {/* Thumbnail */}
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 p-0.5">
-                          {product.imageUrl ? (
-                            <img
-                              src={product.imageUrl}
-                              alt={product.name}
-                              loading="lazy"
-                              className="w-full h-full object-contain"
-                            />
-                          ) : isService ? (
-                            <Wrench className="w-5 h-5 text-pink-500" />
-                          ) : hasSN ? (
-                            <Camera className="w-5 h-5 text-cyan-500" />
-                          ) : (
-                            <Package className="w-5 h-5 text-amber-500" />
-                          )}
-                        </div>
+                {onClearAllStock && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("DIQQAT! Rostdan ham ombordagi barcha tovarlar qoldig'ini 0 ga tushirmoqchimisiz?\n\n• Mahsulot nomlari, kategoriyalari va narxlari saqlanib qoladi.\n• Faqatgina ombordagi qoldiq soni 0 dona bo'ladi va S/N ro'yxati tozalanadi.\n• Keyin tovar qoldiqlarini '+ Prixod / Nakladnoy' orqali yetkazib beruvchini tanlab kirim qilasiz.")) {
+                        onClearAllStock();
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 transition flex items-center gap-1.5 shrink-0"
+                    title="Barcha tovarlar ombor qoldig'ini 0 ga tushirish"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                    <span>Omborni Tozalash (0 qilish)</span>
+                  </button>
+                )}
+              </div>
+            </div>
 
-                        <div>
-                          <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                            <span>{product.name}</span>
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                            {product.barcode} &bull; {product.sku}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 border-t border-slate-100 dark:border-slate-800">
+              {filterCategoryNames.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                    selectedCategory === cat
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
 
-                    {/* Category & Type */}
-                    <td className="py-3 px-4">
-                      <span 
-                        className="px-2.5 py-0.5 rounded-md font-bold text-[10px] inline-flex items-center gap-1.5"
-                        style={{ backgroundColor: `${catColor}15`, color: catColor }}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: catColor }} />
-                        {product.category}
-                      </span>
-                    </td>
-
-                    {/* Serial Numbers (S/N) status */}
-                    <td className="py-3 px-4 text-center">
-                      {isService ? (
-                        <span className="text-[11px] text-slate-400 italic">Xizmat (S/Nsiz)</span>
-                      ) : hasSN ? (
-                        <button
-                          onClick={() => setViewingSerialProduct(product)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-950/40 dark:hover:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 font-mono font-bold text-[11px] border border-cyan-200 dark:border-cyan-800 transition"
-                          title="Mavjud seriya raqamlarini ko'rish"
-                        >
-                          <Hash className="w-3 h-3 text-cyan-600" />
-                          <span>{snCount} ta S/N</span>
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-slate-400">Oddiy tovar</span>
-                      )}
-                    </td>
-
-                    {/* Warranty */}
-                    <td className="py-3 px-4 text-center">
-                      {product.warrantyMonths ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50">
-                          <ShieldCheck className="w-3 h-3 text-blue-500" />
-                          {product.warrantyMonths} oy
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-slate-400">-</span>
-                      )}
-                    </td>
-
-                    {/* Cost & Retail Price (Dual Currency) */}
-                    <td className="py-3 px-4 text-right font-mono">
-                      <div className="font-semibold text-slate-500">
-                        {baseCurrency === 'USD' 
-                          ? `$${formatUSDNumber(product.costPriceUSD || (product.costPrice / (exchangeRate || 12850)))}` 
-                          : `${formatNumberWithSpaces(product.costPrice)} so'm`}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-bold">
-                        {baseCurrency === 'USD' 
-                          ? `${formatNumberWithSpaces(product.costPrice)} so'm` 
-                          : `$${formatUSDNumber(product.costPriceUSD || (product.costPrice / (exchangeRate || 12850)))}`}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono">
-                      <div className="font-bold text-slate-900 dark:text-white">
-                        {baseCurrency === 'USD'
-                          ? `$${formatUSDNumber(product.retailPriceUSD || (product.retailPrice / (exchangeRate || 12850)))}`
-                          : `${formatNumberWithSpaces(product.retailPrice)} so'm`}
-                      </div>
-                      <div className="text-[10px] text-cyan-600 dark:text-cyan-400 font-bold">
-                        {baseCurrency === 'USD'
-                          ? `${formatNumberWithSpaces(product.retailPrice)} so'm`
-                          : `$${formatUSDNumber(product.retailPriceUSD || (product.retailPrice / (exchangeRate || 12850)))}`}
-                      </div>
-                    </td>
-
-                    {/* Stock Status */}
-                    <td className="py-3 px-4 text-center font-mono font-extrabold text-sm">
-                      {isService ? (
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300">
-                            Cheksiz (Xizmat)
-                          </span>
-                          {(product.technicianWageUSD || product.technicianWageUZS) && (
-                            <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-0.5">
-                              <HardHat className="w-2.5 h-2.5" />
-                              Ustaga: ${product.technicianWageUSD || Number(((product.technicianWageUZS || 0) / exchangeRate).toFixed(1))}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className={isLow ? 'text-amber-600' : 'text-slate-900 dark:text-slate-100'}>
-                          {product.stockQuantity} {product.unit}
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Actions & Quick Stock In */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {/* Quick S/N Kirim or Standard Stock Increment */}
-                        {hasSN ? (
-                          <button
-                            onClick={() => {
-                              setQuickStockProduct(product);
-                              setQuickNewSerialsText('');
-                            }}
-                            className="px-2 py-1 rounded-lg bg-cyan-50 dark:bg-cyan-950/60 hover:bg-cyan-500 hover:text-white text-cyan-700 dark:text-cyan-300 font-bold font-mono transition text-[11px] border border-cyan-200 dark:border-cyan-800 flex items-center gap-1"
-                            title="Yangi seriya raqamlarni kirim qilish"
-                          >
-                            <Plus className="w-3 h-3" /> S/N Kirim
-                          </button>
-                        ) : !isService ? (
-                          <>
-                            <button
-                              onClick={() => onUpdateStock(product.id, product.stockQuantity + 5)}
-                              className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500 hover:text-white text-slate-700 dark:text-slate-300 font-bold font-mono transition text-[11px]"
-                              title="+5 dona qo'shish"
-                            >
-                              +5
-                            </button>
-                            <button
-                              onClick={() => onUpdateStock(product.id, product.stockQuantity + 20)}
-                              className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500 hover:text-white text-slate-700 dark:text-slate-300 font-bold font-mono transition text-[11px]"
-                              title="+20 dona qo'shish"
-                            >
-                              +20
-                            </button>
-                          </>
-                        ) : null}
-
-                        {/* Edit Button */}
-                        <button
-                          onClick={() => handleOpenEditProduct(product)}
-                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-500 hover:text-white text-slate-600 dark:text-slate-300 transition"
-                          title="Tahrirlash (Redakt)"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Delete Button */}
-                        <button
-                          type="button"
-                          onClick={() => setProductToDelete(product)}
-                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-500 hover:text-white text-slate-400 transition"
-                          title="O'chirish"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+          {/* Stock Table */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Qurilma / Tovar Nomi</th>
+                    <th className="py-3 px-4">Kategoriya</th>
+                    <th className="py-3 px-4 text-center">Seriya Raqami (S/N)</th>
+                    <th className="py-3 px-4 text-center">Min Qoldiq</th>
+                    <th className="py-3 px-4 text-center">Hozirgi Qoldiq</th>
+                    <th className="py-3 px-4 text-right">Qoldiq Tannarxi</th>
+                    <th className="py-3 px-4 text-right">Kirim (Prixod)</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredStockProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        <Package className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                        <p className="font-bold">Ushbu parametrlar bo&apos;yicha omborda mahsulot topilmadi</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStockProducts.map((product) => {
+                      const catObj = categories.find((c) => c.name === product.category);
+                      const catColor = catObj?.color || '#06B6D4';
+                      const isService = !!product.isService;
+                      const hasSN = !!product.hasSerialNumber;
+                      const snCount = product.serialNumbers?.length || 0;
+                      const isLow = !isService && product.stockQuantity > 0 && product.stockQuantity <= product.minStockAlert;
+                      const isOut = !isService && product.stockQuantity === 0;
+                      const rowStockCost = (product.stockQuantity || 0) * (product.costPrice || 0);
+
+                      return (
+                        <tr key={product.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                          {/* Name, SKU, Barcode */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 p-0.5">
+                                {product.imageUrl ? (
+                                  <img
+                                    src={product.imageUrl}
+                                    alt={product.name}
+                                    loading="lazy"
+                                    className="w-full h-full object-contain"
+                                  />
+                                ) : isService ? (
+                                  <Wrench className="w-5 h-5 text-pink-500" />
+                                ) : hasSN ? (
+                                  <Camera className="w-5 h-5 text-cyan-500" />
+                                ) : (
+                                  <Package className="w-5 h-5 text-amber-500" />
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                  <span>{product.name}</span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                  {product.barcode} &bull; {product.sku}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Category */}
+                          <td className="py-3 px-4">
+                            <span 
+                              className="px-2.5 py-0.5 rounded-md font-bold text-[10px] inline-flex items-center gap-1.5"
+                              style={{ backgroundColor: `${catColor}15`, color: catColor }}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: catColor }} />
+                              {product.category}
+                            </span>
+                          </td>
+
+                          {/* S/N */}
+                          <td className="py-3 px-4 text-center">
+                            {isService ? (
+                              <span className="text-[11px] text-slate-400 italic">Xizmat (S/Nsiz)</span>
+                            ) : hasSN ? (
+                              <button
+                                onClick={() => setViewingSerialProduct(product)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-950/40 dark:hover:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 font-mono font-bold text-[11px] border border-cyan-200 dark:border-cyan-800 transition"
+                                title="Seriya raqamlari ro'yxatini ko'rish"
+                              >
+                                <Hash className="w-3 h-3 text-cyan-600" />
+                                <span>{snCount} ta S/N</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSingleProductSN(product)}
+                                className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-cyan-50 dark:bg-slate-800 dark:hover:bg-cyan-950/40 text-slate-500 hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300 border border-slate-200 dark:border-slate-700 hover:border-cyan-300 dark:hover:border-cyan-800 text-[11px] font-medium transition"
+                                title="Bosing: Seriya raqami (S/N) nazoratiga o'tkazish"
+                              >
+                                <span>Oddiy tovar</span>
+                                <span className="text-[10px] text-cyan-600 font-bold opacity-60 group-hover:opacity-100 transition">
+                                  + S/N
+                                </span>
+                              </button>
+                            )}
+                          </td>
+
+                          {/* Min Stock Alert */}
+                          <td className="py-3 px-4 text-center font-mono font-semibold text-slate-500">
+                            {isService ? '-' : `${product.minStockAlert || 0} ${product.unit}`}
+                          </td>
+
+                          {/* Current Stock */}
+                          <td className="py-3 px-4 text-center font-mono">
+                            {isService ? (
+                              <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300 inline-block">
+                                Cheksiz (Xizmat)
+                              </span>
+                            ) : isOut ? (
+                              <span className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800 inline-block">
+                                0 {product.unit} (Tugagan)
+                              </span>
+                            ) : isLow ? (
+                              <span className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800 inline-block">
+                                {product.stockQuantity} {product.unit} (Kam qolgan)
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-lg text-[12px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 inline-block">
+                                {product.stockQuantity} {product.unit}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Stock Valuation */}
+                          <td className="py-3 px-4 text-right font-mono">
+                            {isService ? (
+                              <span className="text-slate-400 italic text-[11px]">-</span>
+                            ) : (
+                              <div>
+                                <div className="font-bold text-slate-900 dark:text-white">
+                                  {formatMoney(rowStockCost, baseCurrency, exchangeRate)}
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                  {product.stockQuantity} x {formatMoney(product.costPrice, baseCurrency, exchangeRate)}
+                                </div>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Action: Open Purchase Invoice (Prixod) */}
+                          <td className="py-3 px-4 text-right">
+                            {!isService ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPurchaseForProduct(product.id)}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-bold transition text-[11px] border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 ml-auto shadow-2xs"
+                                title="Ta'minotchidan rasmiy kirim qilish (Prixod / Nakladnoy)"
+                              >
+                                <Truck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span>+ Prixod</span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 text-[11px] italic">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  )}
+      )}
+
+      {/* ============================================================ */}
+      {/* 2. ALOHIDA BO'LIM: MAHSULOTLAR RO'YXATI (CATALOG / NOMENKLATURA) */}
+      {/* ============================================================ */}
+      {activeSubTab === 'products' && (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Catalog Header & Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Layers className="w-5 h-5 text-indigo-500" />
+                <span>Mahsulotlar & Xizmatlar Ro&apos;yxati (Katalog)</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Barcha nomenklatura, tannarx, sotish va ulgurji narxlar, kafolat muddati va tahrirlash
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleOpenAddModal}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/25 flex items-center gap-1.5 transition active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Yangi Mahsulot / Montaj</span>
+              </button>
+              <button
+                onClick={() => setIsCategoryManageModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 transition active:scale-95"
+              >
+                <Settings2 className="w-4 h-4 text-cyan-500" />
+                <span>Kategoriyalar ({categories.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => exportProductsToExcel(products)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
+                title="Excelga eksport"
+              >
+                <Download className="w-4 h-4 text-emerald-500" />
+              </button>
+            </div>
+          </div>
+
+          {/* Search and Category Filter Bar */}
+          <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Katalogdan qidirish (nomi, SKU, shtrix-kod)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500/40 text-slate-800 dark:text-slate-100"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto no-scrollbar">
+              {filterCategoryNames.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                    selectedCategory === cat
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Products Catalog Table */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Qurilma / Xizmat Nomi</th>
+                    <th className="py-3 px-4">Kategoriya & Turi</th>
+                    <th className="py-3 px-4 text-center">O&apos;lchov</th>
+                    <th className="py-3 px-4 text-center">Kafolat</th>
+                    <th className="py-3 px-4 text-right">Tannarx</th>
+                    <th className="py-3 px-4 text-right">Sotish (Chakana)</th>
+                    <th className="py-3 px-4 text-right">Ulgurji Narx</th>
+                    <th className="py-3 px-4 text-center">Ustaga Xizmat Haqqi</th>
+                    <th className="py-3 px-4 text-right">Amallar</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredCatalogProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                        <Layers className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                        <p className="font-bold">Mahsulotlar katalogida tovar topilmadi</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCatalogProducts.map((product) => {
+                      const catObj = categories.find((c) => c.name === product.category);
+                      const catColor = catObj?.color || '#06B6D4';
+                      const isService = !!product.isService;
+                      const hasSN = !!product.hasSerialNumber;
+
+                      return (
+                        <tr key={product.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                          {/* Name, SKU, Barcode */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 p-0.5">
+                                {product.imageUrl ? (
+                                  <img
+                                    src={product.imageUrl}
+                                    alt={product.name}
+                                    loading="lazy"
+                                    className="w-full h-full object-contain"
+                                  />
+                                ) : isService ? (
+                                  <Wrench className="w-5 h-5 text-pink-500" />
+                                ) : hasSN ? (
+                                  <Camera className="w-5 h-5 text-cyan-500" />
+                                ) : (
+                                  <Package className="w-5 h-5 text-amber-500" />
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                  <span>{product.name}</span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                  {product.barcode} &bull; {product.sku}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Category & Type Badge */}
+                          <td className="py-3 px-4">
+                            <div className="flex flex-col gap-1 items-start">
+                              <span 
+                                className="px-2.5 py-0.5 rounded-md font-bold text-[10px] inline-flex items-center gap-1.5"
+                                style={{ backgroundColor: `${catColor}15`, color: catColor }}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: catColor }} />
+                                {product.category}
+                              </span>
+                              {isService ? (
+                                <span className="text-[9px] font-bold text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/40 px-1.5 py-0.5 rounded">
+                                  Montaj / Xizmat
+                                </span>
+                              ) : hasSN ? (
+                                <span className="text-[9px] font-bold text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/40 px-1.5 py-0.5 rounded">
+                                  S/N Nazorati
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                                  Oddiy Tovar
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Unit */}
+                          <td className="py-3 px-4 text-center font-bold text-slate-700 dark:text-slate-300">
+                            {product.unit || 'dona'}
+                          </td>
+
+                          {/* Warranty */}
+                          <td className="py-3 px-4 text-center">
+                            {product.warrantyMonths ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50">
+                                <ShieldCheck className="w-3 h-3 text-blue-500" />
+                                {product.warrantyMonths} oy
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">-</span>
+                            )}
+                          </td>
+
+                          {/* Cost Price */}
+                          <td className="py-3 px-4 text-right font-mono">
+                            <div className="font-semibold text-slate-500">
+                              {baseCurrency === 'USD' 
+                                ? `$${formatUSDNumber(product.costPriceUSD || (product.costPrice / (exchangeRate || 12850)))}` 
+                                : `${formatNumberWithSpaces(product.costPrice)} so'm`}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold">
+                              {baseCurrency === 'USD' 
+                                ? `${formatNumberWithSpaces(product.costPrice)} so'm` 
+                                : `$${formatUSDNumber(product.costPriceUSD || (product.costPrice / (exchangeRate || 12850)))}`}
+                            </div>
+                          </td>
+
+                          {/* Retail Price */}
+                          <td className="py-3 px-4 text-right font-mono">
+                            <div className="font-bold text-slate-900 dark:text-white">
+                              {baseCurrency === 'USD'
+                                ? `$${formatUSDNumber(product.retailPriceUSD || (product.retailPrice / (exchangeRate || 12850)))}`
+                                : `${formatNumberWithSpaces(product.retailPrice)} so'm`}
+                            </div>
+                            <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">
+                              {baseCurrency === 'USD'
+                                ? `${formatNumberWithSpaces(product.retailPrice)} so'm`
+                                : `$${formatUSDNumber(product.retailPriceUSD || (product.retailPrice / (exchangeRate || 12850)))}`}
+                            </div>
+                          </td>
+
+                          {/* Wholesale Price */}
+                          <td className="py-3 px-4 text-right font-mono text-slate-600 dark:text-slate-300 font-semibold">
+                            {isService ? (
+                              <span className="text-slate-400 text-xs">-</span>
+                            ) : product.wholesalePrice && product.wholesalePrice > 0 ? (
+                              formatMoney(product.wholesalePrice, baseCurrency, exchangeRate)
+                            ) : (
+                              <span className="text-slate-400 text-xs">-</span>
+                            )}
+                          </td>
+
+                          {/* Technician Wage */}
+                          <td className="py-3 px-4 text-center font-mono text-xs">
+                            {isService && (product.technicianWageUSD || product.technicianWageUZS) ? (
+                              <span className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800/80 inline-flex items-center gap-1">
+                                <HardHat className="w-3 h-3 text-amber-600" />
+                                ${product.technicianWageUSD || Number(((product.technicianWageUZS || 0) / exchangeRate).toFixed(1))}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">-</span>
+                            )}
+                          </td>
+
+                          {/* Actions: Edit & Delete */}
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleOpenEditProduct(product)}
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-500 hover:text-white text-slate-600 dark:text-slate-300 transition"
+                                title="Tahrirlash (Redakt)"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setProductToDelete(product)}
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-500 hover:text-white text-slate-400 transition"
+                                title="O'chirish"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
   {/* CONDITIONAL SUB-TAB: PURCHASES (PRIXOD / NAKLADNOY) */}
   {activeSubTab === 'purchases' && (
@@ -2254,15 +2741,11 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                         setNewUnit('nuqta');
                         // Avtomatik ravishda toifani montaj/o'rnatish xizmatiga o'tkazish
                         const serviceCat = categories.find(c => 
+                          c.name.toLowerCase() === 'montaj' ||
                           c.name.toLowerCase().includes('montaj') || 
-                          c.name.toLowerCase().includes('o\'rnatish') || 
                           c.name.toLowerCase().includes('xizmat')
                         );
-                        if (serviceCat) {
-                          setNewCategory(serviceCat.name);
-                        } else if (categories.length > 0) {
-                          setNewCategory("O'rnatish & Montaj xizmatlari");
-                        }
+                        setNewCategory(serviceCat ? serviceCat.name : 'Montaj');
                       } else {
                         setNewUnit('dona');
                         // Mahsulotga qaytganda CCTV yoki birinchi mavjud mahsulot toifasiga qaytarish
@@ -2392,7 +2875,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                     </button>
                   </div>
                   <select
-                    value={newCategory}
+                    value={categories.some(c => c.name === newCategory) ? newCategory : (categories[0]?.name || '')}
                     onChange={(e) => setNewCategory(e.target.value)}
                     className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium"
                   >
@@ -2672,15 +3155,11 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                       if (isChecked) {
                         setEditHasSerialNumber(false);
                         const serviceCat = categories.find(c => 
+                          c.name.toLowerCase() === 'montaj' ||
                           c.name.toLowerCase().includes('montaj') || 
-                          c.name.toLowerCase().includes('o\'rnatish') || 
                           c.name.toLowerCase().includes('xizmat')
                         );
-                        if (serviceCat) {
-                          setEditCategory(serviceCat.name);
-                        } else if (categories.length > 0) {
-                          setEditCategory("O'rnatish & Montaj xizmatlari");
-                        }
+                        setEditCategory(serviceCat ? serviceCat.name : 'Montaj');
                       }
                     }}
                     className="w-4 h-4 rounded text-pink-600 focus:ring-pink-500"
@@ -2787,7 +3266,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Kategoriya</label>
                   <select
-                    value={editCategory}
+                    value={categories.some(c => c.name === editCategory) ? editCategory : (categories[0]?.name || '')}
                     onChange={(e) => setEditCategory(e.target.value)}
                     className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-medium"
                   >
@@ -3133,85 +3612,24 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
               )}
             </div>
 
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center gap-2">
               <span className="text-xs text-slate-500 font-medium">
                 Jami: {viewingSerialProduct.serialNumbers?.length || 0} dona
               </span>
               <button
+                type="button"
                 onClick={() => {
-                  setQuickStockProduct(viewingSerialProduct);
+                  const pId = viewingSerialProduct.id;
                   setViewingSerialProduct(null);
+                  handleOpenPurchaseForProduct(pId);
                 }}
-                className="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1 transition"
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+                title="Ta'minotchidan rasmiy kirim nakladnoy (Prixod) tuzish"
               >
-                <Plus className="w-3.5 h-3.5" />
-                Yangi S/N Kirim qilish
+                <Truck className="w-3.5 h-3.5" />
+                <span>+ Prixod (Nakladnoy) ochish</span>
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 4: QUICK S/N STOCK ENTRY (KIRIM QILISH) */}
-      {quickStockProduct && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Plus className="w-5 h-5 text-cyan-500" />
-                  Yangi Seriya Raqamlari Kirimi (S/N)
-                </h3>
-                <p className="text-xs text-slate-500 truncate max-w-xs">{quickStockProduct.name}</p>
-              </div>
-              <button
-                onClick={() => setQuickStockProduct(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleQuickAddSerials} className="space-y-3">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Shtrix-kod skanerdan o&apos;tkazing yoki yozing:
-                  </label>
-                  <span className="text-xs font-mono font-bold text-cyan-600">
-                    +{parseSerials(quickNewSerialsText).length} ta yangi dona
-                  </span>
-                </div>
-                <textarea
-                  rows={4}
-                  required
-                  autoFocus
-                  placeholder="Masalan:&#10;HK-4MP-982105&#10;HK-4MP-982106"
-                  value={quickNewSerialsText}
-                  onChange={(e) => setQuickNewSerialsText(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-mono text-slate-900 dark:text-white focus:ring-2 focus:ring-cyan-500/40"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Mavjud ombor qoldig&apos;iga qo&apos;shiladi ({quickStockProduct.stockQuantity} dona hozirda bor).
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setQuickStockProduct(null)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                >
-                  Bekor qilish
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-lg shadow-cyan-600/20 transition active:scale-[0.98]"
-                >
-                  Kirimni Saqlash
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
@@ -3380,8 +3798,10 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
         onClose={() => {
           setIsNewPurchaseModalOpen(false);
           setEditingPurchaseInvoice(null);
+          setPurchaseModalInitialProductId(null);
         }}
         editingPurchase={editingPurchaseInvoice}
+        initialProductId={purchaseModalInitialProductId}
         products={products}
         categories={categories}
         purchases={purchases}
@@ -3396,6 +3816,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
           }
           setIsNewPurchaseModalOpen(false);
           setEditingPurchaseInvoice(null);
+          setPurchaseModalInitialProductId(null);
         }}
       />
 
@@ -3437,6 +3858,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
           isOpen={isExcelImportModalOpen}
           onClose={() => setIsExcelImportModalOpen(false)}
           onImportProducts={handleImportProducts}
+          exchangeRate={exchangeRate}
         />
       )}
 
@@ -3518,6 +3940,177 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Ha, O&apos;chirish</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 12: BULK SERIAL NUMBER CONFIGURATION MODAL */}
+      {isBulkSerialModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-850 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Seriya Raqamlari (S/N) Sozlamasi
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Kategoriyalar bo&apos;yicha tovarlarga S/N nazoratini yoqish yoki o&apos;chirish
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBulkSerialModalOpen(false)}
+                className="w-8 h-8 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center justify-center transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 overflow-y-auto">
+              {/* Action Selector */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
+                  1. Amalni tanlang:
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setBulkSerialAction('enable')}
+                    className={`p-3 rounded-2xl border text-left transition flex items-start gap-2.5 ${
+                      bulkSerialAction === 'enable'
+                        ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                      <Hash className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <strong className="text-xs block">S/N Nazoratini Yoqish</strong>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                        Har bir donaga S/N kiritiladi (kamera, NVR va b.)
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBulkSerialAction('disable')}
+                    className={`p-3 rounded-2xl border text-left transition flex items-start gap-2.5 ${
+                      bulkSerialAction === 'disable'
+                        ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-slate-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <strong className="text-xs block">Oddiy Tovarga O&apos;tkazish</strong>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                        S/N nazorati o&apos;chiriladi, oddiy miqdor saqlanadi
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Category checkboxes */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    2. Qaysi kategoriyalar uchun qo&apos;llanilsin?
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allNonService = Array.from(new Set(products.filter(p => !p.isService).map(p => p.category)));
+                        setSelectedBulkCategories(allNonService);
+                      }}
+                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold"
+                    >
+                      Barchasi
+                    </button>
+                    <span className="text-slate-300 dark:text-slate-700">&bull;</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBulkCategories([])}
+                      className="text-[11px] text-slate-400 hover:underline"
+                    >
+                      Tozalash
+                    </button>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 dark:border-slate-700/80 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800 max-h-56 overflow-y-auto">
+                  {Array.from(new Set(products.filter(p => !p.isService).map(p => p.category))).map(catName => {
+                    const count = products.filter(p => p.category === catName).length;
+                    const isSelected = selectedBulkCategories.includes(catName);
+                    return (
+                      <label
+                        key={catName}
+                        className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer text-xs"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedBulkCategories([...selectedBulkCategories, catName]);
+                              } else {
+                                setSelectedBulkCategories(selectedBulkCategories.filter(c => c !== catName));
+                              }
+                            }}
+                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{catName}</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                          {count} ta tovar
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Alert / Summary */}
+              <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 text-xs text-indigo-900 dark:text-indigo-200">
+                O&apos;zgartiriladigan tovarlar soni:{' '}
+                <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm">
+                  {products.filter(p => !p.isService && selectedBulkCategories.includes(p.category)).length} ta
+                </span>
+                . Saqlangach, ushbu tovarlarning har biriga <strong>«+ S/N Kirim»</strong> tugmasi orqali seriya raqamlarini kiritib qoldiqni to&apos;ldirasiz.
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-end gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsBulkSerialModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyBulkSerial}
+                disabled={selectedBulkCategories.length === 0}
+                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-indigo-600/20 transition active:scale-[0.98]"
+              >
+                Saqlash va Qo&apos;llash
               </button>
             </div>
           </div>

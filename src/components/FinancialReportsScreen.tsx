@@ -85,6 +85,7 @@ interface FinancialReportsScreenProps {
       serialNumbers: string[];
     }[]
   ) => void;
+  onDeleteReceipt?: (receiptId: string) => void;
   initialSubTab?: SubReportTab;
   branches?: Branch[];
 }
@@ -120,6 +121,7 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
   currentUser,
   onReturnReceipt,
   onSaveEditReceipt,
+  onDeleteReceipt,
   initialSubTab = 'pnl',
   branches = []
 }) => {
@@ -356,52 +358,64 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
       debtUZS += (r.payments?.debt || 0);
       cashbackUsedUZS += (r.payments?.cashbackUsed || 0);
 
-      // Technician wages in receipt
-      if (r.technicians && r.technicians.length > 0) {
-        r.technicians.forEach((t) => {
-          const wUZS = t.wageUZS || (t.wageUSD ? Math.round(t.wageUSD * exchangeRate) : 0);
-          technicianWagesUZS += wUZS;
+      // Check if receipt is fully returned or all services refunded
+      const isFullyReturned = r.status === 'returned';
+      const serviceItems = r.items.filter((it) => it.product.isService);
+      const allServicesRefunded = serviceItems.length > 0 && serviceItems.every((it) => (it.returnedQuantity || 0) >= it.quantity);
 
-          if (!technicianStatsMap.has(t.id)) {
-            technicianStatsMap.set(t.id, {
-              technicianId: t.id,
-              technicianName: t.fullName,
-              role: t.role || "Montajchi Usta",
+      // Technician wages in receipt (only add if receipt/service is not fully cancelled or returned)
+      if (!isFullyReturned && !allServicesRefunded) {
+        if (r.technicians && r.technicians.length > 0) {
+          r.technicians.forEach((t) => {
+            const wUZS = t.wageUZS || (t.wageUSD ? Math.round(t.wageUSD * exchangeRate) : 0);
+            technicianWagesUZS += wUZS;
+
+            if (!technicianStatsMap.has(t.id)) {
+              technicianStatsMap.set(t.id, {
+                technicianId: t.id,
+                technicianName: t.fullName,
+                role: t.role || "Montajchi Usta",
+                jobsCount: 0,
+                salesSumUZS: 0,
+                wageSumUZS: 0,
+                wageSumUSD: 0
+              });
+            }
+            const techStat = technicianStatsMap.get(t.id)!;
+            techStat.jobsCount += 1;
+            const netReceiptTotal = Math.max(0, r.totalAmount - (r.totalRefunded || 0));
+            techStat.salesSumUZS += (netReceiptTotal / r.technicians!.length);
+            techStat.wageSumUZS += wUZS;
+            techStat.wageSumUSD += (t.wageUSD || Number((wUZS / exchangeRate).toFixed(1)));
+          });
+        } else if (r.technicianId && r.technicianName) {
+          if (!technicianStatsMap.has(r.technicianId)) {
+            technicianStatsMap.set(r.technicianId, {
+              technicianId: r.technicianId,
+              technicianName: r.technicianName,
+              role: "Montajchi Usta",
               jobsCount: 0,
               salesSumUZS: 0,
               wageSumUZS: 0,
               wageSumUSD: 0
             });
           }
-          const techStat = technicianStatsMap.get(t.id)!;
+          const techStat = technicianStatsMap.get(r.technicianId)!;
           techStat.jobsCount += 1;
-          techStat.salesSumUZS += (r.totalAmount / r.technicians!.length);
-          techStat.wageSumUZS += wUZS;
-          techStat.wageSumUSD += (t.wageUSD || Number((wUZS / exchangeRate).toFixed(1)));
-        });
-      } else if (r.technicianId && r.technicianName) {
-        if (!technicianStatsMap.has(r.technicianId)) {
-          technicianStatsMap.set(r.technicianId, {
-            technicianId: r.technicianId,
-            technicianName: r.technicianName,
-            role: "Montajchi Usta",
-            jobsCount: 0,
-            salesSumUZS: 0,
-            wageSumUZS: 0,
-            wageSumUSD: 0
-          });
+          techStat.salesSumUZS += Math.max(0, r.totalAmount - (r.totalRefunded || 0));
         }
-        const techStat = technicianStatsMap.get(r.technicianId)!;
-        techStat.jobsCount += 1;
-        techStat.salesSumUZS += r.totalAmount;
       }
 
       // Line items analysis
       r.items.forEach((item) => {
+        const returnedQty = item.returnedQuantity || 0;
+        const netQty = Math.max(0, item.quantity - returnedQty);
+
         const itemTotal = item.quantity * item.appliedPrice;
         const catalogProd = products.find((p) => p.id === item.product.id) || item.product;
         const unitCost = catalogProd.costPrice || 0;
-        const itemCost = catalogProd.isService ? 0 : item.quantity * unitCost;
+        // Tannarx (COGS) faqat haqiqatda sotilib qaytarilmagan (omborga qaytmagan) mahsulotlarga hisoblanadi
+        const itemCost = catalogProd.isService ? 0 : netQty * unitCost;
 
         if (catalogProd.isService) {
           grossServiceSalesUZS += itemTotal;
@@ -426,10 +440,11 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
           });
         }
         const pStat = productStatsMap.get(pId)!;
-        pStat.totalQty += item.quantity;
-        pStat.revenueUZS += itemTotal;
+        const netItemRevenue = netQty * item.appliedPrice;
+        pStat.totalQty += netQty;
+        pStat.revenueUZS += netItemRevenue;
         pStat.costUZS += itemCost;
-        pStat.grossProfitUZS += (itemTotal - itemCost);
+        pStat.grossProfitUZS += (netItemRevenue - itemCost);
       });
     });
 
@@ -1387,11 +1402,13 @@ export const FinancialReportsScreen: React.FC<FinancialReportsScreenProps> = ({
             products={products}
             customers={customers}
             employees={employees}
+            branches={branches}
             exchangeRate={exchangeRate}
             baseCurrency={baseCurrency}
             currentUser={currentUser}
             onReturnReceipt={onReturnReceipt || (() => {})}
             onSaveEditReceipt={onSaveEditReceipt || (() => {})}
+            onDeleteReceipt={onDeleteReceipt}
           />
         </div>
       )}

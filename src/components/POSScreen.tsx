@@ -39,17 +39,21 @@ import {
   Bell,
   BellRing,
   Zap,
-  Coins
+  Coins,
+  Building2
 } from 'lucide-react';
 import { PaymentModal } from './PaymentModal';
 import { ReceiptModal } from './ReceiptModal';
 import { CashierOrderApprovalModal } from './CashierOrderApprovalModal';
 import { formatNumberWithSpaces, formatUSDNumber, formatMoney, getNowFormatted } from '../utils/formatters';
+import { isTechnicianWithMontaj, categorizeTechniciansByBranch, getTechnicianBranchName } from '../utils/technicianUtils';
 
 interface POSScreenProps {
   products: Product[];
   customers: Customer[];
   employees?: Employee[];
+  allEmployees?: Employee[];
+  branches?: Branch[];
   customerOrders?: CustomerOrder[];
   onCompleteSale: (receipt: SaleReceipt) => void;
   onAddCustomer: (customer: Customer) => void;
@@ -67,6 +71,8 @@ export const POSScreen: React.FC<POSScreenProps> = ({
   products,
   customers,
   employees = [],
+  allEmployees = [],
+  branches = [],
   customerOrders = [],
   onCompleteSale,
   onAddCustomer,
@@ -100,10 +106,26 @@ export const POSScreen: React.FC<POSScreenProps> = ({
   // Unified base currency check
   const isUSDBase = baseCurrency === 'USD';
 
-  // Technicians list (Montajchi ustalar va muhandislar)
+  // Toggle state for viewing other branches' technicians
+  const [showOtherBranches, setShowOtherBranches] = useState<boolean>(false);
+
+  // Source list of all employees (from all branches if provided)
+  const sourceEmployees = useMemo(() => {
+    return allEmployees && allEmployees.length > 0 ? allEmployees : (employees || []);
+  }, [allEmployees, employees]);
+
+  // Technicians list:
+  // QOIDALAR:
+  // 1. Admin usta sifatida belgilanmasin
+  // 2. Faqat ish haqida montaj belgilangan (per_job, fixed_plus_job, hybrid yoki commissionPerInstall > 0) xodimlar chiqsin
+  // 3. Shu filialga taalluqli ustalar ko'rinib tursin, boshqa filial ustalari guruhlangan holda bo'lsin
+  const { currentBranchTechs, otherBranchTechs, otherBranchesGrouped } = useMemo(() => {
+    return categorizeTechniciansByBranch(sourceEmployees, currentBranch?.id, branches);
+  }, [sourceEmployees, currentBranch, branches]);
+
   const technicians = useMemo(() => {
-    return (employees || []).filter((e) => e.role !== 'Kassir / Menejer');
-  }, [employees]);
+    return [...currentBranchTechs, ...otherBranchTechs];
+  }, [currentBranchTechs, otherBranchTechs]);
 
   // Check if cart contains any installation service and get services list
   const serviceItems = useMemo(() => {
@@ -136,26 +158,44 @@ export const POSScreen: React.FC<POSScreenProps> = ({
     }));
   };
 
-  // Toggle technician in/out
+  // Toggle technician in/out - Har bir ustaga mustaqil o'z xizmat haqqi saqlanadi
   const handleToggleTechnician = (emp: Employee) => {
     const isSelected = selectedTechnicians.some((t) => t.id === emp.id);
-    let updated: AssignedTechnician[];
     if (isSelected) {
-      updated = selectedTechnicians.filter((t) => t.id !== emp.id);
+      setSelectedTechnicians((prev) => prev.filter((t) => t.id !== emp.id));
     } else {
-      updated = [
-        ...selectedTechnicians,
+      // Har bir usta o'zining kelishilgan montaj stavkasini oladi
+      const defaultUZS = emp.commissionPerInstall || (totalServiceWageUZS > 0 ? Math.round(totalServiceWageUZS / (selectedTechnicians.length + 1)) : 0);
+      const defaultUSD = Number((defaultUZS / exchangeRate).toFixed(2));
+      const branchName = emp.branchName || getTechnicianBranchName(emp, branches);
+      setSelectedTechnicians((prev) => [
+        ...prev,
         {
           id: emp.id,
           fullName: emp.fullName,
           phone: emp.phone,
           role: emp.role,
-          wageUSD: 0,
-          wageUZS: 0
+          wageUSD: defaultUSD,
+          wageUZS: defaultUZS,
+          branchId: emp.branchId,
+          branchName: branchName
         }
-      ];
+      ]);
     }
-    setSelectedTechnicians(calculateEqualSplit(updated, totalServiceWageUSD));
+  };
+
+  // Update specific technician's wage in UZS directly
+  const handleUpdateTechnicianWageUZS = (techId: string, newUZS: number) => {
+    setSelectedTechnicians((prev) =>
+      prev.map((t) => {
+        if (t.id === techId) {
+          const wageUZS = Math.max(0, newUZS);
+          const wageUSD = Number((wageUZS / exchangeRate).toFixed(2));
+          return { ...t, wageUSD, wageUZS };
+        }
+        return t;
+      })
+    );
   };
 
   // Update specific technician's wage in USD
@@ -172,9 +212,11 @@ export const POSScreen: React.FC<POSScreenProps> = ({
     );
   };
 
-  // Reset to equal split
+  // Reset to equal split (agar savatda xizmat bo'lsa)
   const handleResetSplit = () => {
-    setSelectedTechnicians((prev) => calculateEqualSplit(prev, totalServiceWageUSD));
+    if (totalServiceWageUSD > 0 && selectedTechnicians.length > 0) {
+      setSelectedTechnicians((prev) => calculateEqualSplit(prev, totalServiceWageUSD));
+    }
   };
 
   // Held carts feature (Kassani kutishga qo'yish)
@@ -232,13 +274,32 @@ export const POSScreen: React.FC<POSScreenProps> = ({
 
   // Handle adding product to cart
   const handleProductClick = (product: Product) => {
-    if (product.hasSerialNumber && product.serialNumbers && product.serialNumbers.length > 0) {
+    // Strict stock check for non-service physical products
+    if (!product.isService) {
+      const availableStock = product.hasSerialNumber
+        ? (product.serialNumbers?.length || 0)
+        : (product.stockQuantity || 0);
+
+      if (availableStock <= 0) {
+        alert(`❌ DIQQAT: «${product.name}» mahsuloti omborda tugagan (0 dona)!\n\nOmborda mavjud bo'lmagan tovarlarni sotish qat'iyan man etiladi. Tizimga avval «Prixod (Kirim Nakladnoy)» orqali kirim qiling.`);
+        return;
+      }
+
+      const existingInCart = cart.find((item) => item.product.id === product.id);
+      const currentCartQty = existingInCart?.quantity || 0;
+      if (currentCartQty >= availableStock) {
+        alert(`❌ DIQQAT: «${product.name}» mahsulotidan omborda jami ${availableStock} ${product.unit} mavjud!\n\nSavatdagi miqdor (${currentCartQty}) ombor qoldig'idan oshib ketishi mumkin emas.`);
+        return;
+      }
+    }
+
+    if (product.hasSerialNumber) {
       const existingInCart = cart.find((item) => item.product.id === product.id);
       const usedSerials = existingInCart?.selectedSerialNumbers || [];
-      const availableSerials = product.serialNumbers.filter((sn) => !usedSerials.includes(sn));
+      const availableSerials = (product.serialNumbers || []).filter((sn) => !usedSerials.includes(sn));
 
       if (availableSerials.length === 0) {
-        alert("Bu mahsulotning barcha seriya raqamlari savatga qo'shilgan yoki omborda qolmagan!");
+        alert(`❌ Ushbu seriya raqamli mahsulotning barcha seriya raqamlari savatga qo'shilgan yoki omborda qolmagan (0 dona)!`);
         return;
       }
 
@@ -255,9 +316,21 @@ export const POSScreen: React.FC<POSScreenProps> = ({
   };
 
   const addStandardItemToCart = (product: Product) => {
+    if (!product.isService) {
+      const availableStock = product.stockQuantity || 0;
+      if (availableStock <= 0) {
+        alert(`❌ «${product.name}» mahsuloti omborda tugagan (0 dona)! Uni sotishdan oldin Prixod qiling.`);
+        return;
+      }
+    }
+
     setCart((prevCart) => {
       const existing = prevCart.find((item) => item.product.id === product.id);
       if (existing) {
+        if (!product.isService && existing.quantity >= (product.stockQuantity || 0)) {
+          alert(`❌ Omborda faqat ${product.stockQuantity} ${product.unit} mavjud!`);
+          return prevCart;
+        }
         return prevCart.map((item) =>
           item.product.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
@@ -317,6 +390,17 @@ export const POSScreen: React.FC<POSScreenProps> = ({
     if (delta > 0 && targetItem.product.hasSerialNumber) {
       handleProductClick(targetItem.product);
       return;
+    }
+
+    if (delta > 0 && !targetItem.product.isService) {
+      const availableStock = targetItem.product.hasSerialNumber
+        ? (targetItem.product.serialNumbers?.length || 0)
+        : (targetItem.product.stockQuantity || 0);
+
+      if (targetItem.quantity + delta > availableStock) {
+        alert(`❌ Omborda faqat ${availableStock} ${targetItem.product.unit} qolgan! Ortig'ini qo'shib bo'lmaydi.`);
+        return;
+      }
     }
 
     setCart((prevCart) => {
@@ -501,6 +585,28 @@ export const POSScreen: React.FC<POSScreenProps> = ({
 
   // Complete sale callback
   const handleConfirmPayment = (payment: PaymentDetails, cashbackEarned: number) => {
+    // Strict stock verification before finalizing payment
+    for (const item of cart) {
+      if (!item.product.isService) {
+        const latestProd = products.find((p) => p.id === item.product.id);
+        const avail = latestProd
+          ? (latestProd.hasSerialNumber ? (latestProd.serialNumbers?.length || 0) : (latestProd.stockQuantity || 0))
+          : 0;
+
+        if (avail <= 0 || item.quantity > avail) {
+          alert(`❌ SOTUV TO'XTATILDI!\n\n«${item.product.name}» tovari omborda yetarli emas!\nOmbordagi qoldiq: ${avail} ${item.product.unit}\nSavatdagi miqdor: ${item.quantity} ${item.product.unit}\n\nOmborda yo'q yoki yetarli bo'lmagan tovarlarni sotish qat'iyan taqiqlanadi.`);
+          return;
+        }
+
+        if (latestProd?.hasSerialNumber) {
+          if (!item.selectedSerialNumbers || item.selectedSerialNumbers.length !== item.quantity) {
+            alert(`❌ SOTUV TO'XTATILDI!\n\n«${item.product.name}» seriya raqamli tovar uchun ${item.quantity} ta S/N to'liq biriktirilmagan!`);
+            return;
+          }
+        }
+      }
+    }
+
     const newReceipt: SaleReceipt = {
       id: `rec-${Date.now()}`,
       receiptNumber: `#SC-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -779,14 +885,20 @@ export const POSScreen: React.FC<POSScreenProps> = ({
             {filteredProducts.map((product) => {
               const isService = !!product.isService;
               const hasSN = !!product.hasSerialNumber;
-              const isLowStock = !isService && product.stockQuantity <= product.minStockAlert;
+              const currentStock = hasSN ? (product.serialNumbers?.length || 0) : (product.stockQuantity || 0);
+              const isOutOfStock = !isService && currentStock <= 0;
+              const isLowStock = !isService && !isOutOfStock && currentStock <= product.minStockAlert;
               const priceUSD = Number((product.retailPrice / exchangeRate).toFixed(2));
 
               return (
                 <div
                   key={product.id}
                   onClick={() => handleProductClick(product)}
-                  className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 flex flex-col justify-between hover:border-cyan-500/60 dark:hover:border-cyan-500/60 hover:shadow-xl hover:shadow-cyan-500/5 transition-all duration-200 cursor-pointer active:scale-[0.98] select-none"
+                  className={`group border rounded-2xl p-3 flex flex-col justify-between transition-all duration-200 select-none ${
+                    isOutOfStock
+                      ? 'border-rose-200 dark:border-rose-950/60 opacity-60 bg-rose-50/20 dark:bg-rose-950/10 cursor-not-allowed'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-cyan-500/60 dark:hover:border-cyan-500/60 hover:shadow-xl hover:shadow-cyan-500/5 cursor-pointer active:scale-[0.98]'
+                  }`}
                 >
                   <div>
                     {/* Vitrina Image Container (Rounded Showcase Box) */}
@@ -810,32 +922,47 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                         </div>
                       )}
 
+                      {/* Out of stock dark overlay */}
+                      {isOutOfStock && (
+                        <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[1px] flex items-center justify-center p-2 z-10">
+                          <span className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider shadow-md">
+                            Omborda Tugagan
+                          </span>
+                        </div>
+                      )}
+
                       {/* Category Badge overlay (Top Left) */}
-                      <span className="absolute top-1.5 left-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm px-2 py-0.5 rounded-md truncate max-w-[105px] border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                      <span className="absolute top-1.5 left-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm px-2 py-0.5 rounded-md truncate max-w-[105px] border border-slate-200/80 dark:border-slate-700/80 shadow-xs z-20">
                         {product.category}
                       </span>
 
                       {/* Stock / S/N / Service Badge overlay (Top Right) */}
-                      {isService ? (
-                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold px-2 py-0.5 rounded-md bg-pink-500 text-white flex items-center gap-0.5 shadow-xs">
-                          <Wrench className="w-2.5 h-2.5" /> Montaj
-                        </span>
-                      ) : hasSN ? (
-                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold px-2 py-0.5 rounded-md bg-cyan-600 text-white flex items-center gap-0.5 font-mono shadow-xs">
-                          <Hash className="w-2.5 h-2.5" /> {product.serialNumbers?.length || product.stockQuantity} S/N
-                        </span>
-                      ) : (
-                        <span
-                          className={`absolute top-1.5 right-1.5 text-[9px] font-bold px-2 py-0.5 rounded-md flex items-center gap-0.5 shadow-xs ${
-                            isLowStock
-                              ? 'bg-amber-500 text-white'
-                              : 'bg-emerald-600 text-white'
-                          }`}
-                        >
-                          {isLowStock && <AlertTriangle className="w-2.5 h-2.5" />}
-                          {product.stockQuantity} {product.unit}
-                        </span>
-                      )}
+                      <div className="absolute top-1.5 right-1.5 z-20">
+                        {isService ? (
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-pink-500 text-white flex items-center gap-0.5 shadow-xs">
+                            <Wrench className="w-2.5 h-2.5" /> Montaj
+                          </span>
+                        ) : isOutOfStock ? (
+                          <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-md bg-rose-600 text-white flex items-center gap-0.5 shadow-xs font-mono">
+                            <AlertTriangle className="w-2.5 h-2.5" /> Tugagan (0)
+                          </span>
+                        ) : hasSN ? (
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-cyan-600 text-white flex items-center gap-0.5 font-mono shadow-xs">
+                            <Hash className="w-2.5 h-2.5" /> {currentStock} S/N
+                          </span>
+                        ) : (
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-md flex items-center gap-0.5 shadow-xs ${
+                              isLowStock
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-emerald-600 text-white'
+                            }`}
+                          >
+                            {isLowStock && <AlertTriangle className="w-2.5 h-2.5" />}
+                            {product.stockQuantity} {product.unit}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Product Name */}
@@ -1069,41 +1196,112 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                     </div>
                   )}
 
-                  {/* Quick Technicians Selection Grid */}
-                  <div className="space-y-1">
+                  {/* Technicians Selection Section */}
+                  <div className="space-y-2">
                     <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                      <span>Ustalarni tanlang:</span>
-                      <span className="text-[9px] font-normal text-slate-400">{technicians.length} ta usta</span>
+                      <span className="flex items-center gap-1.5">
+                        <HardHat className="w-3.5 h-3.5 text-amber-500" />
+                        Shu filial ustalari:
+                      </span>
+                      <span className="text-[9px] font-normal text-slate-400">{currentBranchTechs.length} ta usta</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {technicians.map((tech) => {
-                        const isSelected = selectedTechnicians.some((t) => t.id === tech.id);
-                        return (
-                          <button
-                            key={tech.id}
-                            type="button"
-                            onClick={() => handleToggleTechnician(tech)}
-                            className={`flex items-center gap-1.5 p-1.5 rounded-xl text-left border transition text-xs ${
-                              isSelected
-                                ? 'bg-amber-500/15 border-amber-500 text-amber-950 dark:text-amber-100 font-bold shadow-sm ring-1 ring-amber-500/30'
-                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-300 hover:border-slate-300'
-                            }`}
-                          >
-                            {isSelected ? (
-                              <CheckSquare className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                            ) : (
-                              <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-[11px] leading-tight">{tech.fullName}</div>
-                              <div className="text-[9px] text-slate-400 font-normal truncate">
-                                {tech.role} &bull; {tech.status === 'on_site' ? "Obyektda" : "Ishda"}
+
+                    {currentBranchTechs.length === 0 ? (
+                      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                        ℹ️ Ushbu filialda montaj xizmati yoqilgan usta yo&apos;q. (Admin yoki montaj biriktirilmagan xodimlar usta hisoblanmaydi).
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {currentBranchTechs.map((tech) => {
+                          const isSelected = selectedTechnicians.some((t) => t.id === tech.id);
+                          return (
+                            <button
+                              key={tech.id}
+                              type="button"
+                              onClick={() => handleToggleTechnician(tech)}
+                              className={`flex items-center gap-1.5 p-1.5 rounded-xl text-left border transition text-xs ${
+                                isSelected
+                                  ? 'bg-amber-500/15 border-amber-500 text-amber-950 dark:text-amber-100 font-bold shadow-sm ring-1 ring-amber-500/30'
+                                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                              }`}
+                            >
+                              {isSelected ? (
+                                <CheckSquare className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                              ) : (
+                                <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-[11px] leading-tight font-semibold">{tech.fullName}</div>
+                                <div className="text-[9px] text-slate-400 font-normal truncate">
+                                  {tech.role} &bull; {tech.status === 'on_site' ? "Obyektda" : "Ishda"}
+                                </div>
                               </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Boshqa filiallar ustalari ro'yxati (filiallar bo'yicha guruhlangan) */}
+                    {otherBranchTechs.length > 0 && (
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowOtherBranches(!showOtherBranches)}
+                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 text-[11px] font-bold text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            Boshqa filial ustalari ({otherBranchTechs.length} ta)
+                          </span>
+                          <span className="flex items-center gap-1 text-[10px]">
+                            {showOtherBranches ? 'Yashirish' : 'Ko\'rish'}
+                            {showOtherBranches ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </span>
+                        </button>
+
+                        {showOtherBranches && (
+                          <div className="mt-2 space-y-2.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-blue-200 dark:border-blue-900/40 animate-in fade-in duration-150">
+                            {Object.entries(otherBranchesGrouped).map(([bId, group]) => (
+                              <div key={bId} className="space-y-1">
+                                <div className="text-[10px] font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1 px-1">
+                                  <span>🏢 {group.branch.name} ustalari:</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  {group.technicians.map((tech) => {
+                                    const isSelected = selectedTechnicians.some((t) => t.id === tech.id);
+                                    return (
+                                      <button
+                                        key={tech.id}
+                                        type="button"
+                                        onClick={() => handleToggleTechnician(tech)}
+                                        className={`flex items-center gap-1.5 p-1.5 rounded-xl text-left border transition text-xs ${
+                                          isSelected
+                                            ? 'bg-amber-500/15 border-amber-500 text-amber-950 dark:text-amber-100 font-bold shadow-sm ring-1 ring-amber-500/30'
+                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                                        }`}
+                                      >
+                                        {isSelected ? (
+                                          <CheckSquare className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                        ) : (
+                                          <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                          <div className="truncate text-[11px] leading-tight font-semibold">{tech.fullName}</div>
+                                          <div className="text-[9px] text-blue-600 dark:text-blue-400 font-medium truncate">
+                                            {group.branch.name}
+                                          </div>
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Assigned Technicians Wage Inputs & Split */}
@@ -1112,54 +1310,58 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
                           <Sliders className="w-3 h-3 text-cyan-500" />
-                          Har bir ustaga to&apos;lov ($):
+                          Har bir ustaga to&apos;lov (Ish haqi):
                         </span>
-                        {selectedTechnicians.length > 1 && (
+                        {selectedTechnicians.length > 1 && totalServiceWageUZS > 0 && (
                           <button
                             type="button"
                             onClick={handleResetSplit}
                             className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 hover:underline"
                             title="Xizmat haqini teng taqsimlash"
                           >
-                            Teng bo&apos;lish (${(totalServiceWageUSD / selectedTechnicians.length).toFixed(1)})
+                            Teng bo&apos;lish ({formatNumberWithSpaces(Math.round(totalServiceWageUZS / selectedTechnicians.length))} so&apos;m)
                           </button>
                         )}
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         {selectedTechnicians.map((t) => (
-                          <div key={t.id} className="p-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                          <div key={t.id} className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <div className="font-bold text-[11px] text-slate-800 dark:text-slate-100 truncate">
-                                {t.fullName}
+                              <div className="font-bold text-[11px] text-slate-800 dark:text-slate-100 truncate flex items-center gap-1.5 flex-wrap">
+                                <span>{t.fullName}</span>
+                                <span className="text-[9px] font-normal px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+                                  {t.role}
+                                </span>
+                                {t.branchName && (
+                                  <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                                    🏢 {t.branchName}
+                                  </span>
+                                )}
                               </div>
-                              <div className="text-[9px] text-slate-400 flex items-center gap-1">
-                                <span>{t.role}</span>
-                                <span>&bull;</span>
+                              <div className="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5">
                                 <span>{t.phone}</span>
                               </div>
                             </div>
 
-                            {/* Wage input in USD & UZS */}
+                            {/* Wage input in So'm and USD */}
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <div className="relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-600">$</span>
+                              <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 focus-within:ring-1 focus-within:ring-amber-500">
                                 <input
                                   type="number"
-                                  step="0.5"
-                                  value={t.wageUSD === 0 ? '' : t.wageUSD}
+                                  value={t.wageUZS === 0 ? '' : t.wageUZS}
                                   placeholder="0"
                                   onFocus={(e) => e.target.select()}
-                                  onChange={(e) => handleUpdateTechnicianWageUSD(t.id, e.target.value === '' ? 0 : Number(e.target.value) || 0)}
-                                  className="w-16 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-5 pr-1 py-0.5 text-xs font-mono font-bold text-slate-900 dark:text-white text-right focus:ring-1 focus:ring-emerald-500"
+                                  onChange={(e) => handleUpdateTechnicianWageUZS(t.id, e.target.value === '' ? 0 : Number(e.target.value) || 0)}
+                                  className="w-24 bg-transparent text-xs font-mono font-bold text-slate-900 dark:text-white text-right outline-none"
                                 />
+                                <span className="text-[10px] text-slate-400 font-mono ml-1">so&apos;m</span>
                               </div>
-                              <div className="text-right text-[10px] min-w-[65px]">
-                                <div className="font-mono font-bold text-slate-700 dark:text-slate-300">
-                                  {formatNumberWithSpaces(t.wageUZS)}
-                                </div>
-                                <div className="text-[8px] text-slate-400">so&apos;m</div>
+
+                              <div className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 min-w-[45px] text-right">
+                                ${t.wageUSD}
                               </div>
+
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1180,7 +1382,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({
                       <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 px-1 pt-0.5">
                         <span>Jami ustalarga beriladi:</span>
                         <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                          ${selectedTechnicians.reduce((s, t) => s + t.wageUSD, 0).toFixed(1)} ({formatNumberWithSpaces(selectedTechnicians.reduce((s, t) => s + t.wageUZS, 0))} so&apos;m)
+                          {formatNumberWithSpaces(selectedTechnicians.reduce((s, t) => s + t.wageUZS, 0))} so&apos;m (${selectedTechnicians.reduce((s, t) => s + t.wageUSD, 0).toFixed(1)})
                         </span>
                       </div>
                     </div>

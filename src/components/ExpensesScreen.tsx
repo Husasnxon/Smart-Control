@@ -67,6 +67,8 @@ interface ExpensesScreenProps {
   onUpdateCategory: (categoryId: string, newName: string, newDesc?: string) => void;
   onDeleteCategory: (categoryId: string) => void;
   onDeleteExpense?: (expenseId: string) => void;
+  onDeleteReceipt?: (receiptId: string) => void;
+  onClearCashFlow?: () => void;
   todaySalesTotal: number;
   baseCurrency?: Currency;
   exchangeRate?: number;
@@ -84,6 +86,9 @@ interface ExpensesScreenProps {
   onDeleteEmployee?: (empId: string) => void;
   onAddPayroll?: (record: PayrollRecord) => void;
   onAddAdvance?: (advance: EmployeeAdvance) => void;
+  onDeleteAdvance?: (advanceId: string) => void;
+  onClearAdvances?: () => void;
+  onDeletePayroll?: (payrollId: string) => void;
   onNavigateToTab?: (tab: ActiveTab) => void;
   initialSubTab?: 'all' | 'incomes' | 'expenses' | 'employees';
   branches?: Branch[];
@@ -116,6 +121,8 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   onUpdateCategory,
   onDeleteCategory,
   onDeleteExpense,
+  onDeleteReceipt,
+  onClearCashFlow,
   todaySalesTotal,
   baseCurrency = 'UZS',
   exchangeRate = 12850,
@@ -132,6 +139,9 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
   onDeleteEmployee,
   onAddPayroll,
   onAddAdvance,
+  onDeleteAdvance,
+  onClearAdvances,
+  onDeletePayroll,
   onNavigateToTab,
   initialSubTab = 'all',
   branches = [],
@@ -876,6 +886,9 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
             onDeleteEmployee={onDeleteEmployee || (() => {})}
             onAddPayroll={onAddPayroll || (() => {})}
             onAddAdvance={onAddAdvance || (() => {})}
+            onDeleteAdvance={onDeleteAdvance}
+            onClearAdvances={onClearAdvances}
+            onDeletePayroll={onDeletePayroll}
             branches={branches}
           />
         </div>
@@ -894,6 +907,23 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Clear Cash Flow (Pul oqimini tozalash) Button */}
+              {onClearCashFlow && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Rostdan ham moliya pul oqimidagi barcha kirim va chiqim yozuvlarini 0 holatga tozalab tashlamoqchimisiz?")) {
+                      onClearCashFlow();
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-xl font-bold text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-900 flex items-center gap-1.5 transition active:scale-[0.98]"
+                  title="Barcha pul oqimi va xarajat yozuvlarini tozalash"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Pul oqimini tozalash</span>
+                </button>
+              )}
+
               {/* Manage Categories Button */}
               <button
                 onClick={() => setIsCategoryManageModalOpen(true)}
@@ -1245,36 +1275,54 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({
                           <td className="py-3 px-4 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1">
                               {trx.isReceipt ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedReceiptForItems(trx)}
-                                  className="px-2 py-1 rounded-lg text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 transition text-[11px] font-bold flex items-center gap-1"
-                                  title="Sotilgan tovarlar tarkibini ko'rish"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                  <span>Tovarlar</span>
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedReceiptForItems(trx)}
+                                    className="px-2 py-1 rounded-lg text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 transition text-[11px] font-bold flex items-center gap-1"
+                                    title="Sotilgan tovarlar tarkibini ko'rish"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Tovarlar</span>
+                                  </button>
+                                  {onDeleteReceipt && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (window.confirm(`Rostdan ham #${(trx as any).voucherNumber || trx.category || trx.id} sotuv chekini o'chirmoqchimisiz?\n\nDiqqat: Ushbu chekda sotilgan tovarlar ombor qoldig'iga qaytariladi va kassa tushumi kamaytiriladi!`)) {
+                                          onDeleteReceipt(trx.id);
+                                        }
+                                      }}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                                      title="Sotuv chekini butunlay o'chirish"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </>
                               ) : (
-                                <button
-                                  onClick={() => handlePrintVoucher(trx)}
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition"
-                                  title="Kvitansiya / Order chop etish (PKO/RKO)"
-                                >
-                                  <Printer className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              {onDeleteExpense && !trx.isReceipt && (
-                                <button
-                                  onClick={() => {
-                                    if (window.confirm("Rostdan ham ushbu moliya yozuvini o'chirmoqchimisiz?")) {
-                                      onDeleteExpense(trx.id);
-                                    }
-                                  }}
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
-                                  title="O'chirish"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => handlePrintVoucher(trx)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition"
+                                    title="Kvitansiya / Order chop etish (PKO/RKO)"
+                                  >
+                                    <Printer className="w-3.5 h-3.5" />
+                                  </button>
+                                  {onDeleteExpense && (
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm("Rostdan ham ushbu moliya yozuvini o'chirmoqchimisiz?")) {
+                                          onDeleteExpense(trx.id);
+                                        }
+                                      }}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                                      title="O'chirish"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           </td>

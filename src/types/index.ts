@@ -80,6 +80,8 @@ export interface AssignedTechnician {
   role: string;
   wageUSD: number;         // Ustaga tegadigan xizmat haqqi ($ da)
   wageUZS: number;         // Ustaga tegadigan xizmat haqqi (so'mda)
+  branchId?: string;       // Ustaning filiali ID si
+  branchName?: string;     // Ustaning filiali nomi
 }
 
 export interface ReturnedItemRecord {
@@ -126,7 +128,7 @@ export interface SaleReceipt {
   notes?: string;
 }
 
-export type SalaryType = 'fixed' | 'per_job' | 'percentage' | 'fixed_plus_job' | 'fixed_plus_percentage';
+export type SalaryType = 'fixed' | 'per_job' | 'percentage' | 'fixed_plus_job' | 'fixed_plus_percentage' | 'hybrid';
 
 export type SystemRole = 'admin' | 'manager' | 'cashier' | 'technician' | 'warehouse';
 
@@ -140,6 +142,7 @@ export interface EmployeePermissions {
   // Savdo & Kassa (POS)
   canMakeSales?: boolean;             // POS Kassada savdo qilish
   canEditReceipts?: boolean;          // Sotilgan chek/tovarni redakt qilish (tahrirlash)
+  canDeleteReceipts?: boolean;        // Sotuv chekini o'chirish
   canReturnReceipts?: boolean;        // Vozvrat (qaytarish) qilish
   canGiveDiscount?: boolean;          // Chegirma (skidka) berish
   canEditPrice?: boolean;             // Sotuv narxini qo'lda o'zgartirish
@@ -150,6 +153,8 @@ export interface EmployeePermissions {
   canViewCostPrice?: boolean;         // Tannarx (kirim narxi) va sof foydani ko'rish
   canManageProducts?: boolean;        // Tovar qo'shish va tahrirlash
   canCreatePurchases?: boolean;       // Kirim nakladnoy (Приход) qilish
+  canCancelPurchases?: boolean;       // Kirim nakladnoyini bekor qilish
+  canDeletePurchases?: boolean;       // Kirim nakladnoyini butunlay o'chirish
   canAdjustStock?: boolean;           // Spisaniye / inventarizatsiya
 
   // Servis & Kafolat
@@ -159,7 +164,10 @@ export interface EmployeePermissions {
   // Moliya & Xarajatlar
   canViewExpenses?: boolean;          // Xarajatlar va kassa chiqimlarini ko'rish
   canCreateExpenses?: boolean;        // Chiqim kiritish
+  canDeleteExpenses?: boolean;        // Kassa chiqimi yoki tushumini o'chirish / tozalash
   canViewPayroll?: boolean;           // Xodimlar ish haqi va avanslarni ko'rish
+  canManagePayroll?: boolean;         // Xodimga oylik maosh berish / o'chirish
+  canManageAdvances?: boolean;        // Xodimga avans to'lash / o'chirish
 
   // Tizim & Boshqaruv
   canManageSettings?: boolean;        // Sozlamalar va Telegram botni boshqarish
@@ -179,6 +187,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canMakeSales: true,
     canEditReceipts: true,
     canReturnReceipts: true,
+    canDeleteReceipts: true,
     canGiveDiscount: true,
     canEditPrice: true,
     canCloseZReport: true,
@@ -186,12 +195,17 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canViewCostPrice: true,
     canManageProducts: true,
     canCreatePurchases: true,
+    canCancelPurchases: true,
+    canDeletePurchases: true,
     canAdjustStock: true,
     canManageService: true,
     canReplaceDevices: true,
     canViewExpenses: true,
     canCreateExpenses: true,
+    canDeleteExpenses: true,
     canViewPayroll: true,
+    canManagePayroll: true,
+    canManageAdvances: true,
     canManageSettings: true,
     canManagePermissions: true,
     canViewFinancialReports: true,
@@ -204,8 +218,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canDeleteOrders: false,
     canDeleteLeads: true,
     canMakeSales: true,
-    canEditReceipts: true,
-    canReturnReceipts: true,
+    canEditReceipts: false, // Admin sozlamalardan ruxsat berishi mumkin
+    canReturnReceipts: false, // Admin sozlamalardan ruxsat berishi mumkin
+    canDeleteReceipts: false, // Admin sozlamalardan ruxsat berishi mumkin
     canGiveDiscount: true,
     canEditPrice: false,
     canCloseZReport: true,
@@ -213,12 +228,17 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canViewCostPrice: true,
     canManageProducts: true,
     canCreatePurchases: true,
+    canCancelPurchases: false,
+    canDeletePurchases: false,
     canAdjustStock: false,
     canManageService: true,
     canReplaceDevices: true,
     canViewExpenses: false,
     canCreateExpenses: true,
+    canDeleteExpenses: false,
     canViewPayroll: false,
+    canManagePayroll: false,
+    canManageAdvances: false,
     canManageSettings: false,
     canManagePermissions: false,
     canViewFinancialReports: true,
@@ -232,7 +252,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canDeleteLeads: false,
     canMakeSales: true,
     canEditReceipts: false, // Kassir chekni redakt qilolmaydi (sozlamalardan yoqish mumkin)
-    canReturnReceipts: true,
+    canReturnReceipts: false, // Admin ruxsat bersa ishlaydi
+    canDeleteReceipts: false,
     canGiveDiscount: true,
     canEditPrice: false,
     canCloseZReport: true,
@@ -240,12 +261,17 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
     canViewCostPrice: false,
     canManageProducts: false,
     canCreatePurchases: false,
+    canCancelPurchases: false,
+    canDeletePurchases: false,
     canAdjustStock: false,
     canManageService: true,
     canReplaceDevices: false,
     canViewExpenses: false,
     canCreateExpenses: false,
+    canDeleteExpenses: false,
     canViewPayroll: false,
+    canManagePayroll: false,
+    canManageAdvances: false,
     canManageSettings: false,
     canManagePermissions: false,
     canViewFinancialReports: false,
@@ -403,6 +429,7 @@ export interface OrderItem {
   hasSerialNumber: boolean;
   isService?: boolean;
   selectedSerialNumbers?: string[]; // Otgruzkada kiritiladigan / tanlanadigan S/N lar
+  returnedQuantity?: number;        // Vozvrat qilingan tovar soni
 }
 
 export interface CustomerOrder {
@@ -424,7 +451,8 @@ export interface CustomerOrder {
   discountTotal: number;
   totalAmount: number;
   totalAmountUSD?: number;
-  status: 'new' | 'calculated' | 'approved' | 'shipped' | 'in_progress' | 'completed' | 'cancelled' | 'pending_cashier_approval' | 'rejected';
+  totalRefunded?: number; // Vozvrat qilingan summa
+  status: 'new' | 'calculated' | 'approved' | 'shipped' | 'in_progress' | 'completed' | 'cancelled' | 'pending_cashier_approval' | 'rejected' | 'partially_returned' | 'returned';
   startedAt?: string;
   completedAt?: string;
   shipmentId?: string;
@@ -466,8 +494,9 @@ export interface ShipmentOrder {
   discountTotal: number;
   totalAmount: number;
   totalAmountUSD?: number;
+  totalRefunded?: number; // Vozvrat qilingan summa
   technicians?: AssignedTechnician[];
-  status: 'pending' | 'shipped' | 'cancelled';
+  status: 'pending' | 'shipped' | 'cancelled' | 'partially_returned' | 'returned';
   receiptId?: string;     // Yaratilgan sotuv cheki ID si
   paymentMethod?: 'cash' | 'card' | 'debt' | 'usd';
   hasHandoverReport?: boolean;
@@ -954,6 +983,34 @@ export interface StockTransfer {
   receivedBy?: string;
   status: 'completed' | 'in_transit' | 'draft' | 'cancelled';
   notes?: string;
+}
+
+// -------------------------------------------------------------
+// Xavfsizlik & Audit Jurnali (Audit Log & Tarix)
+// -------------------------------------------------------------
+export type AuditAction = 'create' | 'update' | 'delete' | 'return' | 'payout' | 'status_change';
+export type AuditEntityType = 'receipt' | 'expense' | 'purchase' | 'payroll' | 'advance' | 'order' | 'cashflow';
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;      // e.g. "23.10.2026, 18:55:00"
+  action: AuditAction;
+  entityType: AuditEntityType;
+  entityId: string;
+  entityTitle: string;    // e.g. "Chek №CR-7271", "Xarajat: 500 000 so'm", "Prixod №INV-102", "Oylik: Alisher Qodirov"
+  performedBy: {
+    id: string;
+    name: string;
+    role: string;
+    systemRole?: string;
+    branchName?: string;
+  };
+  adminApproved: boolean; // Amal Administrator huquqi bilan bajarilganmi
+  adminName?: string;     // Tasdiqlagan admin ismi
+  details: string;        // Inson tushunadigan izoh / Qilingan o'zgarish
+  oldValue?: string;
+  newValue?: string;
+  branchId?: string;
 }
 
 

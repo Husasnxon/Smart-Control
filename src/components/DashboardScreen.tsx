@@ -68,11 +68,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     return expenses.filter(e => isTodayDate(e.createdAt));
   }, [expenses]);
 
-  const todaySales = todayReceipts.reduce((sum, r) => sum + r.totalAmount, 0);
+  const todaySales = todayReceipts.reduce((sum, r) => sum + Math.max(0, r.totalAmount - (r.totalRefunded || 0)), 0);
   const todayExpenses = todayExpensesList.reduce((sum, e) => sum + e.amount, 0);
   const todayProfit = todaySales - todayExpenses;
 
-  const totalAllSales = receipts.reduce((sum, r) => sum + r.totalAmount, 0);
+  const totalAllSales = receipts.reduce((sum, r) => sum + Math.max(0, r.totalAmount - (r.totalRefunded || 0)), 0);
   const totalAllExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
   const totalGrossProfit = totalAllSales - totalAllExpenses;
   const averageReceipt = receipts.length > 0 ? Math.round(totalAllSales / receipts.length) : 0;
@@ -101,7 +101,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       const dayLabel = `${d.getDate()}-${['Yan','Fev','Mar','Apr','May','Iyun','Iyul','Avg','Sen','Okt','Noy','Dek'][d.getMonth()]}`;
 
       const dayReceipts = receipts.filter(r => getNormalizedDateKey(r.createdAt) === dateStr);
-      const daySales = dayReceipts.reduce((sum, r) => sum + r.totalAmount, 0);
+      const daySales = dayReceipts.reduce((sum, r) => sum + Math.max(0, r.totalAmount - (r.totalRefunded || 0)), 0);
 
       const dayExpenses = expenses.filter(e => getNormalizedDateKey(e.createdAt) === dateStr).reduce((sum, e) => sum + e.amount, 0);
 
@@ -125,12 +125,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
     receipts.forEach(r => {
       r.items.forEach(item => {
+        const returnedQty = item.returnedQuantity || 0;
+        const netQty = Math.max(0, item.quantity - returnedQty);
+        if (netQty <= 0) return;
+
         const cat = item.product.category || 'Boshqa';
         if (!map[cat]) {
           map[cat] = { name: cat, totalRevenue: 0, count: 0 };
         }
-        map[cat].totalRevenue += item.quantity * item.appliedPrice;
-        map[cat].count += item.quantity;
+        map[cat].totalRevenue += netQty * item.appliedPrice;
+        map[cat].count += netQty;
       });
     });
 
@@ -151,12 +155,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
     receipts.forEach(r => {
       r.items.forEach(item => {
+        const returnedQty = item.returnedQuantity || 0;
+        const netQty = Math.max(0, item.quantity - returnedQty);
+        if (netQty <= 0) return;
+
         const id = item.product.id;
         if (!map[id]) {
           map[id] = { product: item.product, totalQty: 0, totalSum: 0 };
         }
-        map[id].totalQty += item.quantity;
-        map[id].totalSum += item.quantity * item.appliedPrice;
+        map[id].totalQty += netQty;
+        map[id].totalSum += netQty * item.appliedPrice;
       });
     });
 

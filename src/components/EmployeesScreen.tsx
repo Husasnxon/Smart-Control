@@ -58,7 +58,11 @@ interface EmployeesScreenProps {
   onDeleteEmployee: (empId: string) => void;
   onAddPayroll: (record: PayrollRecord) => void;
   onAddAdvance: (advance: EmployeeAdvance) => void;
+  onDeleteAdvance?: (advanceId: string) => void;
+  onDeletePayroll?: (payrollId: string) => void;
+  onClearAdvances?: () => void;
   branches?: Branch[];
+  exchangeRate?: number;
 }
 
 type ScreenTab = 'employees' | 'payroll' | 'advances';
@@ -107,7 +111,11 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   onDeleteEmployee,
   onAddPayroll,
   onAddAdvance,
-  branches = []
+  onDeleteAdvance,
+  onDeletePayroll,
+  onClearAdvances,
+  branches = [],
+  exchangeRate = 12850
 }) => {
   const [screenTab, setScreenTab] = useState<ScreenTab>('employees');
   const [searchQuery, setSearchQuery] = useState('');
@@ -148,7 +156,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   const [newPhone, setNewPhone] = useState('+998 ');
   const [newSalaryType, setNewSalaryType] = useState<SalaryType>('fixed_plus_job');
   const [newBaseSalary, setNewBaseSalary] = useState<number>(3000000);
-  const [newCommission, setNewCommission] = useState<number>(40000);
+  const [newCommission, setNewCommission] = useState<number>(0);
   const [newPercentageRate, setNewPercentageRate] = useState<number>(2);
   const [newPercentageTarget, setNewPercentageTarget] = useState<'total_sales' | 'net_profit'>('total_sales');
   const [newNotes, setNewNotes] = useState('');
@@ -185,6 +193,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   const [payMethod, setPayMethod] = useState<'cash' | 'card' | 'bank_transfer'>('cash');
   const [payNotes, setPayNotes] = useState('');
   const [payInstallations, setPayInstallations] = useState(0);
+  const [customCommissionTotal, setCustomCommissionTotal] = useState<number | null>(null);
   const [customSalesTargetAmount, setCustomSalesTargetAmount] = useState<number | null>(null);
 
   // Advance modal form
@@ -234,10 +243,34 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   // Period sales & net profit for percentage calculation
   const getPeriodSalesData = (period: string) => {
     const periodReceipts = receipts.filter(r => r.createdAt && getNormalizedDateKey(r.createdAt).startsWith(period));
-    const totalSales = periodReceipts.reduce((sum, r) => sum + r.totalAmount, 0);
+    const totalSales = periodReceipts.reduce((sum, r) => sum + Math.max(0, r.totalAmount - (r.totalRefunded || 0)), 0);
     const periodExpenses = expenses.filter(e => e.createdAt && getNormalizedDateKey(e.createdAt).startsWith(period)).reduce((sum, e) => sum + e.amount, 0);
     const netProfit = Math.max(0, totalSales - periodExpenses);
     return { totalSales, periodExpenses, netProfit };
+  };
+
+  // Period actual montaj earnings from sales receipts (Har bir ishga har xil olingan haqlar yig'indisi)
+  const getTechnicianPeriodEarnings = (empId: string, period: string) => {
+    const periodReceipts = receipts.filter(r => r.createdAt && getNormalizedDateKey(r.createdAt).startsWith(period));
+    let totalEarnedUZS = 0;
+    let jobCount = 0;
+    periodReceipts.forEach(r => {
+      // Bekor qilingan / to'liq qaytarilgan cheklar hisoblanmaydi
+      if (r.status === 'returned') return;
+      const serviceItems = r.items.filter(it => it.product.isService);
+      if (serviceItems.length > 0 && serviceItems.every(it => (it.returnedQuantity || 0) >= it.quantity)) {
+        return;
+      }
+
+      if (r.technicians && Array.isArray(r.technicians) && r.technicians.length > 0) {
+        const found = r.technicians.find(t => t.id === empId);
+        if (found) {
+          totalEarnedUZS += found.wageUZS || (found.wageUSD ? Math.round(found.wageUSD * exchangeRate) : 0);
+          jobCount++;
+        }
+      }
+    });
+    return { totalEarnedUZS, jobCount };
   };
 
   // Open Add modal with smart branch default
@@ -268,10 +301,10 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       phone: newPhone.trim() || '+998 90 000 00 00',
       status: 'active',
       salaryType: newSalaryType,
-      baseSalary: (newSalaryType === 'fixed' || newSalaryType === 'fixed_plus_job' || newSalaryType === 'fixed_plus_percentage') ? newBaseSalary : undefined,
-      commissionPerInstall: (newSalaryType === 'per_job' || newSalaryType === 'fixed_plus_job') ? newCommission : undefined,
-      percentageRate: (newSalaryType === 'percentage' || newSalaryType === 'fixed_plus_percentage') ? newPercentageRate : undefined,
-      percentageTarget: (newSalaryType === 'percentage' || newSalaryType === 'fixed_plus_percentage') ? newPercentageTarget : undefined,
+      baseSalary: (newSalaryType === 'fixed' || newSalaryType === 'fixed_plus_job' || newSalaryType === 'fixed_plus_percentage' || newSalaryType === 'hybrid') ? newBaseSalary : undefined,
+      commissionPerInstall: (newSalaryType === 'per_job' || newSalaryType === 'fixed_plus_job' || newSalaryType === 'hybrid') ? newCommission : undefined,
+      percentageRate: (newSalaryType === 'percentage' || newSalaryType === 'fixed_plus_percentage' || newSalaryType === 'hybrid') ? newPercentageRate : undefined,
+      percentageTarget: (newSalaryType === 'percentage' || newSalaryType === 'fixed_plus_percentage' || newSalaryType === 'hybrid') ? newPercentageTarget : undefined,
       installationsCompleted: 0,
       totalEarned: 0,
       notes: newNotes.trim() || undefined,
@@ -297,7 +330,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
     setNewName('');
     setNewPhone('+998 ');
     setNewBaseSalary(3000000);
-    setNewCommission(40000);
+    setNewCommission(0);
     setNewPercentageRate(2);
     setNewNotes('');
     setNewUsername('');
@@ -314,7 +347,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
     setEditStatus(emp.status);
     setEditSalaryType(emp.salaryType || 'fixed_plus_job');
     setEditBaseSalary(emp.baseSalary || 0);
-    setEditCommission(emp.commissionPerInstall || 40000);
+    setEditCommission(emp.commissionPerInstall || 0);
     setEditPercentageRate(emp.percentageRate || 2);
     setEditPercentageTarget(emp.percentageTarget || 'total_sales');
     setEditNotes(emp.notes || '');
@@ -340,10 +373,10 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       phone: editPhone.trim(),
       status: editStatus,
       salaryType: editSalaryType,
-      baseSalary: (editSalaryType === 'fixed' || editSalaryType === 'fixed_plus_job' || editSalaryType === 'fixed_plus_percentage') ? editBaseSalary : undefined,
-      commissionPerInstall: (editSalaryType === 'per_job' || editSalaryType === 'fixed_plus_job') ? editCommission : undefined,
-      percentageRate: (editSalaryType === 'percentage' || editSalaryType === 'fixed_plus_percentage') ? editPercentageRate : undefined,
-      percentageTarget: (editSalaryType === 'percentage' || editSalaryType === 'fixed_plus_percentage') ? editPercentageTarget : undefined,
+      baseSalary: (editSalaryType === 'fixed' || editSalaryType === 'fixed_plus_job' || editSalaryType === 'fixed_plus_percentage' || editSalaryType === 'hybrid') ? editBaseSalary : undefined,
+      commissionPerInstall: (editSalaryType === 'per_job' || editSalaryType === 'fixed_plus_job' || editSalaryType === 'hybrid') ? editCommission : undefined,
+      percentageRate: (editSalaryType === 'percentage' || editSalaryType === 'fixed_plus_percentage' || editSalaryType === 'hybrid') ? editPercentageRate : undefined,
+      percentageTarget: (editSalaryType === 'percentage' || editSalaryType === 'fixed_plus_percentage' || editSalaryType === 'hybrid') ? editPercentageTarget : undefined,
       notes: editNotes.trim() || undefined,
       username: editUsername.trim().toLowerCase(),
       password: editPassword.trim(),
@@ -373,7 +406,9 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
     setPayDeduction(0);
     setPayMethod('cash');
     setPayNotes('');
-    setPayInstallations(emp.installationsCompleted);
+    const techStats = getTechnicianPeriodEarnings(emp.id, currPeriod);
+    setPayInstallations(techStats.jobCount > 0 ? techStats.jobCount : emp.installationsCompleted);
+    setCustomCommissionTotal(techStats.totalEarnedUZS > 0 ? techStats.totalEarnedUZS : null);
     setCustomSalesTargetAmount(null);
   };
 
@@ -408,10 +443,13 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   // Calculate gross breakdown for payroll modal
   const calcGrossComponents = (emp: Employee) => {
     const type = emp.salaryType || 'per_job';
-    const base = (type === 'fixed' || type === 'fixed_plus_job' || type === 'fixed_plus_percentage') ? (emp.baseSalary || 0) : 0;
+    const base = (type === 'fixed' || type === 'fixed_plus_job' || type === 'fixed_plus_percentage' || type === 'hybrid') ? (emp.baseSalary || 0) : 0;
     
-    const commission = (type === 'per_job' || type === 'fixed_plus_job') 
-      ? (emp.commissionPerInstall || 0) * payInstallations 
+    const techStats = getTechnicianPeriodEarnings(emp.id, payPeriod);
+    const standardCommission = (emp.commissionPerInstall || 0) * payInstallations;
+    const defaultCommission = techStats.totalEarnedUZS > 0 ? techStats.totalEarnedUZS : standardCommission;
+    const commission = (type === 'per_job' || type === 'fixed_plus_job' || type === 'hybrid') 
+      ? (customCommissionTotal !== null ? customCommissionTotal : defaultCommission)
       : 0;
 
     const periodData = getPeriodSalesData(payPeriod);
@@ -419,7 +457,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       ? customSalesTargetAmount 
       : (emp.percentageTarget === 'net_profit' ? periodData.netProfit : periodData.totalSales);
 
-    const percentage = (type === 'percentage' || type === 'fixed_plus_percentage')
+    const percentage = (type === 'percentage' || type === 'fixed_plus_percentage' || type === 'hybrid')
       ? Math.round((targetBase * (emp.percentageRate || 0)) / 100)
       : 0;
 
@@ -522,6 +560,20 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
   // Helper for salary type labels
   const getSalaryTypeBadge = (emp: Employee) => {
     const type = emp.salaryType || 'per_job';
+    if (type === 'hybrid') {
+      return (
+        <div className="space-y-0.5">
+          <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold block">
+            🌟 Gibrid: Sotuvchi + Montajchi Usta
+          </span>
+          <div className="text-xs font-bold text-slate-800 dark:text-slate-100 font-mono">
+            {emp.baseSalary ? `${fmt(emp.baseSalary)} so'm + ` : ''}
+            <span className="text-amber-500 font-normal">{fmt(emp.commissionPerInstall || 0)} so&apos;m/ta</span>
+            <span className="text-purple-500 font-normal"> + {emp.percentageRate || 0}% ({emp.percentageTarget === 'net_profit' ? 'Foyda' : 'Savdo'})</span>
+          </div>
+        </div>
+      );
+    }
     if (type === 'fixed_plus_job') {
       return (
         <div className="space-y-0.5">
@@ -757,9 +809,17 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                           <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
                             👑 Admin
                           </span>
+                        ) : emp.systemRole === 'manager' ? (
+                          <span className="text-[10px] font-bold text-indigo-500 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            📊 Menejer
+                          </span>
                         ) : emp.systemRole === 'cashier' ? (
                           <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
                             💳 Kassir
+                          </span>
+                        ) : emp.systemRole === 'warehouse' ? (
+                          <span className="text-[10px] font-bold text-purple-500 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            📦 Omborchi
                           </span>
                         ) : (
                           <span className="text-[10px] font-bold text-cyan-500 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -819,7 +879,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                   <div className="pt-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-xl space-y-2">
                     {getSalaryTypeBadge(emp)}
 
-                    {(emp.salaryType === 'per_job' || emp.salaryType === 'fixed_plus_job') && (
+                    {(emp.salaryType === 'per_job' || emp.salaryType === 'fixed_plus_job' || emp.salaryType === 'hybrid') && (
                       <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
                         <span className="text-slate-500">Bajarilgan montajlar:</span>
                         <span className="font-extrabold text-slate-900 dark:text-white font-mono">{emp.installationsCompleted} ta obyekt</span>
@@ -974,6 +1034,21 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                           {p.paymentMethod === 'cash' ? 'Naqd' : p.paymentMethod === 'card' ? 'Karta' : 'Bank'}
                         </div>
                       </div>
+                      {onDeletePayroll && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Rostdan ham ${p.employeeName} ning #${p.payrollNumber} oylik maosh yozuvini o'chirmoqchimisiz?`)) {
+                              onDeletePayroll(p.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                          title="Maosh yozuvini o'chirish"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                       {expandedPayroll === p.id ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                     </div>
                   </button>
@@ -1015,9 +1090,26 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Jami {advances.length} ta avans</span>
-            <span className="text-[11px] text-violet-600 dark:text-violet-400 font-bold font-mono">
-              Jami: {fmt(advances.reduce((s, a) => s + a.amount, 0))} so&apos;m
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-violet-600 dark:text-violet-400 font-bold font-mono">
+                Jami: {fmt(advances.reduce((s, a) => s + a.amount, 0))} so&apos;m
+              </span>
+              {advances.length > 0 && onClearAdvances && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Rostdan ham barcha berilgan avanslar yozuvlarini tozalab tashlamoqchimisiz?")) {
+                      onClearAdvances();
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-xs font-bold transition flex items-center gap-1"
+                  title="Barcha avanslarni tozalash"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Tozalash</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {advances.length === 0 ? (
@@ -1040,9 +1132,25 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                       {adv.notes && <div className="text-[10px] text-slate-400 italic">{adv.notes}</div>}
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-black text-violet-600 dark:text-violet-400 font-mono">{fmt(adv.amount)} so&apos;m</div>
-                    <div className="text-[10px] text-slate-400">{adv.paymentMethod === 'cash' ? 'Naqd' : 'Karta'}</div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <div className="text-sm font-black text-violet-600 dark:text-violet-400 font-mono">{fmt(adv.amount)} so&apos;m</div>
+                      <div className="text-[10px] text-slate-400">{adv.paymentMethod === 'cash' ? 'Naqd' : 'Karta'}</div>
+                    </div>
+                    {onDeleteAdvance && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Rostdan ham ${adv.employeeName} ga berilgan #${adv.advanceNumber} (${fmt(adv.amount)} so'm) avansni o'chirmoqchimisiz?`)) {
+                            onDeleteAdvance(adv.id);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                        title="Avansni o'chirish"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1053,16 +1161,21 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
 
       {/* ══ MODAL: ADD EMPLOYEE ══ */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 p-4 sm:p-5 shrink-0 bg-white dark:bg-slate-900">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <HardHat className="w-5 h-5 text-amber-500" />
                 Yangi Xodim Qo&apos;shish
               </h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+              <button type="button" onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <form onSubmit={handleCreateEmployee} className="space-y-3.5">
+
+            {/* Modal Scrollable Body */}
+            <form id="add-employee-form" onSubmit={handleCreateEmployee} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">F.I.Sh.</label>
                 <input type="text" required autoFocus placeholder="Masalan: Jamshid Normurodov" value={newName} onChange={(e) => setNewName(e.target.value)}
@@ -1072,7 +1185,25 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Lavozimi</label>
-                  <select value={newRole} onChange={(e) => setNewRole(e.target.value)}
+                  <select 
+                    value={newRole} 
+                    onChange={(e) => {
+                      const selectedRole = e.target.value;
+                      setNewRole(selectedRole);
+                      if (selectedRole === 'Kassir / Menejer') {
+                        setNewSystemRole('cashier');
+                        setNewAllowedTabs(DEFAULT_ROLE_TABS['cashier']);
+                      } else if (selectedRole === 'Bosh Administrator') {
+                        setNewSystemRole('admin');
+                        setNewAllowedTabs(DEFAULT_ROLE_TABS['admin']);
+                      } else if (selectedRole === 'Omborchi') {
+                        setNewSystemRole('warehouse');
+                        setNewAllowedTabs(DEFAULT_ROLE_TABS['warehouse']);
+                      } else {
+                        setNewSystemRole('technician');
+                        setNewAllowedTabs(DEFAULT_ROLE_TABS['technician']);
+                      }
+                    }}
                     className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white outline-none">
                     <option value="Montajchi Usta">Montajchi Usta</option>
                     <option value="Bosh Muhandis">Bosh Muhandis</option>
@@ -1115,9 +1246,10 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Ish haqi to&apos;lov modeli</label>
                 <select value={newSalaryType} onChange={(e) => setNewSalaryType(e.target.value as SalaryType)}
                   className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-semibold outline-none">
-                  <option value="fixed_plus_job">🌟 Oklad + Montaj stavkasi (Oylik maosh + montaj haqi)</option>
+                  <option value="hybrid">🌟 Gibrid (Sotuvchi + Usta: Oklad + Montaj + Savdo foizi)</option>
+                  <option value="fixed_plus_job">🔧 Oklad + Montaj stavkasi (Oylik maosh + montaj haqi)</option>
                   <option value="fixed_plus_percentage">📈 Oklad + Savdodan foiz (%) (Oylik maosh + sotuv foizi)</option>
-                  <option value="per_job">🔧 Faqat Ishbay (Har 1 montaj uchun)</option>
+                  <option value="per_job">🔨 Faqat Ishbay (Har 1 montaj uchun)</option>
                   <option value="fixed">💵 Faqat Oylik maosh (Oklad)</option>
                   <option value="percentage">📊 Faqat Sotuvdan/Foydadan foiz (%)</option>
                 </select>
@@ -1125,8 +1257,8 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
 
               {/* Dynamic Inputs according to Salary Type */}
               <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/50 p-3 rounded-xl space-y-3">
-                {/* 1. Base Salary (if fixed, fixed_plus_job, fixed_plus_percentage) */}
-                {(newSalaryType === 'fixed' || newSalaryType === 'fixed_plus_job' || newSalaryType === 'fixed_plus_percentage') && (
+                {/* 1. Base Salary (if fixed, fixed_plus_job, fixed_plus_percentage, hybrid) */}
+                {(newSalaryType === 'fixed' || newSalaryType === 'fixed_plus_job' || newSalaryType === 'fixed_plus_percentage' || newSalaryType === 'hybrid') && (
                   <div>
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Asosiy Oylik Maosh (Oklad, so&apos;mda)</label>
                     <input
@@ -1143,26 +1275,31 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                   </div>
                 )}
 
-                {/* 2. Commission per install (if per_job or fixed_plus_job) */}
-                {(newSalaryType === 'per_job' || newSalaryType === 'fixed_plus_job') && (
+                {/* 2. Commission per install (if per_job, fixed_plus_job, hybrid) */}
+                {(newSalaryType === 'per_job' || newSalaryType === 'fixed_plus_job' || newSalaryType === 'hybrid') && (
                   <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">1 ta montaj / kamera stavkasi (so&apos;mda)</label>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Boshlang&apos;ich montaj stavkasi (Ixtiyoriy, so&apos;mda)
+                    </label>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5 leading-tight">
+                      Agar har bir ishga har xil kelishilsa, <strong>0</strong> qoldiring. Kassada yoki smetada har bir ish uchun mustaqil summa kiritiladi.
+                    </span>
                     <input
                       type="number"
                       value={newCommission === 0 ? '' : newCommission}
-                      placeholder="0"
+                      placeholder="0 (Chekda erkin kiritiladi)"
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => {
                         const val = e.target.value;
                         setNewCommission(val === '' ? 0 : parseFloat(val) || 0);
                       }}
-                      className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold"
+                      className="w-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold"
                     />
                   </div>
                 )}
 
-                {/* 3. Percentage Rate and Target (if percentage or fixed_plus_percentage) */}
-                {(newSalaryType === 'percentage' || newSalaryType === 'fixed_plus_percentage') && (
+                {/* 3. Percentage Rate and Target (if percentage, fixed_plus_percentage, hybrid) */}
+                {(newSalaryType === 'percentage' || newSalaryType === 'fixed_plus_percentage' || newSalaryType === 'hybrid') && (
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Foiz stavkasi (% da)</label>
@@ -1290,28 +1427,50 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 <input type="text" placeholder="Hikvision sertifikati bor, tajribali usta..." value={newNotes} onChange={(e) => setNewNotes(e.target.value)}
                   className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white" />
               </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Bekor qilish</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg shadow-amber-600/20 transition">Saqlash</button>
-              </div>
             </form>
+
+            {/* Modal Sticky Footer */}
+            <div className="flex justify-end gap-2 p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 shrink-0">
+              <button 
+                type="button" 
+                onClick={() => setIsAddModalOpen(false)} 
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+              >
+                Bekor qilish
+              </button>
+              <button 
+                type="submit" 
+                form="add-employee-form" 
+                className="px-6 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg shadow-amber-600/20 transition"
+              >
+                Saqlash
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* ══ MODAL: EDIT EMPLOYEE ══ */}
       {editingEmployee && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 p-4 sm:p-5 shrink-0 bg-white dark:bg-slate-900">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Edit2 className="w-5 h-5 text-amber-500" />
                 Xodimni Tahrirlash
               </h3>
-              <button onClick={() => setEditingEmployee(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+              <button 
+                type="button" 
+                onClick={() => setEditingEmployee(null)} 
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <form onSubmit={handleSaveEdit} className="space-y-3.5">
+
+            {/* Modal Scrollable Body */}
+            <form id="edit-employee-form" onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">F.I.Sh.</label>
                 <input type="text" required value={editName} onChange={(e) => setEditName(e.target.value)}
@@ -1477,9 +1636,10 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Ish haqi to&apos;lov modeli</label>
                 <select value={editSalaryType} onChange={(e) => setEditSalaryType(e.target.value as SalaryType)}
                   className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-semibold">
-                  <option value="fixed_plus_job">🌟 Oklad + Montaj stavkasi (Oylik maosh + montaj haqi)</option>
+                  <option value="hybrid">🌟 Gibrid (Sotuvchi + Usta: Oklad + Montaj + Savdo foizi)</option>
+                  <option value="fixed_plus_job">🔧 Oklad + Montaj stavkasi (Oylik maosh + montaj haqi)</option>
                   <option value="fixed_plus_percentage">📈 Oklad + Savdodan foiz (%) (Oylik maosh + sotuv foizi)</option>
-                  <option value="per_job">🔧 Faqat Ishbay (Har 1 montaj uchun)</option>
+                  <option value="per_job">🔨 Faqat Ishbay (Har 1 montaj uchun)</option>
                   <option value="fixed">💵 Faqat Oylik maosh (Oklad)</option>
                   <option value="percentage">📊 Faqat Sotuvdan/Foydadan foiz (%)</option>
                 </select>
@@ -1487,7 +1647,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
 
               {/* Dynamic Inputs according to Salary Type */}
               <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/50 p-3 rounded-xl space-y-3">
-                {(editSalaryType === 'fixed' || editSalaryType === 'fixed_plus_job' || editSalaryType === 'fixed_plus_percentage') && (
+                {(editSalaryType === 'fixed' || editSalaryType === 'fixed_plus_job' || editSalaryType === 'fixed_plus_percentage' || editSalaryType === 'hybrid') && (
                   <div>
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Asosiy Oylik Maosh (Oklad, so&apos;mda)</label>
                     <input
@@ -1504,24 +1664,29 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                   </div>
                 )}
 
-                {(editSalaryType === 'per_job' || editSalaryType === 'fixed_plus_job') && (
+                {(editSalaryType === 'per_job' || editSalaryType === 'fixed_plus_job' || editSalaryType === 'hybrid') && (
                   <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">1 ta montaj / kamera stavkasi (so&apos;mda)</label>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Boshlang&apos;ich montaj stavkasi (Ixtiyoriy, so&apos;mda)
+                    </label>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5 leading-tight">
+                      Agar har bir ishga har xil kelishilsa, <strong>0</strong> qoldiring. Kassada yoki smetada har bir ish uchun mustaqil summa kiritiladi.
+                    </span>
                     <input
                       type="number"
                       value={editCommission === 0 ? '' : editCommission}
-                      placeholder="0"
+                      placeholder="0 (Chekda erkin kiritiladi)"
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => {
                         const val = e.target.value;
                         setEditCommission(val === '' ? 0 : parseFloat(val) || 0);
                       }}
-                      className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold"
+                      className="w-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold"
                     />
                   </div>
                 )}
 
-                {(editSalaryType === 'percentage' || editSalaryType === 'fixed_plus_percentage') && (
+                {(editSalaryType === 'percentage' || editSalaryType === 'fixed_plus_percentage' || editSalaryType === 'hybrid') && (
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Foiz stavkasi (% da)</label>
@@ -1555,35 +1720,49 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 <input type="text" value={editNotes} onChange={(e) => setEditNotes(e.target.value)}
                   className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white" />
               </div>
-
-              <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (editingEmployee) {
-                      setEmployeeToDelete(editingEmployee);
-                    }
-                  }}
-                  className="px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 transition flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Xodimni o&apos;chirish</span>
-                </button>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setEditingEmployee(null)} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Bekor qilish</button>
-                  <button type="submit" className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg shadow-amber-600/20 transition">Saqlash</button>
-                </div>
-              </div>
             </form>
+
+            {/* Modal Sticky Footer */}
+            <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (editingEmployee) {
+                    setEmployeeToDelete(editingEmployee);
+                  }
+                }}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 transition flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Xodimni o&apos;chirish</span>
+              </button>
+              <div className="flex gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingEmployee(null)} 
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                >
+                  Bekor qilish
+                </button>
+                <button 
+                  type="submit" 
+                  form="edit-employee-form" 
+                  className="px-6 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg shadow-amber-600/20 transition"
+                >
+                  Saqlash
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* ══ MODAL: PAY SALARY ══ */}
       {payrollEmployee && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 p-4 sm:p-5 shrink-0 bg-white dark:bg-slate-900">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <DollarSign className="w-5 h-5 text-emerald-500" />
@@ -1591,10 +1770,17 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">{payrollEmployee.fullName} · {payrollEmployee.role}</p>
               </div>
-              <button onClick={() => setPayrollEmployee(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+              <button 
+                type="button" 
+                onClick={() => setPayrollEmployee(null)} 
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <form onSubmit={handleSavePayroll} className="space-y-4">
+            {/* Modal Scrollable Body */}
+            <form id="payroll-form" onSubmit={handleSavePayroll} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
               {/* Period */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1610,20 +1796,48 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                   </select>
                 </div>
 
-                {/* If per_job or fixed_plus_job: allow adjusting installations */}
-                {(payrollEmployee.salaryType === 'per_job' || payrollEmployee.salaryType === 'fixed_plus_job') ? (
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bajarilgan montajlar (ta)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={payInstallations === 0 ? '' : payInstallations}
-                      placeholder="0"
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => setPayInstallations(e.target.value === '' ? 0 : Number(e.target.value) || 0)}
-                      className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold"
-                    />
-                  </div>
+                {/* If per_job, fixed_plus_job or hybrid: allow adjusting installations */}
+                {(payrollEmployee.salaryType === 'per_job' || payrollEmployee.salaryType === 'fixed_plus_job' || payrollEmployee.salaryType === 'hybrid') ? (
+                  <>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bajarilgan montajlar (ta)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={payInstallations === 0 ? '' : payInstallations}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setPayInstallations(e.target.value === '' ? 0 : Number(e.target.value) || 0)}
+                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white font-mono font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          Jami Montaj Ish Haqqi (so&apos;m)
+                        </label>
+                        {getTechnicianPeriodEarnings(payrollEmployee.id, payPeriod).jobCount > 0 && (
+                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                            Cheklardan: {fmt(getTechnicianPeriodEarnings(payrollEmployee.id, payPeriod).totalEarnedUZS)} so&apos;m
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={customCommissionTotal !== null ? customCommissionTotal : (getTechnicianPeriodEarnings(payrollEmployee.id, payPeriod).totalEarnedUZS > 0 ? getTechnicianPeriodEarnings(payrollEmployee.id, payPeriod).totalEarnedUZS : (payrollEmployee.commissionPerInstall || 0) * payInstallations)}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setCustomCommissionTotal(e.target.value === '' ? 0 : Number(e.target.value) || 0)}
+                        className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-600 dark:text-amber-400 font-mono font-bold"
+                        title="Har bir ish bo'yicha yig'ilgan yoki kelishilgan jami montaj haqi"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        💡 Har bir ish/obyekt summasi har xil bo&apos;lsa, bu yerda jami summani to&apos;g&apos;ridan-to&apos;g&apos;ri tahrirlashingiz mumkin.
+                      </span>
+                    </div>
+                  </>
                 ) : (
                   <div>
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Holat</label>
@@ -1656,12 +1870,12 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
 
                     {commission > 0 && (
                       <div className="flex justify-between text-xs text-amber-600 dark:text-amber-400">
-                        <span>Montaj haqqi ({payInstallations} ta × {fmt(payrollEmployee.commissionPerInstall || 0)} so&apos;m):</span>
+                        <span>Montaj haqqi ({payInstallations} ta ish / obyekt):</span>
                         <span className="font-bold font-mono">+{fmt(commission)} so&apos;m</span>
                       </div>
                     )}
 
-                    {(payrollEmployee.salaryType === 'percentage' || payrollEmployee.salaryType === 'fixed_plus_percentage') && (
+                    {(payrollEmployee.salaryType === 'percentage' || payrollEmployee.salaryType === 'fixed_plus_percentage' || payrollEmployee.salaryType === 'hybrid') && (
                       <div className="flex justify-between text-xs text-purple-600 dark:text-purple-400">
                         <span>
                           {payrollEmployee.percentageTarget === 'net_profit' ? 'Sof foydadan' : 'Jami savdodan'} {payrollEmployee.percentageRate}%:
@@ -1769,15 +1983,26 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                 <input type="text" placeholder="Qo'shimcha ma'lumot..." value={payNotes} onChange={(e) => setPayNotes(e.target.value)}
                   className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white" />
               </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <button type="button" onClick={() => setPayrollEmployee(null)} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Bekor qilish</button>
-                <button type="submit" className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 transition flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" />
-                  {fmt(calcNet(payrollEmployee))} so&apos;m To&apos;lash
-                </button>
-              </div>
             </form>
+
+            {/* Modal Sticky Footer */}
+            <div className="flex justify-end gap-2 p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 shrink-0">
+              <button 
+                type="button" 
+                onClick={() => setPayrollEmployee(null)} 
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+              >
+                Bekor qilish
+              </button>
+              <button 
+                type="submit" 
+                form="payroll-form" 
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 transition flex items-center gap-2"
+              >
+                <DollarSign className="w-4 h-4" />
+                {fmt(calcNet(payrollEmployee))} so&apos;m To&apos;lash
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1785,7 +2010,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       {/* ══ MODAL: ADVANCE ══ */}
       {advanceEmployee && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1925,6 +2150,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                       {reportEmployee.salaryType === 'fixed_plus_job' && `Oklad: ${fmt(reportEmployee.baseSalary || 0)} so'm + Montaj: ${fmt(reportEmployee.commissionPerInstall || 0)} so'm/nuqta`}
                       {reportEmployee.salaryType === 'percentage' && `Sotuvdan foiz: ${reportEmployee.percentageRate}% (${reportEmployee.percentageTarget === 'net_profit' ? 'Foydadan' : 'Savdodan'})`}
                       {reportEmployee.salaryType === 'fixed_plus_percentage' && `Oklad: ${fmt(reportEmployee.baseSalary || 0)} so'm + ${reportEmployee.percentageRate}% Foiz`}
+                      {reportEmployee.salaryType === 'hybrid' && `Gibrid: ${reportEmployee.baseSalary ? `Oklad: ${fmt(reportEmployee.baseSalary)} so'm + ` : ''}Montaj: ${fmt(reportEmployee.commissionPerInstall || 0)} so'm/nuqta + ${reportEmployee.percentageRate}% Foiz`}
                     </span>
                   </div>
                   <div className="text-[11px] font-mono text-slate-500">

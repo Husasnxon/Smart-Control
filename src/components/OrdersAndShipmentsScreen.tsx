@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   CustomerOrder, 
   ShipmentOrder, 
@@ -12,7 +12,8 @@ import {
   PaymentDetails, 
   Currency,
   ObjectHandover,
-  Branch
+  Branch,
+  SaleReceipt
 } from '../types';
 import { formatDualMoney, formatMoney, formatNumberWithSpaces, formatUSDNumber, getNowFormatted } from '../utils/formatters';
 import { 
@@ -54,6 +55,7 @@ import {
 } from 'lucide-react';
 import { OrderQuotationModal } from './OrderQuotationModal';
 import { HandoverModal } from './HandoverModal';
+import { isTechnicianWithMontaj, categorizeTechniciansByBranch, getTechnicianBranchName } from '../utils/technicianUtils';
 
 interface OrdersAndShipmentsScreenProps {
   orders: CustomerOrder[];
@@ -61,6 +63,7 @@ interface OrdersAndShipmentsScreenProps {
   products: Product[];
   customers: Customer[];
   employees: Employee[];
+  allEmployees?: Employee[];
   exchangeRate: number;
   baseCurrency?: Currency;
   onSaveOrder: (order: CustomerOrder) => void;
@@ -78,6 +81,7 @@ interface OrdersAndShipmentsScreenProps {
   onClearAllOrders?: () => void;
   branches?: Branch[];
   currentBranch?: Branch | null;
+  receipts?: SaleReceipt[];
 }
 
 const generateShipmentId = () => `shipment-${Date.now()}`;
@@ -88,6 +92,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   products,
   customers,
   employees,
+  allEmployees,
   exchangeRate,
   baseCurrency = 'UZS',
   onSaveOrder,
@@ -100,7 +105,8 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   onSaveHandover,
   onClearAllOrders,
   branches = [],
-  currentBranch = null
+  currentBranch = null,
+  receipts = []
 }) => {
   // Main Sub-tabs: 'orders' (Hisob-kitob / Zakaz) or 'shipments' (Otgruzka) or 'handovers' (Obyekt topshirish)
   const [activeSubTab, setActiveSubTab] = useState<'orders' | 'shipments' | 'handovers'>('orders');
@@ -150,6 +156,16 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   const [shipmentPaymentMethod, setShipmentPaymentMethod] = useState<'cash' | 'card' | 'debt' | 'usd'>('cash');
   const [assignedTechnicians, setAssignedTechnicians] = useState<AssignedTechnician[]>([]);
   const [shipmentProductSearch, setShipmentProductSearch] = useState('');
+
+  // Source list of employees
+  const sourceEmployees = useMemo(() => {
+    return allEmployees && allEmployees.length > 0 ? allEmployees : employees;
+  }, [allEmployees, employees]);
+
+  // Technicians categorized by branch (Faqat montaj belgilangan ustalar)
+  const { currentBranchTechs, otherBranchTechs, otherBranchesGrouped } = useMemo(() => {
+    return categorizeTechniciansByBranch(sourceEmployees, currentBranch?.id, branches);
+  }, [sourceEmployees, currentBranch, branches]);
 
   // Global Escape key listener to close any open modal
   useEffect(() => {
@@ -567,8 +583,11 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
 
   // Technician allocation in Shipment
   const handleAddTechToShipment = (empId: string) => {
-    const emp = employees.find((e) => e.id === empId);
+    const emp = sourceEmployees.find((e: Employee) => e.id === empId);
     if (!emp || assignedTechnicians.some((t) => t.id === empId)) return;
+    const defaultUZS = emp.commissionPerInstall || 0;
+    const defaultUSD = Number((defaultUZS / exchangeRate).toFixed(2));
+    const branchName = emp.branchName || getTechnicianBranchName(emp, branches);
     setAssignedTechnicians((prev) => [
       ...prev,
       {
@@ -576,8 +595,10 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
         fullName: emp.fullName,
         phone: emp.phone,
         role: emp.role,
-        wageUSD: 0,
-        wageUZS: 0
+        wageUSD: defaultUSD,
+        wageUZS: defaultUZS,
+        branchId: emp.branchId,
+        branchName: branchName
       }
     ]);
   };
@@ -718,13 +739,77 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   };
 
   // Filter permissions logic
-  const isOnlyAssigned = currentUser?.permissions?.onlyAssignedOrders ?? (currentUser?.systemRole === 'technician');
+  const isAdminOrManager = currentUser?.systemRole === 'admin' || currentUser?.systemRole === 'manager' || currentUser?.role?.toLowerCase().includes('admin');
+  const isOnlyAssigned = !isAdminOrManager && (currentUser?.permissions?.onlyAssignedOrders ?? (currentUser?.systemRole === 'technician'));
   const canCreateOrders = currentUser?.permissions?.canCreateOrders !== false;
   const canCreateShipments = currentUser?.permissions?.canCreateShipments !== false;
   const canDeleteOrders = currentUser?.permissions?.canDeleteOrders !== false;
 
+  // Enrich orders with return info from linked receipts
+  const enrichedOrders = useMemo(() => {
+    return orders.map((o) => {
+      const linkedReceipt = receipts?.find(
+        (r) =>
+          r.id === o.receiptId ||
+          o.id === `ord-pos-${r.id}` ||
+          o.orderNumber === `ORD-${r.receiptNumber}` ||
+          o.orderNumber.includes(r.receiptNumber.replace(/^CR-/, ''))
+      );
+
+      if (!linkedReceipt) return o;
+
+      const receiptRefunded = linkedReceipt.totalRefunded || 0;
+      const isReturned = linkedReceipt.status === 'returned';
+      const isPartiallyReturned = linkedReceipt.status === 'partially_returned' || receiptRefunded > 0;
+
+      const updatedItems = o.items.map((item) => {
+        const rItem = linkedReceipt.items.find((ri) => ri.product.id === item.productId);
+        const retQty = Math.max(item.returnedQuantity || 0, rItem?.returnedQuantity || 0);
+        return retQty > 0 ? { ...item, returnedQuantity: retQty } : item;
+      });
+
+      return {
+        ...o,
+        items: updatedItems,
+        totalRefunded: Math.max(o.totalRefunded || 0, receiptRefunded),
+        status: isReturned ? 'returned' : isPartiallyReturned ? 'partially_returned' : o.status
+      };
+    });
+  }, [orders, receipts]);
+
+  // Enrich shipments with return info from linked receipts
+  const enrichedShipments = useMemo(() => {
+    return shipments.map((s) => {
+      const linkedReceipt = receipts?.find(
+        (r) =>
+          r.id === s.receiptId ||
+          s.orderId === `ord-pos-${r.id}` ||
+          s.shipmentNumber.includes(r.receiptNumber.replace(/^CR-/, ''))
+      );
+
+      if (!linkedReceipt) return s;
+
+      const receiptRefunded = linkedReceipt.totalRefunded || 0;
+      const isReturned = linkedReceipt.status === 'returned';
+      const isPartiallyReturned = linkedReceipt.status === 'partially_returned' || receiptRefunded > 0;
+
+      const updatedItems = s.items.map((item) => {
+        const rItem = linkedReceipt.items.find((ri) => ri.product.id === item.productId);
+        const retQty = Math.max(item.returnedQuantity || 0, rItem?.returnedQuantity || 0);
+        return retQty > 0 ? { ...item, returnedQuantity: retQty } : item;
+      });
+
+      return {
+        ...s,
+        items: updatedItems,
+        totalRefunded: Math.max(s.totalRefunded || 0, receiptRefunded),
+        status: isReturned ? 'returned' : isPartiallyReturned ? 'partially_returned' : s.status
+      };
+    });
+  }, [shipments, receipts]);
+
   // Filter orders
-  const filteredOrders = orders.filter((o) => {
+  const filteredOrders = enrichedOrders.filter((o) => {
     // If technician is restricted to only assigned orders:
     if (isOnlyAssigned && currentUser) {
       const isAssigned = 
@@ -751,7 +836,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   });
 
   // Filter shipments
-  const filteredShipments = shipments.filter((s) => {
+  const filteredShipments = enrichedShipments.filter((s) => {
     // If technician is restricted to only assigned shipments:
     if (isOnlyAssigned && currentUser) {
       const isAssigned = s.technicians && s.technicians.some(t => t.id === currentUser.id);
@@ -852,7 +937,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
             <FileSpreadsheet className="w-4 h-4 text-sky-500" />
           </div>
           <div className="text-xl font-extrabold font-mono text-slate-900 dark:text-white mt-1">
-            {orders.length} ta
+            {enrichedOrders.length} ta
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
             Mijozlarga hisoblangan smetalar
@@ -865,7 +950,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-xl font-extrabold font-mono text-amber-600 dark:text-amber-400 mt-1">
-            {shipments.filter((s) => s.status === 'pending').length} ta
+            {enrichedShipments.filter((s) => s.status === 'pending').length} ta
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
             S/N kiritilishi va topshirilishi kutilmoqda
@@ -878,7 +963,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
             <PackageCheck className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="text-xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-            {shipments.filter((s) => s.status === 'shipped').length} ta
+            {enrichedShipments.filter((s) => s.status === 'shipped').length} ta
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
             Muvaffaqiyatli topshirildi va sotildi
@@ -892,16 +977,26 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
           </div>
           <div className="text-xl font-extrabold font-mono text-sky-700 dark:text-sky-300 mt-1">
             {formatDualMoney(
-              orders.reduce((sum, o) => sum + (o.currency === 'USD' ? Math.round(o.totalAmount * (o.exchangeRate || exchangeRate)) : o.totalAmount), 0),
+              enrichedOrders.reduce((sum, o) => {
+                if (o.status === 'returned') return sum;
+                const raw = o.currency === 'USD' ? Math.round(o.totalAmount * (o.exchangeRate || exchangeRate)) : o.totalAmount;
+                const refunded = o.totalRefunded || 0;
+                return sum + Math.max(0, raw - refunded);
+              }, 0),
               baseCurrency,
               exchangeRate
             ).primary}
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5 flex justify-between items-center">
-            <span>Barcha hisob-kitoblar</span>
+            <span>Barcha hisob-kitoblar (Sof)</span>
             <span className="font-mono text-slate-500">
               ({formatDualMoney(
-                orders.reduce((sum, o) => sum + (o.currency === 'USD' ? Math.round(o.totalAmount * (o.exchangeRate || exchangeRate)) : o.totalAmount), 0),
+                enrichedOrders.reduce((sum, o) => {
+                  if (o.status === 'returned') return sum;
+                  const raw = o.currency === 'USD' ? Math.round(o.totalAmount * (o.exchangeRate || exchangeRate)) : o.totalAmount;
+                  const refunded = o.totalRefunded || 0;
+                  return sum + Math.max(0, raw - refunded);
+                }, 0),
                 baseCurrency,
                 exchangeRate
               ).secondary})
@@ -925,7 +1020,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
             <FileSpreadsheet className="w-4 h-4" />
             <span>1. Mijoz uchun Hisob-kitob (Zakaz / Smeta)</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-900/60 text-white font-mono">
-              {orders.length}
+              {enrichedOrders.length}
             </span>
           </button>
 
@@ -940,7 +1035,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
             <Truck className="w-4 h-4" />
             <span>2. Otgruzka (Yuklash & S/N)</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-900/60 text-white font-mono">
-              {shipments.length}
+              {enrichedShipments.length}
             </span>
           </button>
 
@@ -1052,29 +1147,62 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                             {order.items.length} xil pozitsiya
                           </span>
                           <span className="text-[10px] text-slate-400 line-clamp-1">
-                            {order.items.map((it) => `${it.productName} (${it.quantity})`).join(', ')}
+                            {order.items.map((it) => {
+                              const ret = it.returnedQuantity || 0;
+                              return `${it.productName} (${it.quantity}${ret > 0 ? ` - ${ret} vozvrat` : ''})`;
+                            }).join(', ')}
                           </span>
                         </td>
 
                         <td className="py-3 px-4 text-right">
-                          <span className="font-mono font-extrabold text-sm text-slate-900 dark:text-white block">
-                            {formatDualMoney(
-                              order.currency === 'USD' ? Math.round(order.totalAmount * (order.exchangeRate || exchangeRate)) : order.totalAmount,
-                              baseCurrency,
-                              exchangeRate
-                            ).primary}
-                          </span>
-                          <span className="text-[10px] font-mono text-slate-400">
-                            {formatDualMoney(
-                              order.currency === 'USD' ? Math.round(order.totalAmount * (order.exchangeRate || exchangeRate)) : order.totalAmount,
-                              baseCurrency,
-                              exchangeRate
-                            ).secondary}
-                          </span>
+                          {order.totalRefunded && order.totalRefunded > 0 ? (
+                            <div>
+                              <span className="font-mono font-extrabold text-sm text-slate-900 dark:text-white block">
+                                {formatDualMoney(
+                                  Math.max(
+                                    0,
+                                    (order.currency === 'USD'
+                                      ? Math.round(order.totalAmount * (order.exchangeRate || exchangeRate))
+                                      : order.totalAmount) - order.totalRefunded
+                                  ),
+                                  baseCurrency,
+                                  exchangeRate
+                                ).primary}
+                              </span>
+                              <span className="text-[10px] font-mono text-rose-500 font-bold block">
+                                Vozvrat: -{formatDualMoney(order.totalRefunded, baseCurrency, exchangeRate).primary}
+                              </span>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="font-mono font-extrabold text-sm text-slate-900 dark:text-white block">
+                                {formatDualMoney(
+                                  order.currency === 'USD' ? Math.round(order.totalAmount * (order.exchangeRate || exchangeRate)) : order.totalAmount,
+                                  baseCurrency,
+                                  exchangeRate
+                                ).primary}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400 block">
+                                {formatDualMoney(
+                                  order.currency === 'USD' ? Math.round(order.totalAmount * (order.exchangeRate || exchangeRate)) : order.totalAmount,
+                                  baseCurrency,
+                                  exchangeRate
+                                ).secondary}
+                              </span>
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3 px-4 text-center">
-                          {order.status === 'pending_cashier_approval' ? (
+                          {order.status === 'returned' ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300 border border-rose-500/30">
+                              ❌ To&apos;liq qaytarildi
+                            </span>
+                          ) : order.status === 'partially_returned' ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300 border border-amber-500/30">
+                              ⚠️ Qisman qaytarildi
+                            </span>
+                          ) : order.status === 'pending_cashier_approval' ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
                               🟡 Kassa tasdig&apos;i kutilmoqda
                             </span>
@@ -1269,29 +1397,62 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                             {shipment.items.length} xil mahsulot
                           </span>
                           <span className="text-[10px] text-slate-400 line-clamp-1">
-                            {shipment.items.map((it) => it.productName).join(', ')}
+                            {shipment.items.map((it) => {
+                              const ret = it.returnedQuantity || 0;
+                              return `${it.productName} (${it.quantity}${ret > 0 ? ` - ${ret} vozvrat` : ''})`;
+                            }).join(', ')}
                           </span>
                         </td>
 
                         <td className="py-3 px-4 text-right">
-                          <span className="font-mono font-extrabold text-sm text-slate-900 dark:text-white block">
-                            {formatDualMoney(
-                              shipment.currency === 'USD' ? Math.round(shipment.totalAmount * (shipment.exchangeRate || exchangeRate)) : shipment.totalAmount,
-                              baseCurrency,
-                              exchangeRate
-                            ).primary}
-                          </span>
-                          <span className="text-[10px] font-mono text-slate-400">
-                            {formatDualMoney(
-                              shipment.currency === 'USD' ? Math.round(shipment.totalAmount * (shipment.exchangeRate || exchangeRate)) : shipment.totalAmount,
-                              baseCurrency,
-                              exchangeRate
-                            ).secondary}
-                          </span>
+                          {shipment.totalRefunded && shipment.totalRefunded > 0 ? (
+                            <div>
+                              <span className="font-mono font-extrabold text-sm text-slate-900 dark:text-white block">
+                                {formatDualMoney(
+                                  Math.max(
+                                    0,
+                                    (shipment.currency === 'USD'
+                                      ? Math.round(shipment.totalAmount * (shipment.exchangeRate || exchangeRate))
+                                      : shipment.totalAmount) - shipment.totalRefunded
+                                  ),
+                                  baseCurrency,
+                                  exchangeRate
+                                ).primary}
+                              </span>
+                              <span className="text-[10px] font-mono text-rose-500 font-bold block">
+                                Vozvrat: -{formatDualMoney(shipment.totalRefunded, baseCurrency, exchangeRate).primary}
+                              </span>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="font-mono font-extrabold text-sm text-slate-900 dark:text-white block">
+                                {formatDualMoney(
+                                  shipment.currency === 'USD' ? Math.round(shipment.totalAmount * (shipment.exchangeRate || exchangeRate)) : shipment.totalAmount,
+                                  baseCurrency,
+                                  exchangeRate
+                                ).primary}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400 block">
+                                {formatDualMoney(
+                                  shipment.currency === 'USD' ? Math.round(shipment.totalAmount * (shipment.exchangeRate || exchangeRate)) : shipment.totalAmount,
+                                  baseCurrency,
+                                  exchangeRate
+                                ).secondary}
+                              </span>
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3 px-4 text-center">
-                          {isShipped ? (
+                          {shipment.status === 'returned' ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300">
+                              ✕ To&apos;liq qaytarilgan
+                            </span>
+                          ) : shipment.status === 'partially_returned' ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
+                              ⚠️ Qisman qaytarilgan
+                            </span>
+                          ) : isShipped ? (
                             <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
                               ✓ Sotildi & Yuklandi
                             </span>
@@ -2543,13 +2704,32 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                       className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200"
                     >
                       <option value="">+ Usta biriktirish</option>
-                      {employees
-                        .filter((e) => !assignedTechnicians.some((t) => t.id === e.id))
-                        .map((e) => (
-                          <option key={e.id} value={e.id}>
-                            {e.fullName} ({e.role})
-                          </option>
-                        ))}
+                      {/* Shu filial ustalari */}
+                      {currentBranchTechs.length > 0 && (
+                        <optgroup label={`📍 Shu filial (${currentBranch?.name || 'Asosiy'}) ustalari`}>
+                          {currentBranchTechs
+                            .filter((e: Employee) => !assignedTechnicians.some((t) => t.id === e.id))
+                            .map((e: Employee) => (
+                              <option key={e.id} value={e.id}>
+                                {e.fullName} ({e.role})
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                      {/* Boshqa filiallar ustalari guruhlangan holda */}
+                      {Object.entries(otherBranchesGrouped).map(([bId, group]: [string, { branch: Branch; technicians: Employee[] }]) => {
+                        const available = group.technicians.filter((e: Employee) => !assignedTechnicians.some((t) => t.id === e.id));
+                        if (available.length === 0) return null;
+                        return (
+                          <optgroup key={bId} label={`🏢 ${group.branch.name} ustalari`}>
+                            {available.map((e: Employee) => (
+                              <option key={e.id} value={e.id}>
+                                {e.fullName} ({e.role}) - {group.branch.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
                     </select>
                   </div>
 
@@ -2561,7 +2741,14 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                           className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
                         >
                           <div>
-                            <span className="font-bold text-slate-800 dark:text-slate-100 block">{t.fullName}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-800 dark:text-slate-100 block">{t.fullName}</span>
+                              {t.branchName && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold">
+                                  🏢 {t.branchName}
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[10px] text-slate-500">{t.role} &bull; {t.phone}</span>
                           </div>
 

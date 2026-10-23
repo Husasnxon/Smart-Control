@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ActiveTab, Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, AssignedTechnician, PaymentDetails, CartItem, Currency, PurchaseInvoice, PurchasePaymentRecord, ServiceTicket, CustomerDebtPayment, ZReport, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_TABS, Branch, StockTransfer } from '../types';
+import { ActiveTab, Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, EmployeePermissions, CustomerOrder, ShipmentOrder, AssignedTechnician, PaymentDetails, CartItem, Currency, PurchaseInvoice, PurchasePaymentRecord, ServiceTicket, CustomerDebtPayment, ZReport, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_TABS, DEFAULT_ROLE_PERMISSIONS, Branch, StockTransfer, AuditLog, AuditAction, AuditEntityType } from '../types';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_CUSTOMERS, 
@@ -43,6 +43,7 @@ import { CashierOrderApprovalModal } from '../components/CashierOrderApprovalMod
 import { ReceiptModal } from '../components/ReceiptModal';
 import { LoginScreen } from '../components/LoginScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { AdminAuthModal } from '../components/AdminAuthModal';
 import { getTelegramSettings, sendTelegramMessage, generateDailySalesReport } from '../utils/telegram';
 import { isTodayDate, getNowFormatted } from '../utils/formatters';
 import { playOrderNotificationSound } from '../utils/sound';
@@ -120,6 +121,19 @@ export default function Home() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
   const [activeModalReceipt, setActiveModalReceipt] = useState<SaleReceipt | null>(null);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [adminAuthModal, setAdminAuthModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    actionDetails?: string;
+    onSuccess: (admin: Employee) => void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onSuccess: () => {}
+  });
 
   // Active branch selector
   const currentBranch = useMemo(() => {
@@ -136,6 +150,105 @@ export default function Home() {
     }, 3500);
   }, []);
 
+  // Xavfsizlik & Audit Jurnali yozish funksiyasi
+  const addAuditLog = useCallback(
+    (entry: {
+      action: AuditAction;
+      entityType: AuditEntityType;
+      entityId: string;
+      entityTitle: string;
+      details: string;
+      oldValue?: string;
+      newValue?: string;
+      adminApproved?: boolean;
+      adminName?: string;
+      performedBy?: AuditLog['performedBy'];
+    }) => {
+      const isCurrentAdmin = Boolean(
+        currentUser?.systemRole === 'admin' ||
+        currentUser?.role?.toLowerCase().includes('admin')
+      );
+
+      const performer = entry.performedBy || {
+        id: currentUser?.id || 'sys-admin',
+        name: currentUser?.fullName || 'Bosh Administrator',
+        role: currentUser?.role || 'Administrator',
+        systemRole: currentUser?.systemRole || 'admin',
+        branchName: currentBranch?.name || 'Bosh Filial'
+      };
+
+      const newLog: AuditLog = {
+        id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        timestamp: new Date().toLocaleString('uz-UZ'),
+        action: entry.action,
+        entityType: entry.entityType,
+        entityId: entry.entityId,
+        entityTitle: entry.entityTitle,
+        performedBy: performer,
+        adminApproved:
+          entry.adminApproved !== undefined ? entry.adminApproved : isCurrentAdmin,
+        adminName:
+          entry.adminName ||
+          (entry.adminApproved !== false && isCurrentAdmin
+            ? currentUser?.fullName
+            : undefined),
+        details: entry.details,
+        oldValue: entry.oldValue,
+        newValue: entry.newValue,
+        branchId: currentBranch?.id
+      };
+
+      setAuditLogs((prev) => [newLog, ...prev]);
+      try {
+        const existing = localStorage.getItem('sc_audit_logs');
+        const list = existing ? JSON.parse(existing) : [];
+        list.unshift(newLog);
+        localStorage.setItem('sc_audit_logs', JSON.stringify(list.slice(0, 500)));
+      } catch (e) {
+        console.error('Audit log save error', e);
+      }
+    },
+    [currentUser, currentBranch]
+  );
+
+  // Administrator huquqi yoki maxsus berilgan ruxsatnoma bilan bajariladigan amallarni tekshirish
+  const requestAdminAuth = (
+    title: string,
+    description: string,
+    actionDetails: string,
+    action: (verifiedAdmin?: Employee, byPermission?: boolean) => void,
+    requiredPermission?: keyof EmployeePermissions
+  ) => {
+    const isCurrentAdmin = Boolean(
+      currentUser?.systemRole === 'admin' ||
+      currentUser?.role?.toLowerCase().includes('admin')
+    );
+
+    // 1. Agar foydalanuvchi Administrator bo'lsa, to'g'ridan-to'g'ri o'tkazish
+    if (isCurrentAdmin) {
+      action(currentUser || undefined, false);
+      return;
+    }
+
+    // 2. Agar foydalanuvchiga (menejer/kassirga) admin tomonidan ushbu ruxsat berilgan bo'lsa:
+    // Modal ochilmaydi, amal bajariladi, lekin audit tarixida ushbu xodim tomonidan o'zgartirilganligi aniq yoziladi!
+    if (requiredPermission && currentUser?.permissions && Boolean(currentUser.permissions[requiredPermission])) {
+      action(undefined, true);
+      return;
+    }
+
+    // 3. Aks holda Administrator PIN-kodi yoki parolini so'rash
+    setAdminAuthModal({
+      isOpen: true,
+      title,
+      description,
+      actionDetails,
+      onSuccess: (verifiedAdmin) => {
+        action(verifiedAdmin, false);
+      }
+    });
+  };
+
   // Ustalardan kelgan tasdiqlash kutilayotgan smetalar soni
   const pendingEstimatesCount = (customerOrders || []).filter(o => o.status === 'pending_cashier_approval').length;
 
@@ -143,6 +256,52 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
+        const isZeroClean = localStorage.getItem('sc_zero_clean_slate_v5');
+        if (!isZeroClean) {
+          localStorage.setItem('sc_receipts', '[]');
+          localStorage.setItem('sc_expenses', '[]');
+          localStorage.setItem('sc_advances', '[]');
+          localStorage.setItem('sc_payrolls', '[]');
+          localStorage.setItem('sc_customer_orders', '[]');
+          localStorage.setItem('sc_shipments', '[]');
+          localStorage.setItem('sc_handovers', '[]');
+          localStorage.setItem('sc_purchases', '[]');
+          localStorage.setItem('sc_service_tickets', '[]');
+          localStorage.setItem('sc_customer_debt_payments', '[]');
+          localStorage.setItem('sc_exchange_rate', '12850');
+
+          const existingProdsRaw = localStorage.getItem('sc_products');
+          let prodsToZero: Product[] = INITIAL_PRODUCTS;
+          if (existingProdsRaw) {
+            try {
+              const parsed = JSON.parse(existingProdsRaw);
+              if (Array.isArray(parsed)) prodsToZero = parsed;
+            } catch (e) {}
+          }
+          const zeroedProds = prodsToZero.map(p => ({ ...p, stockQuantity: 0, serialNumbers: [] }));
+          localStorage.setItem('sc_products', JSON.stringify(zeroedProds));
+          localStorage.setItem('sc_zero_clean_slate_v5', 'true');
+
+          setReceipts([]);
+          setExpenses([]);
+          setAdvances([]);
+          setPayrolls([]);
+          setCustomerOrders([]);
+          setShipments([]);
+          setHandovers([]);
+          setPurchases([]);
+          setServiceTickets([]);
+          setCustomerDebtPayments([]);
+          setExchangeRate(12850);
+          setProducts(zeroedProds);
+
+          fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reset: true, products: zeroedProds, exchangeRate: 12850 })
+          }).catch(() => {});
+        }
+
         const savedRate = localStorage.getItem('sc_exchange_rate');
       if (savedRate && !isNaN(Number(savedRate))) {
         setExchangeRate(Number(savedRate));
@@ -180,8 +339,48 @@ export default function Home() {
         try {
           const parsed: Product[] = JSON.parse(savedProducts);
           if (Array.isArray(parsed)) {
-            const filtered = parsed.filter(p => !activeDeletedProdIds.includes(p.id));
-            setProducts(filtered);
+            let filtered = parsed.filter(p => !activeDeletedProdIds.includes(p.id));
+            filtered = filtered.map(p => {
+              if (p.isService || p.id === 'prod-10' || p.sku === 'SRV-CAM-INST' || p.name.toLowerCase().includes('montaj') || p.name.toLowerCase().includes('xizmat')) {
+                return { ...p, category: 'Montaj', isService: true, wholesalePrice: undefined };
+              }
+              return p;
+            });
+
+            // Deduplicate any accidental duplicate rows (e.g. repeated imports of same product)
+            const seenKeys = new Set<string>();
+            const deduplicated: Product[] = [];
+            for (const item of filtered) {
+              const k = (item.name || '').trim().toLowerCase();
+              if (!seenKeys.has(k)) {
+                seenKeys.add(k);
+                deduplicated.push(item);
+              } else {
+                const existing = deduplicated.find(d => (d.name || '').trim().toLowerCase() === k);
+                if (existing) {
+                  const mergedSerials = Array.from(new Set([...(existing.serialNumbers || []), ...(item.serialNumbers || [])]));
+                  existing.serialNumbers = mergedSerials.length > 0 ? mergedSerials : existing.serialNumbers;
+                  if (existing.hasSerialNumber) {
+                    existing.stockQuantity = mergedSerials.length;
+                  }
+                }
+              }
+            }
+
+            // Ensure consistency: for any product with hasSerialNumber: true, stockQuantity must strictly match serialNumbers.length
+            const sanitized = deduplicated.map(p => {
+              if (p.isService) {
+                return { ...p, stockQuantity: 9999 };
+              }
+              if (p.hasSerialNumber) {
+                const snLen = p.serialNumbers?.length || 0;
+                return { ...p, stockQuantity: snLen };
+              }
+              return p;
+            });
+
+            setProducts(sanitized);
+            localStorage.setItem('sc_products', JSON.stringify(sanitized));
           } else {
             const initFiltered = INITIAL_PRODUCTS.filter(p => !activeDeletedProdIds.includes(p.id));
             setProducts(initFiltered);
@@ -232,11 +431,35 @@ export default function Home() {
       }
 
       const savedProdCats = localStorage.getItem('sc_product_categories');
+      let currentCategories: ProductCategory[] = INITIAL_PRODUCT_CATEGORIES;
       if (savedProdCats) {
         try {
-          setProductCategories(JSON.parse(savedProdCats));
+          const parsed = JSON.parse(savedProdCats);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            currentCategories = parsed;
+          }
         } catch (e) {}
       }
+      const hasMontaj = currentCategories.some(c => c.name.toLowerCase() === 'montaj');
+      if (!hasMontaj) {
+        const legacyIdx = currentCategories.findIndex(c => c.name.toLowerCase().includes('montaj') || c.name.toLowerCase().includes('o\'rnatish'));
+        if (legacyIdx >= 0) {
+          currentCategories[legacyIdx] = { ...currentCategories[legacyIdx], name: 'Montaj' };
+        } else {
+          currentCategories.push({
+            id: 'pcat-montaj',
+            name: 'Montaj',
+            description: "Kamera o'rnatish, domofon montaj, kabel tortish va sozlash",
+            color: '#EC4899'
+          });
+        }
+      } else {
+        currentCategories = currentCategories.map(c => 
+          c.name.toLowerCase().includes('o\'rnatish & montaj') ? { ...c, name: 'Montaj' } : c
+        );
+      }
+      setProductCategories(currentCategories);
+      localStorage.setItem('sc_product_categories', JSON.stringify(currentCategories));
 
       const savedEmployees = localStorage.getItem('sc_employees');
       if (savedEmployees) {
@@ -288,10 +511,10 @@ export default function Home() {
       if (savedUser) {
         try {
           let user: Employee = JSON.parse(savedUser);
-          if (user.systemRole === 'technician' || (user.role.toLowerCase().includes('usta') && user.systemRole !== 'admin' && user.systemRole !== 'manager')) {
+          if (user.systemRole === 'technician' || (user.role && user.role.toLowerCase().includes('usta') && user.systemRole !== 'admin' && user.systemRole !== 'manager')) {
             user = { ...user, allowedTabs: ['technician_portal'] as ActiveTab[] };
             setActiveTab('technician_portal');
-          } else if (user.systemRole === 'admin' || user.systemRole === 'manager' || !user.systemRole) {
+          } else if (user.systemRole === 'admin' || user.systemRole === 'manager' || !user.systemRole || (user.role && user.role.toLowerCase().includes('admin'))) {
             const tabs: ActiveTab[] = user.allowedTabs ? [...user.allowedTabs] : ([...DEFAULT_ROLE_TABS[user.systemRole || 'admin']] as ActiveTab[]);
             if (!tabs.includes('financial_reports')) {
               tabs.splice(1, 0, 'financial_reports');
@@ -302,7 +525,19 @@ export default function Home() {
             if (!tabs.includes('technician_portal')) {
               tabs.push('technician_portal');
             }
-            user = { ...user, allowedTabs: tabs };
+            user = {
+              ...user,
+              systemRole: user.systemRole || 'admin',
+              allowedTabs: tabs,
+              permissions: {
+                ...(DEFAULT_ROLE_PERMISSIONS.admin || {}),
+                ...(user.permissions || {}),
+                onlyAssignedOrders: false
+              }
+            };
+            try {
+              localStorage.setItem('sc_current_user', JSON.stringify(user));
+            } catch (e) {}
           } else if (user.systemRole === 'cashier') {
             const tabs: ActiveTab[] = user.allowedTabs ? [...user.allowedTabs] : ([...DEFAULT_ROLE_TABS.cashier] as ActiveTab[]);
             if (!tabs.includes('crm')) {
@@ -395,6 +630,13 @@ export default function Home() {
 
       const savedDebtPayments = localStorage.getItem('sc_customer_debt_payments');
       if (savedDebtPayments) setCustomerDebtPayments(JSON.parse(savedDebtPayments));
+
+      const savedAuditLogs = localStorage.getItem('sc_audit_logs');
+      if (savedAuditLogs) {
+        try {
+          setAuditLogs(JSON.parse(savedAuditLogs));
+        } catch (e) {}
+      }
 
       const savedPayrolls = localStorage.getItem('sc_payrolls');
       if (savedPayrolls) setPayrolls(JSON.parse(savedPayrolls));
@@ -1051,6 +1293,20 @@ export default function Home() {
 
   // Complete a sale
   const handleCompleteSale = (newReceipt: SaleReceipt) => {
+    // 0. Hard validation: Ensure no physical out-of-stock items can ever be sold
+    for (const item of newReceipt.items) {
+      if (!item.product.isService) {
+        const prod = products.find((p) => p.id === item.product.id);
+        const avail = prod
+          ? (prod.hasSerialNumber ? (prod.serialNumbers?.length || 0) : (prod.stockQuantity || 0))
+          : 0;
+        if (avail <= 0 || item.quantity > avail) {
+          showToast(`❌ Xatolik: «${item.product.name}» tovari omborda mavjud emas (Omborda: ${avail}, So'ralgan: ${item.quantity})! Sotuv rad etildi.`);
+          return;
+        }
+      }
+    }
+
     const finalReceipt: SaleReceipt = {
       ...newReceipt,
       cashierName: currentUser ? currentUser.fullName : (newReceipt.cashierName || 'Farrux A.')
@@ -1297,119 +1553,221 @@ export default function Home() {
     const targetReceipt = receipts.find((r) => r.id === receiptId);
     if (!targetReceipt) return;
 
-    let totalRefundSum = 0;
+    requestAdminAuth(
+      "Chek tovarlarini qaytarish (Vozvrat)",
+      `Chek #${targetReceipt.receiptNumber} bo'yicha tovarlarni qaytarish va mijozga hisob-kitob qilish faqat Administrator ruxsati bilan amalga oshiriladi.`,
+      `Chek: #${targetReceipt.receiptNumber} | Sabab: ${returnData.reason || "Ko'rsatilmadi"}`,
+      (verifiedAdmin, byPermission) => {
+        let totalRefundSum = 0;
 
-    // 1. Reconcile Products (Add stock and S/N back to inventory)
-    setProducts((prev) =>
-      prev.map((prod) => {
-        const returnedMatch = returnData.itemsToReturn.find((it) => it.productId === prod.id);
-        if (returnedMatch) {
-          const newQty = prod.isService ? prod.stockQuantity : prod.stockQuantity + returnedMatch.quantity;
-          
-          const updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
-          if (returnedMatch.serialNumbers && returnedMatch.serialNumbers.length > 0) {
-            returnedMatch.serialNumbers.forEach((sn) => {
-              if (!updatedSerials.includes(sn)) {
-                updatedSerials.push(sn);
+        // 1. Reconcile Products (Add stock and S/N back to inventory)
+        setProducts((prev) =>
+          prev.map((prod) => {
+            const returnedMatch = returnData.itemsToReturn.find((it) => it.productId === prod.id);
+            if (returnedMatch) {
+              const newQty = prod.isService ? prod.stockQuantity : prod.stockQuantity + returnedMatch.quantity;
+              
+              const updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
+              if (returnedMatch.serialNumbers && returnedMatch.serialNumbers.length > 0) {
+                returnedMatch.serialNumbers.forEach((sn) => {
+                  if (!updatedSerials.includes(sn)) {
+                    updatedSerials.push(sn);
+                  }
+                });
               }
-            });
-          }
 
-          return {
-            ...prod,
-            stockQuantity: newQty,
-            serialNumbers: prod.hasSerialNumber ? updatedSerials : prod.serialNumbers
-          };
-        }
-        return prod;
-      })
-    );
-
-    // 2. Calculate total refund
-    returnData.itemsToReturn.forEach((it) => {
-      totalRefundSum += it.totalRefund;
-    });
-
-    // 3. Reconcile Customer if attached
-    if (targetReceipt.customer) {
-      setCustomers((prev) =>
-        prev.map((cust) => {
-          if (cust.id === targetReceipt.customer?.id) {
-            const newPurchases = Math.max(0, cust.totalPurchases - totalRefundSum);
-
-            let newDebt = cust.debtBalance;
-            if (returnData.refundMethod === 'debt_deduction') {
-              newDebt = Math.max(0, cust.debtBalance - totalRefundSum);
-            }
-
-            const cashbackRate = cust.cashbackRate || 1;
-            const cashbackToReverse = Math.round(totalRefundSum * (cashbackRate / 100));
-            const newCashback = Math.max(0, cust.cashbackBalance - cashbackToReverse);
-
-            return {
-              ...cust,
-              totalPurchases: newPurchases,
-              debtBalance: newDebt,
-              cashbackBalance: newCashback
-            };
-          }
-          return cust;
-        })
-      );
-    }
-
-    // 4. Update the receipt
-    const returnTimestamp = new Date().toLocaleString('uz-UZ');
-    const newReturnedRecords = returnData.itemsToReturn.map((it, idx) => ({
-      id: `ret-${Date.now()}-${idx}`,
-      productId: it.productId,
-      productName: it.productName,
-      quantity: it.quantity,
-      serialNumbers: it.serialNumbers.length > 0 ? it.serialNumbers : undefined,
-      unitPrice: it.unitPrice,
-      totalRefund: it.totalRefund,
-      refundMethod: returnData.refundMethod,
-      reason: returnData.reason,
-      returnedAt: returnTimestamp
-    }));
-
-    setReceipts((prev) =>
-      prev.map((r) => {
-        if (r.id === receiptId) {
-          const updatedItems = r.items.map((item) => {
-            const retMatch = returnData.itemsToReturn.find((it) => it.productId === item.product.id);
-            if (retMatch) {
-              const prevReturned = item.returnedQuantity || 0;
-              const prevSerials = item.returnedSerialNumbers || [];
               return {
-                ...item,
-                returnedQuantity: prevReturned + retMatch.quantity,
-                returnedSerialNumbers: [...prevSerials, ...retMatch.serialNumbers]
+                ...prod,
+                stockQuantity: newQty,
+                serialNumbers: prod.hasSerialNumber ? updatedSerials : prod.serialNumbers
               };
             }
-            return item;
-          });
+            return prod;
+          })
+        );
 
-          const allFullyReturned = updatedItems.every(
-            (it) => (it.returnedQuantity || 0) >= it.quantity
+        // 2. Calculate total refund
+        returnData.itemsToReturn.forEach((it) => {
+          totalRefundSum += it.totalRefund;
+        });
+
+        // 3. Reconcile Customer if attached
+        if (targetReceipt.customer) {
+          setCustomers((prev) =>
+            prev.map((cust) => {
+              if (cust.id === targetReceipt.customer?.id) {
+                const newPurchases = Math.max(0, cust.totalPurchases - totalRefundSum);
+
+                let newDebt = cust.debtBalance;
+                if (returnData.refundMethod === 'debt_deduction') {
+                  newDebt = Math.max(0, cust.debtBalance - totalRefundSum);
+                }
+
+                const cashbackRate = cust.cashbackRate || 1;
+                const cashbackToReverse = Math.round(totalRefundSum * (cashbackRate / 100));
+                const newCashback = Math.max(0, cust.cashbackBalance - cashbackToReverse);
+
+                return {
+                  ...cust,
+                  totalPurchases: newPurchases,
+                  debtBalance: newDebt,
+                  cashbackBalance: newCashback
+                };
+              }
+              return cust;
+            })
           );
-
-          const totalRefundedSoFar = (r.totalRefunded || 0) + totalRefundSum;
-
-          return {
-            ...r,
-            items: updatedItems,
-            status: allFullyReturned ? 'returned' : 'partially_returned',
-            totalRefunded: totalRefundedSoFar,
-            returnedItems: [...(r.returnedItems || []), ...newReturnedRecords],
-            updatedAt: returnTimestamp
-          };
         }
-        return r;
-      })
-    );
 
-    showToast(`✓ Tovarlar omborga muvaffaqiyatli qaytarildi! (Vozvrat: ${totalRefundSum.toLocaleString()} so'm)`);
+        // 4. Update the receipt
+        const returnTimestamp = new Date().toLocaleString('uz-UZ');
+        const newReturnedRecords = returnData.itemsToReturn.map((it, idx) => ({
+          id: `ret-${Date.now()}-${idx}`,
+          productId: it.productId,
+          productName: it.productName,
+          quantity: it.quantity,
+          serialNumbers: it.serialNumbers.length > 0 ? it.serialNumbers : undefined,
+          unitPrice: it.unitPrice,
+          totalRefund: it.totalRefund,
+          refundMethod: returnData.refundMethod,
+          reason: returnData.reason,
+          returnedAt: returnTimestamp
+        }));
+
+        setReceipts((prev) =>
+          prev.map((r) => {
+            if (r.id === receiptId) {
+              const updatedItems = r.items.map((item) => {
+                const retMatch = returnData.itemsToReturn.find((it) => it.productId === item.product.id);
+                if (retMatch) {
+                  const prevReturned = item.returnedQuantity || 0;
+                  const prevSerials = item.returnedSerialNumbers || [];
+                  return {
+                    ...item,
+                    returnedQuantity: prevReturned + retMatch.quantity,
+                    returnedSerialNumbers: [...prevSerials, ...retMatch.serialNumbers]
+                  };
+                }
+                return item;
+              });
+
+              const allFullyReturned = updatedItems.every(
+                (it) => (it.returnedQuantity || 0) >= it.quantity
+              );
+
+              const totalRefundedSoFar = (r.totalRefunded || 0) + totalRefundSum;
+
+              return {
+                ...r,
+                items: updatedItems,
+                status: allFullyReturned ? 'returned' : 'partially_returned',
+                totalRefunded: totalRefundedSoFar,
+                returnedItems: [...(r.returnedItems || []), ...newReturnedRecords],
+                updatedAt: returnTimestamp
+              };
+            }
+            return r;
+          })
+        );
+
+        // 5. Update linked customer orders if any (Smeta va Hisob-kitoblar bo'limi)
+        setCustomerOrders((prev) =>
+          prev.map((o) => {
+            const isMatch =
+              o.receiptId === receiptId ||
+              o.id === `ord-pos-${receiptId}` ||
+              o.orderNumber === `ORD-${targetReceipt.receiptNumber}` ||
+              o.orderNumber.includes(targetReceipt.receiptNumber.replace(/^CR-/, ''));
+
+            if (isMatch) {
+              const updatedItems = o.items.map((item) => {
+                const retMatch = returnData.itemsToReturn.find((it) => it.productId === item.productId);
+                if (retMatch) {
+                  const prevReturned = item.returnedQuantity || 0;
+                  return {
+                    ...item,
+                    returnedQuantity: prevReturned + retMatch.quantity
+                  };
+                }
+                return item;
+              });
+
+              const allFullyReturned = updatedItems.every(
+                (it) => (it.returnedQuantity || 0) >= it.quantity
+              );
+
+              const totalRefundedSoFar = (o.totalRefunded || 0) + totalRefundSum;
+
+              return {
+                ...o,
+                items: updatedItems,
+                totalRefunded: totalRefundedSoFar,
+                status: allFullyReturned ? 'returned' : 'partially_returned'
+              };
+            }
+            return o;
+          })
+        );
+
+        // 6. Update linked shipments if any (Otgruzka bo'limi)
+        setShipments((prev) =>
+          prev.map((s) => {
+            const isMatch =
+              s.receiptId === receiptId ||
+              s.orderId === `ord-pos-${receiptId}` ||
+              s.shipmentNumber.includes(targetReceipt.receiptNumber.replace(/^CR-/, ''));
+
+            if (isMatch) {
+              const updatedItems = s.items.map((item) => {
+                const retMatch = returnData.itemsToReturn.find((it) => it.productId === item.productId);
+                if (retMatch) {
+                  const prevReturned = item.returnedQuantity || 0;
+                  return {
+                    ...item,
+                    returnedQuantity: prevReturned + retMatch.quantity
+                  };
+                }
+                return item;
+              });
+
+              const allFullyReturned = updatedItems.every(
+                (it) => (it.returnedQuantity || 0) >= it.quantity
+              );
+
+              const totalRefundedSoFar = (s.totalRefunded || 0) + totalRefundSum;
+
+              return {
+                ...s,
+                items: updatedItems,
+                totalRefunded: totalRefundedSoFar,
+                status: allFullyReturned ? 'returned' : 'partially_returned'
+              };
+            }
+            return s;
+          })
+        );
+
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
+
+        addAuditLog({
+          action: 'return',
+          entityType: 'receipt',
+          entityId: targetReceipt.id,
+          entityTitle: `Chek #${targetReceipt.receiptNumber}`,
+          details: `Chekdan tovarlar qaytarildi (Vozvrat: ${totalRefundSum.toLocaleString()} so'm). Qaytarish usuli: ${returnData.refundMethod}. Sabab: ${returnData.reason || "Ko'rsatilmadi"}${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          newValue: `Vozvrat: -${totalRefundSum.toLocaleString()} so'm`,
+          adminApproved: true,
+          adminName: approvedName
+        });
+
+        showToast(`✓ Tovarlar omborga muvaffaqiyatli qaytarildi! (Vozvrat: ${totalRefundSum.toLocaleString()} so'm)`);
+      },
+      'canReturnReceipts'
+    );
   };
 
   // Handle Save Edit Receipt and Add More Items
@@ -1422,61 +1780,88 @@ export default function Home() {
       serialNumbers: string[];
     }[]
   ) => {
-    // 1. Deduct newly added items from inventory
-    if (newItemsStockDelta && newItemsStockDelta.length > 0) {
-      setProducts((prev) =>
-        prev.map((prod) => {
-          const delta = newItemsStockDelta.find((d) => d.productId === prod.id);
-          if (delta) {
-            if (prod.isService) return prod;
-
-            const newStock = Math.max(0, prod.stockQuantity - delta.quantity);
-            let updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
-            if (delta.serialNumbers.length > 0) {
-              updatedSerials = updatedSerials.filter((s) => !delta.serialNumbers.includes(s));
-            }
-
-            return {
-              ...prod,
-              stockQuantity: newStock,
-              serialNumbers: prod.hasSerialNumber ? updatedSerials : prod.serialNumbers
-            };
-          }
-          return prod;
-        })
-      );
-    }
-
-    // 2. Find old receipt to compute changes in customer debt/purchases
     const oldReceipt = receipts.find((r) => r.id === receiptId);
-    if (oldReceipt) {
-      const addedAmount = updatedReceipt.totalAmount - oldReceipt.totalAmount;
-      const addedDebt = updatedReceipt.payments.debt - oldReceipt.payments.debt;
 
-      if (updatedReceipt.customer && (addedAmount !== 0 || addedDebt !== 0)) {
-        setCustomers((prev) =>
-          prev.map((cust) => {
-            if (cust.id === updatedReceipt.customer?.id) {
-              const updatedPurchases = Math.max(0, cust.totalPurchases + addedAmount);
-              const updatedDebt = Math.max(0, cust.debtBalance + addedDebt);
-              return {
-                ...cust,
-                totalPurchases: updatedPurchases,
-                debtBalance: updatedDebt
-              };
-            }
-            return cust;
-          })
+    requestAdminAuth(
+      "Sotuv chekini tahrirlash",
+      `Chek #${updatedReceipt.receiptNumber} ma'lumotlarini o'zgartirish faqat Administrator ruxsati bilan amalga oshiriladi.`,
+      `Chek: #${updatedReceipt.receiptNumber} | Yangi summa: ${updatedReceipt.totalAmount.toLocaleString()} so'm`,
+      (verifiedAdmin, byPermission) => {
+        // 1. Deduct newly added items from inventory
+        if (newItemsStockDelta && newItemsStockDelta.length > 0) {
+          setProducts((prev) =>
+            prev.map((prod) => {
+              const delta = newItemsStockDelta.find((d) => d.productId === prod.id);
+              if (delta) {
+                if (prod.isService) return prod;
+
+                const newStock = Math.max(0, prod.stockQuantity - delta.quantity);
+                let updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
+                if (delta.serialNumbers.length > 0) {
+                  updatedSerials = updatedSerials.filter((s) => !delta.serialNumbers.includes(s));
+                }
+
+                return {
+                  ...prod,
+                  stockQuantity: newStock,
+                  serialNumbers: prod.hasSerialNumber ? updatedSerials : prod.serialNumbers
+                };
+              }
+              return prod;
+            })
+          );
+        }
+
+        // 2. Find old receipt to compute changes in customer debt/purchases
+        if (oldReceipt) {
+          const addedAmount = updatedReceipt.totalAmount - oldReceipt.totalAmount;
+          const addedDebt = updatedReceipt.payments.debt - oldReceipt.payments.debt;
+
+          if (updatedReceipt.customer && (addedAmount !== 0 || addedDebt !== 0)) {
+            setCustomers((prev) =>
+              prev.map((cust) => {
+                if (cust.id === updatedReceipt.customer?.id) {
+                  const updatedPurchases = Math.max(0, cust.totalPurchases + addedAmount);
+                  const updatedDebt = Math.max(0, cust.debtBalance + addedDebt);
+                  return {
+                    ...cust,
+                    totalPurchases: updatedPurchases,
+                    debtBalance: updatedDebt
+                  };
+                }
+                return cust;
+              })
+            );
+          }
+        }
+
+        // 3. Update the receipt in state
+        setReceipts((prev) =>
+          prev.map((r) => (r.id === receiptId ? updatedReceipt : r))
         );
-      }
-    }
 
-    // 3. Update the receipt in state
-    setReceipts((prev) =>
-      prev.map((r) => (r.id === receiptId ? updatedReceipt : r))
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
+
+        addAuditLog({
+          action: 'update',
+          entityType: 'receipt',
+          entityId: updatedReceipt.id,
+          entityTitle: `Chek #${updatedReceipt.receiptNumber}`,
+          details: `Sotilgan chek ma'lumotlari tahrirlandi. Eski summa: ${oldReceipt ? oldReceipt.totalAmount.toLocaleString() : 0} so'm -> Yangi summa: ${updatedReceipt.totalAmount.toLocaleString()} so'm${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          oldValue: oldReceipt ? `${oldReceipt.totalAmount.toLocaleString()} so'm` : undefined,
+          newValue: `${updatedReceipt.totalAmount.toLocaleString()} so'm`,
+          adminApproved: true,
+          adminName: approvedName
+        });
+
+        showToast(`✓ Chek ${updatedReceipt.receiptNumber} muvaffaqiyatli yangilandi!`);
+      },
+      'canEditReceipts'
     );
-
-    showToast(`✓ Chek ${updatedReceipt.receiptNumber} muvaffaqiyatli yangilandi!`);
   };
 
   // Orders & Shipments Handlers
@@ -1989,6 +2374,126 @@ export default function Home() {
     showToast(`✓ "${newProd.name}" omborga muvaffaqiyatli qo'shildi.`);
   };
 
+  // Batch Import Products from Excel with atomic state update & strict Deduplication
+  const handleImportProductsBatch = (importedProducts: Product[], mode: 'append' | 'merge' = 'append') => {
+    if (!importedProducts || importedProducts.length === 0) return;
+    recordLocalMutation('products');
+
+    const getProductDedupeKey = (p: Product) => {
+      const trimmedName = (p.name || '').trim().toLowerCase();
+      const hasRealBarcode = p.barcode && !p.barcode.startsWith('BC-');
+      const hasRealSku = p.sku && !p.sku.startsWith('SKU-');
+      if (hasRealBarcode) return `bc:${p.barcode.trim().toLowerCase()}`;
+      if (hasRealSku) return `sku:${p.sku.trim().toLowerCase()}`;
+      return `name:${trimmedName}`;
+    };
+
+    // 1. Deduplicate within the incoming batch first
+    const importedKeyMap = new Map<string, Product>();
+    for (const item of importedProducts) {
+      const key = getProductDedupeKey(item);
+      const existingInBatch = importedKeyMap.get(key);
+      if (!existingInBatch) {
+        importedKeyMap.set(key, { ...item });
+      } else {
+        const mergedSerials = Array.from(new Set([...(existingInBatch.serialNumbers || []), ...(item.serialNumbers || [])]));
+        const combinedStock = existingInBatch.isService ? 9999 : (existingInBatch.hasSerialNumber ? mergedSerials.length : existingInBatch.stockQuantity + item.stockQuantity);
+        importedKeyMap.set(key, {
+          ...existingInBatch,
+          stockQuantity: combinedStock,
+          serialNumbers: mergedSerials.length > 0 ? mergedSerials : existingInBatch.serialNumbers,
+          costPrice: item.costPrice > 0 ? item.costPrice : existingInBatch.costPrice,
+          costPriceUSD: (item.costPriceUSD && item.costPriceUSD > 0) ? item.costPriceUSD : existingInBatch.costPriceUSD,
+          retailPrice: item.retailPrice > 0 ? item.retailPrice : existingInBatch.retailPrice,
+          retailPriceUSD: (item.retailPriceUSD && item.retailPriceUSD > 0) ? item.retailPriceUSD : existingInBatch.retailPriceUSD,
+          wholesalePrice: (item.wholesalePrice && item.wholesalePrice > 0) ? item.wholesalePrice : existingInBatch.wholesalePrice,
+        });
+      }
+    }
+
+    const uniqueImportedList = Array.from(importedKeyMap.values());
+
+    // 2. Merge / Update against existing warehouse products
+    const workingProducts = [...products];
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    for (const newP of uniqueImportedList) {
+      const existingIdx = workingProducts.findIndex(p => {
+        const pKey = getProductDedupeKey(p);
+        const newKey = getProductDedupeKey(newP);
+        if (pKey === newKey) return true;
+        if (p.name.trim().toLowerCase() === newP.name.trim().toLowerCase()) return true;
+        if (p.barcode && newP.barcode && !p.barcode.startsWith('BC-') && !newP.barcode.startsWith('BC-') && p.barcode.trim().toLowerCase() === newP.barcode.trim().toLowerCase()) return true;
+        if (p.sku && newP.sku && !p.sku.startsWith('SKU-') && !newP.sku.startsWith('SKU-') && p.sku.trim().toLowerCase() === newP.sku.trim().toLowerCase()) return true;
+        return false;
+      });
+
+      if (existingIdx !== -1) {
+        // MATCH FOUND! Avoid duplicate entry
+        const existing = workingProducts[existingIdx];
+        const mergedSerials = Array.from(new Set([...(existing.serialNumbers || []), ...(newP.serialNumbers || [])]));
+        
+        let newStock = existing.stockQuantity;
+        if (existing.isService) {
+          newStock = 9999;
+        } else if (existing.hasSerialNumber || newP.hasSerialNumber) {
+          newStock = mergedSerials.length;
+        } else if (mode === 'merge') {
+          newStock = existing.stockQuantity + newP.stockQuantity;
+        } else {
+          newStock = newP.stockQuantity > 0 ? (existing.stockQuantity > 0 ? existing.stockQuantity + newP.stockQuantity : newP.stockQuantity) : existing.stockQuantity;
+        }
+
+        workingProducts[existingIdx] = {
+          ...existing,
+          category: newP.category || existing.category,
+          unit: newP.unit || existing.unit,
+          costPrice: newP.costPrice > 0 ? newP.costPrice : existing.costPrice,
+          costPriceUSD: (newP.costPriceUSD && newP.costPriceUSD > 0) ? newP.costPriceUSD : existing.costPriceUSD,
+          retailPrice: newP.retailPrice > 0 ? newP.retailPrice : existing.retailPrice,
+          retailPriceUSD: (newP.retailPriceUSD && newP.retailPriceUSD > 0) ? newP.retailPriceUSD : existing.retailPriceUSD,
+          wholesalePrice: (newP.wholesalePrice && newP.wholesalePrice > 0) ? newP.wholesalePrice : existing.wholesalePrice,
+          stockQuantity: newStock,
+          hasSerialNumber: existing.hasSerialNumber || newP.hasSerialNumber,
+          serialNumbers: mergedSerials.length > 0 ? mergedSerials : existing.serialNumbers,
+          warrantyMonths: newP.warrantyMonths || existing.warrantyMonths
+        };
+        updatedCount++;
+      } else {
+        workingProducts.unshift(newP);
+        addedCount++;
+      }
+    }
+
+    // 3. Remove any previous duplicate rows that might already exist in workingProducts
+    const finalCleanList: Product[] = [];
+    const seenFinalKeys = new Set<string>();
+    for (const p of workingProducts) {
+      const k = getProductDedupeKey(p);
+      if (!seenFinalKeys.has(k)) {
+        seenFinalKeys.add(k);
+        finalCleanList.push(p);
+      }
+    }
+
+    setProducts(finalCleanList);
+
+    const importedIds = new Set(finalCleanList.map(p => p.id));
+    const nextDeletedIds = deletedProductIds.filter(id => !importedIds.has(id));
+    setDeletedProductIds(nextDeletedIds);
+
+    try {
+      localStorage.setItem('sc_products', JSON.stringify(finalCleanList));
+      localStorage.setItem('sc_deleted_product_ids', JSON.stringify(nextDeletedIds));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ products: finalCleanList, deletedProductIds: nextDeletedIds });
+
+    showToast(`✓ Excel import yakunlandi: ${addedCount} ta yangi tovar qo'shildi, ${updatedCount} ta mavjud tovar yangilandi.`);
+  };
+
   // Update Stock
   const handleUpdateStock = (productId: string, newStock: number) => {
     recordLocalMutation('products');
@@ -2017,6 +2522,22 @@ export default function Home() {
     showToast(`✓ "${updatedProduct.name}" tahrirlandi.`);
   };
 
+  // Batch Update Products (e.g. bulk S/N toggle or bulk price updates)
+  const handleUpdateProductsBatch = (updatedList: Product[]) => {
+    if (!updatedList || updatedList.length === 0) return;
+    recordLocalMutation('products');
+    const updateMap = new Map(updatedList.map(p => [p.id, p]));
+    const finalProducts = products.map(p => updateMap.get(p.id) || p);
+    setProducts(finalProducts);
+    try {
+      localStorage.setItem('sc_products', JSON.stringify(finalProducts));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ products: finalProducts });
+    showToast(`✓ ${updatedList.length} ta mahsulot muvaffaqiyatli yangilandi.`);
+  };
+
   // Delete Product (O'chirish)
   const handleDeleteProduct = (productId: string) => {
     recordLocalMutation('products');
@@ -2035,6 +2556,29 @@ export default function Home() {
     }
     pushDataToCloud({ products: finalProducts, deletedProductIds: updatedDeletedIds });
     showToast(`✓ "${prod?.name || 'Tovar'}" ombordan butunlay o'chirildi.`);
+  };
+
+  // Ombor qoldig'ini butunlay 0 ga tushirish (tozalash)
+  const handleClearAllStock = () => {
+    recordLocalMutation('products');
+    const zeroed = products.map((p) => {
+      if (p.isService) {
+        return { ...p, stockQuantity: 9999 };
+      }
+      return {
+        ...p,
+        stockQuantity: 0,
+        serialNumbers: []
+      };
+    });
+    setProducts(zeroed);
+    try {
+      localStorage.setItem('sc_products', JSON.stringify(zeroed));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ products: zeroed });
+    showToast("✓ Barcha tovarlar ombor qoldig'i 0 ga tushirildi (Tozalandi)!");
   };
 
   // Omborga tovar kirimi (Prixod / Nakladnoy) - Yangi qo'shish va Tahrirlash (Redakt)
@@ -2060,6 +2604,18 @@ export default function Home() {
       console.error(e);
     }
     pushDataToCloud({ purchases: finalPurchases, products: updatedProducts });
+
+    const isEdit = purchases.some((p) => p.id === invoice.id);
+    addAuditLog({
+      action: isEdit ? 'update' : 'create',
+      entityType: 'purchase',
+      entityId: invoice.id,
+      entityTitle: `Kirim nakladnoyi #${invoice.invoiceNumber}`,
+      details: `${isEdit ? 'Tahrirlandi' : 'Yangi kiritildi'}. Ta'minotchi: ${invoice.supplierName} | Jami summa: ${invoice.totalAmount.toLocaleString()} so'm | Tovarlar soni: ${invoice.items?.length || 0}`,
+      newValue: `${invoice.totalAmount.toLocaleString()} so'm`,
+      adminApproved: currentUser?.systemRole === 'admin'
+    });
+
     showToast(`✓ Kirim nakladnoyi #${invoice.invoiceNumber} saqlandi va ombor qoldig'i yangilandi!`);
   };
 
@@ -2079,45 +2635,72 @@ export default function Home() {
     const target = purchases.find((p) => p.id === invoiceId);
     if (!target || target.status === 'cancelled') return;
 
-    recordLocalMutation('purchases');
-    recordLocalMutation('products');
+    requestAdminAuth(
+      "Kirim nakladnoyini bekor qilish",
+      `Nakladnoy #${target.invoiceNumber}ni bekor qilish faqat Administrator huquqi bilan amalga oshiriladi. Tovarlar ombor qoldig'idan chiqariladi.`,
+      `Nakladnoy: #${target.invoiceNumber} | Ta'minotchi: ${target.supplierName} | Summa: ${target.totalAmount.toLocaleString()} so'm`,
+      (verifiedAdmin, byPermission) => {
+        recordLocalMutation('purchases');
+        recordLocalMutation('products');
 
-    let updatedProducts = [...products];
-    if (target.items && target.items.length > 0) {
-      target.items.forEach((item) => {
-        updatedProducts = updatedProducts.map((prod) => {
-          if (prod.id === item.productId || prod.name === item.productName) {
-            const currentStock = prod.stockQuantity || 0;
-            const newStock = Math.max(0, currentStock - (item.quantity || 1));
-            let newSerialNumbers = prod.serialNumbers || [];
-            if (item.serialNumbers && item.serialNumbers.length > 0) {
-              const itemSns = new Set(item.serialNumbers);
-              newSerialNumbers = newSerialNumbers.filter((sn) => !itemSns.has(sn));
-            }
-            return {
-              ...prod,
-              stockQuantity: newStock,
-              serialNumbers: newSerialNumbers,
-            };
-          }
-          return prod;
+        let updatedProducts = [...products];
+        if (target.items && target.items.length > 0) {
+          target.items.forEach((item) => {
+            updatedProducts = updatedProducts.map((prod) => {
+              if (prod.id === item.productId || prod.name === item.productName) {
+                const currentStock = prod.stockQuantity || 0;
+                const newStock = Math.max(0, currentStock - (item.quantity || 1));
+                let newSerialNumbers = prod.serialNumbers || [];
+                if (item.serialNumbers && item.serialNumbers.length > 0) {
+                  const itemSns = new Set(item.serialNumbers);
+                  newSerialNumbers = newSerialNumbers.filter((sn) => !itemSns.has(sn));
+                }
+                return {
+                  ...prod,
+                  stockQuantity: newStock,
+                  serialNumbers: newSerialNumbers,
+                };
+              }
+              return prod;
+            });
+          });
+        }
+
+        const nextPurchases = purchases.map((p) => (p.id === invoiceId ? { ...p, status: 'cancelled' as const } : p));
+        setPurchases(nextPurchases);
+        setProducts(updatedProducts);
+
+        try {
+          localStorage.setItem('sc_purchases', JSON.stringify(nextPurchases));
+          localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
+        } catch (e) {
+          console.error(e);
+        }
+
+        pushDataToCloud({ purchases: nextPurchases, products: updatedProducts });
+
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
+
+        addAuditLog({
+          action: 'update',
+          entityType: 'purchase',
+          entityId: target.id,
+          entityTitle: `Kirim nakladnoyi #${target.invoiceNumber}`,
+          details: `Nakladnoy bekor qilindi (Status: Bekor qilingan). Ta'minotchi: ${target.supplierName}, Summa: ${target.totalAmount.toLocaleString()} so'm${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          oldValue: `${target.totalAmount.toLocaleString()} so'm`,
+          newValue: "Bekor qilindi",
+          adminApproved: true,
+          adminName: approvedName
         });
-      });
-    }
 
-    const nextPurchases = purchases.map((p) => (p.id === invoiceId ? { ...p, status: 'cancelled' as const } : p));
-    setPurchases(nextPurchases);
-    setProducts(updatedProducts);
-
-    try {
-      localStorage.setItem('sc_purchases', JSON.stringify(nextPurchases));
-      localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
-    } catch (e) {
-      console.error(e);
-    }
-
-    pushDataToCloud({ purchases: nextPurchases, products: updatedProducts });
-    showToast(`✓ #${target.invoiceNumber} kirim nakladnoyi bekor qilindi va tovarlar qoldiqdan chiqarildi.`);
+        showToast(`✓ #${target.invoiceNumber} kirim nakladnoyi bekor qilindi va tovarlar qoldiqdan chiqarildi.`);
+      },
+      'canCancelPurchases'
+    );
   };
 
   // Kirim nakladnoyini (Prixodni) butunlay o'chirish va ombor qoldig'ini qaytarish
@@ -2125,54 +2708,80 @@ export default function Home() {
     const target = purchases.find((p) => p.id === invoiceId);
     if (!target) return;
 
-    recordLocalMutation('purchases');
-    recordLocalMutation('products');
+    requestAdminAuth(
+      "Kirim nakladnoyini (Prixod) butunlay o'chirish",
+      `Nakladnoy #${target.invoiceNumber}ni tizimdan butunlay o'chirish ombor qoldig'iga ta'sir qiladi. Ushbu amal faqat Administrator ruxsati bilan bajariladi.`,
+      `Nakladnoy: #${target.invoiceNumber} | Ta'minotchi: ${target.supplierName} | Summa: ${target.totalAmount.toLocaleString()} so'm`,
+      (verifiedAdmin, byPermission) => {
+        recordLocalMutation('purchases');
+        recordLocalMutation('products');
 
-    // Agar prixod bekor qilinmagan bo'lsa (ya'ni tovarlar omborga kirgan bo'lsa),
-    // ushbu tovarlar sonini ombor qoldig'idan kamaytirish va seriya raqamlarini tozalash
-    let updatedProducts = [...products];
-    if (target.status !== 'cancelled' && target.items && target.items.length > 0) {
-      target.items.forEach((item) => {
-        updatedProducts = updatedProducts.map((prod) => {
-          if (prod.id === item.productId || prod.name === item.productName) {
-            const currentStock = prod.stockQuantity || 0;
-            const newStock = Math.max(0, currentStock - (item.quantity || 1));
-            let newSerialNumbers = prod.serialNumbers || [];
-            if (item.serialNumbers && item.serialNumbers.length > 0) {
-              const itemSns = new Set(item.serialNumbers);
-              newSerialNumbers = newSerialNumbers.filter((sn) => !itemSns.has(sn));
-            }
-            return {
-              ...prod,
-              stockQuantity: newStock,
-              serialNumbers: newSerialNumbers,
-            };
-          }
-          return prod;
+        // Agar prixod bekor qilinmagan bo'lsa (ya'ni tovarlar omborga kirgan bo'lsa),
+        // ushbu tovarlar sonini ombor qoldig'idan kamaytirish va seriya raqamlarini tozalash
+        let updatedProducts = [...products];
+        if (target.status !== 'cancelled' && target.items && target.items.length > 0) {
+          target.items.forEach((item) => {
+            updatedProducts = updatedProducts.map((prod) => {
+              if (prod.id === item.productId || prod.name === item.productName) {
+                const currentStock = prod.stockQuantity || 0;
+                const newStock = Math.max(0, currentStock - (item.quantity || 1));
+                let newSerialNumbers = prod.serialNumbers || [];
+                if (item.serialNumbers && item.serialNumbers.length > 0) {
+                  const itemSns = new Set(item.serialNumbers);
+                  newSerialNumbers = newSerialNumbers.filter((sn) => !itemSns.has(sn));
+                }
+                return {
+                  ...prod,
+                  stockQuantity: newStock,
+                  serialNumbers: newSerialNumbers,
+                };
+              }
+              return prod;
+            });
+          });
+        }
+
+        const nextPurchases = purchases.filter((p) => p.id !== invoiceId);
+        const updatedDeletedPurchases = Array.from(new Set([...deletedPurchaseIds, invoiceId]));
+        setDeletedPurchaseIds(updatedDeletedPurchases);
+        setPurchases(nextPurchases);
+        setProducts(updatedProducts);
+
+        try {
+          localStorage.setItem('sc_purchases', JSON.stringify(nextPurchases));
+          localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
+          localStorage.setItem('sc_deleted_purchase_ids', JSON.stringify(updatedDeletedPurchases));
+        } catch (e) {
+          console.error(e);
+        }
+
+        pushDataToCloud({
+          purchases: nextPurchases,
+          products: updatedProducts,
+          deletedPurchaseIds: updatedDeletedPurchases
         });
-      });
-    }
 
-    const nextPurchases = purchases.filter((p) => p.id !== invoiceId);
-    const updatedDeletedPurchases = Array.from(new Set([...deletedPurchaseIds, invoiceId]));
-    setDeletedPurchaseIds(updatedDeletedPurchases);
-    setPurchases(nextPurchases);
-    setProducts(updatedProducts);
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
 
-    try {
-      localStorage.setItem('sc_purchases', JSON.stringify(nextPurchases));
-      localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
-      localStorage.setItem('sc_deleted_purchase_ids', JSON.stringify(updatedDeletedPurchases));
-    } catch (e) {
-      console.error(e);
-    }
+        addAuditLog({
+          action: 'delete',
+          entityType: 'purchase',
+          entityId: target.id,
+          entityTitle: `Kirim nakladnoyi #${target.invoiceNumber}`,
+          details: `Nakladnoy butunlay o'chirildi. Ta'minotchi: ${target.supplierName}, Summa: ${target.totalAmount.toLocaleString()} so'm${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          oldValue: `${target.totalAmount.toLocaleString()} so'm`,
+          adminApproved: true,
+          adminName: approvedName
+        });
 
-    pushDataToCloud({
-      purchases: nextPurchases,
-      products: updatedProducts,
-      deletedPurchaseIds: updatedDeletedPurchases
-    });
-    showToast(`✓ #${target.invoiceNumber} prixod butunlay o'chirildi va ombor qoldig'i to'g'rilandi!`);
+        showToast(`✓ #${target.invoiceNumber} prixod butunlay o'chirildi va ombor qoldig'i to'g'rilandi!`);
+      },
+      'canDeletePurchases'
+    );
   };
 
   // Filial qo'shish
@@ -2340,6 +2949,51 @@ export default function Home() {
     showToast(`✓ Mijozga +${amount.toLocaleString()} so'm cashback qo'shildi!`);
   };
 
+  // Delete Customer
+  const handleDeleteCustomer = (customerId: string) => {
+    recordLocalMutation('customers');
+    const updated = customers.filter(c => c.id !== customerId);
+    setCustomers(updated);
+    try {
+      localStorage.setItem('sc_customers', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ customers: updated });
+    showToast("✓ Mijoz o'chirildi.");
+  };
+
+  // Clear all customer debts to 0
+  const handleClearAllDebts = () => {
+    recordLocalMutation('customers');
+    const updated = customers.map(c => ({
+      ...c,
+      debtBalance: 0,
+      debtBalanceUSD: 0
+    }));
+    setCustomers(updated);
+    try {
+      localStorage.setItem('sc_customers', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ customers: updated });
+    showToast("✓ Barcha qarzdorliklar 0 ga tushirildi (Tozalandi)!");
+  };
+
+  // Clear all customers database
+  const handleClearAllCustomers = () => {
+    recordLocalMutation('customers');
+    setCustomers([]);
+    try {
+      localStorage.setItem('sc_customers', JSON.stringify([]));
+    } catch (e) {
+      console.error(e);
+    }
+    pushDataToCloud({ customers: [] });
+    showToast("✓ Barcha mijozlar bazasi tozalandi!");
+  };
+
   // Add Expense or Income (Prixod & Rasxod) with Automatic Counterparty Debt Deduction
   const handleAddExpense = (newExp: Expense) => {
     recordLocalMutation('expenses');
@@ -2457,19 +3111,282 @@ export default function Home() {
         showToast(`✓ Xarajat (Chiqim) kiritildi: ${newExp.amount.toLocaleString()} so'm (${newExp.category})`);
       }
     }
+
+    // Audit jurnali yozuvi
+    addAuditLog({
+      action: 'create',
+      entityType: 'expense',
+      entityId: newExp.id,
+      entityTitle: `${newExp.type === 'income' ? 'Kirim (Prixod)' : 'Chiqim (Xarajat)'}: ${newExp.category}`,
+      details: `${newExp.amount.toLocaleString()} so'm | To'lov manbai: ${newExp.paymentSource} | Kontragent: ${newExp.paidTo || newExp.paidBy || newExp.customerName || '-'} | Izoh: ${newExp.notes || '-'}`,
+      newValue: `${newExp.amount.toLocaleString()} so'm`,
+      adminApproved: currentUser?.systemRole === 'admin'
+    });
   };
 
   const handleDeleteExpense = (expenseId: string) => {
-    recordLocalMutation('expenses');
-    const updated = expenses.filter((e) => e.id !== expenseId);
-    setExpenses(updated);
-    try {
-      localStorage.setItem('sc_expenses', JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
-    pushDataToCloud({ expenses: updated });
-    showToast(`✓ Moliya yozuvi o'chirildi!`);
+    const target = expenses.find((e) => e.id === expenseId);
+    if (!target) return;
+
+    requestAdminAuth(
+      "Moliya yozuvini (kirim/chiqim) o'chirish",
+      `"${target.category}" yozuvini o'chirish faqat Administrator ruxsati bilan amalga oshiriladi.`,
+      `Tur: ${target.type === 'income' ? 'Kirim' : 'Chiqim'} | Summa: ${target.amount.toLocaleString()} so'm | Manba: ${target.paymentSource}`,
+      (verifiedAdmin, byPermission) => {
+        recordLocalMutation('expenses');
+        const updated = expenses.filter((e) => e.id !== expenseId);
+        setExpenses(updated);
+        try {
+          localStorage.setItem('sc_expenses', JSON.stringify(updated));
+        } catch (e) {
+          console.error(e);
+        }
+        pushDataToCloud({ expenses: updated });
+
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
+
+        addAuditLog({
+          action: 'delete',
+          entityType: 'expense',
+          entityId: target.id,
+          entityTitle: `${target.type === 'income' ? 'Kirim' : 'Chiqim'}: ${target.category}`,
+          details: `${target.amount.toLocaleString()} so'm o'chirildi. Manba: ${target.paymentSource} | Kontragent: ${target.paidTo || target.paidBy || target.customerName || '-'}${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          oldValue: `${target.amount.toLocaleString()} so'm`,
+          adminApproved: true,
+          adminName: approvedName
+        });
+
+        showToast(`✓ Moliya yozuvi o'chirildi!`);
+      },
+      'canDeleteExpenses'
+    );
+  };
+
+  const handleDeleteReceipt = (receiptId: string) => {
+    const receiptToDelete = receipts.find((r) => r.id === receiptId);
+    if (!receiptToDelete) return;
+
+    requestAdminAuth(
+      "Sotuv chekini o'chirish",
+      `Chek #${receiptToDelete.receiptNumber}ni tizimdan o'chirish ombor qoldig'i va hisobotlarga ta'sir qiladi. Ushbu amal faqat Administrator ruxsati bilan bajariladi.`,
+      `Chek: #${receiptToDelete.receiptNumber} | Summa: ${receiptToDelete.totalAmount.toLocaleString()} so'm`,
+      (verifiedAdmin, byPermission) => {
+        recordLocalMutation('receipts');
+        recordLocalMutation('products');
+        let updatedProducts = products;
+        if (receiptToDelete.status !== 'returned') {
+          updatedProducts = products.map((prod) => {
+            const item = receiptToDelete.items.find((i) => i.product.id === prod.id);
+            if (item) {
+              if (prod.isService) {
+                return prod;
+              }
+              if (prod.hasSerialNumber) {
+                const restoredSerials = item.selectedSerialNumbers ? [...(prod.serialNumbers || []), ...item.selectedSerialNumbers] : (prod.serialNumbers || []);
+                const uniqueSerials = Array.from(new Set(restoredSerials));
+                return {
+                  ...prod,
+                  stockQuantity: uniqueSerials.length,
+                  serialNumbers: uniqueSerials
+                };
+              }
+              return {
+                ...prod,
+                stockQuantity: Math.max(0, prod.stockQuantity + item.quantity)
+              };
+            }
+            return prod;
+          });
+          setProducts(updatedProducts);
+          try {
+            localStorage.setItem('sc_products', JSON.stringify(updatedProducts));
+          } catch (e) {}
+        }
+        const updatedReceipts = receipts.filter((r) => r.id !== receiptId);
+        setReceipts(updatedReceipts);
+        try {
+          localStorage.setItem('sc_receipts', JSON.stringify(updatedReceipts));
+        } catch (e) {}
+        pushDataToCloud({ receipts: updatedReceipts, products: updatedProducts });
+
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
+
+        addAuditLog({
+          action: 'delete',
+          entityType: 'receipt',
+          entityId: receiptToDelete.id,
+          entityTitle: `Chek #${receiptToDelete.receiptNumber}`,
+          details: `Sotuv cheki #${receiptToDelete.receiptNumber} o'chirildi (${receiptToDelete.totalAmount.toLocaleString()} so'm). Tovarlar omborga qaytarildi.${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          oldValue: `${receiptToDelete.totalAmount.toLocaleString()} so'm`,
+          adminApproved: true,
+          adminName: approvedName
+        });
+
+        showToast("✓ Savdo tushumi muvaffaqiyatli o'chirildi!");
+      },
+      'canDeleteReceipts'
+    );
+  };
+
+  const handleClearCashFlow = () => {
+    requestAdminAuth(
+      "Barcha pul oqimi va kassa ma'lumotlarini tozalash",
+      "DIQQAT! Barcha kassa tushumlari va chiqimlar butunlay o'chiriladi. Bu amalni faqat Administrator tasdiqlashi mumkin.",
+      `Hozirgi yozuvlar: ${expenses.length} ta xarajat, ${receipts.length} ta chek`,
+      (verifiedAdmin, byPermission) => {
+        recordLocalMutation('expenses');
+        recordLocalMutation('receipts');
+        setExpenses([]);
+        setReceipts([]);
+        try {
+          localStorage.setItem('sc_expenses', JSON.stringify([]));
+          localStorage.setItem('sc_receipts', JSON.stringify([]));
+        } catch (e) {}
+        pushDataToCloud({ expenses: [], receipts: [] });
+
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
+
+        addAuditLog({
+          action: 'delete',
+          entityType: 'expense',
+          entityId: 'all-cashflow',
+          entityTitle: "Barcha pul oqimi va kassa tushumlari",
+          details: `Barcha kassa yozuvlari va xarajatlar to'liq tozalandi${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          adminApproved: true,
+          adminName: approvedName
+        });
+
+        showToast("✓ Barcha pul oqimi va kassa tushumlari tozalandi!");
+      },
+      'canDeleteExpenses'
+    );
+  };
+
+  const handleDeleteAdvance = (advanceId: string) => {
+    const target = advances.find((a) => a.id === advanceId);
+    if (!target) return;
+
+    requestAdminAuth(
+      "Avans yozuvini o'chirish",
+      `"${target.employeeName}" uchun berilgan #${target.advanceNumber} avans yozuvini o'chirish faqat Administrator ruxsati bilan bajariladi.`,
+      `Xodim: ${target.employeeName} | Summa: ${target.amount.toLocaleString()} so'm`,
+      (verifiedAdmin, byPermission) => {
+        recordLocalMutation('advances');
+        const updated = advances.filter((a) => a.id !== advanceId);
+        setAdvances(updated);
+        try {
+          localStorage.setItem('sc_advances', JSON.stringify(updated));
+        } catch (e) {}
+        pushDataToCloud({ advances: updated });
+
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
+
+        addAuditLog({
+          action: 'delete',
+          entityType: 'advance',
+          entityId: target.id,
+          entityTitle: `Avans #${target.advanceNumber}`,
+          details: `"${target.employeeName}"ga berilgan ${target.amount.toLocaleString()} so'm avans yozuvi o'chirildi.${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          oldValue: `${target.amount.toLocaleString()} so'm`,
+          adminApproved: true,
+          adminName: approvedName
+        });
+
+        showToast("✓ Avans yozuvi o'chirildi!");
+      },
+      'canManageAdvances'
+    );
+  };
+
+  const handleClearAdvances = () => {
+    requestAdminAuth(
+      "Barcha xodimlar avanslarini tozalash",
+      "DIQQAT! Barcha xodimlarga berilgan avans yozuvlari butunlay o'chiriladi. Bu amalni faqat Administrator tasdiqlashi mumkin.",
+      `Jami avanslar: ${advances.length} ta yozuv`,
+      (verifiedAdmin, byPermission) => {
+        recordLocalMutation('advances');
+        setAdvances([]);
+        try {
+          localStorage.setItem('sc_advances', JSON.stringify([]));
+        } catch (e) {}
+        pushDataToCloud({ advances: [] });
+
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
+
+        addAuditLog({
+          action: 'delete',
+          entityType: 'advance',
+          entityId: 'all-advances',
+          entityTitle: "Barcha xodimlar avanslari",
+          details: `Barcha xodimlar avans yozuvlari tozalandi${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          adminApproved: true,
+          adminName: approvedName
+        });
+
+        showToast("✓ Barcha xodimlar avanslari tozalandi!");
+      },
+      'canManageAdvances'
+    );
+  };
+
+  const handleDeletePayroll = (payrollId: string) => {
+    const target = payrolls.find((p) => p.id === payrollId);
+    if (!target) return;
+
+    requestAdminAuth(
+      "Oylik to'lovi yozuvini o'chirish",
+      `"${target.employeeName}" uchun to'langan #${target.payrollNumber} oylik yozuvini o'chirish faqat Administrator ruxsati bilan bajariladi.`,
+      `Xodim: ${target.employeeName} | Summa: ${target.totalNet.toLocaleString()} so'm | Davr: ${target.periodLabel}`,
+      (verifiedAdmin, byPermission) => {
+        recordLocalMutation('payrolls');
+        const updated = payrolls.filter((p) => p.id !== payrollId);
+        setPayrolls(updated);
+        try {
+          localStorage.setItem('sc_payrolls', JSON.stringify(updated));
+        } catch (e) {}
+        pushDataToCloud({ payrolls: updated });
+
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
+
+        addAuditLog({
+          action: 'delete',
+          entityType: 'payroll',
+          entityId: target.id,
+          entityTitle: `Ish haqi #${target.payrollNumber}`,
+          details: `"${target.employeeName}" uchun to'langan ${target.totalNet.toLocaleString()} so'm oylik yozuvi o'chirildi.${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          oldValue: `${target.totalNet.toLocaleString()} so'm`,
+          adminApproved: true,
+          adminName: approvedName
+        });
+
+        showToast("✓ Oylik to'lovi yozuvi o'chirildi!");
+      },
+      'canManagePayroll'
+    );
   };
 
   // Category management handlers
@@ -2657,45 +3574,95 @@ export default function Home() {
 
   // Payroll & Advance Handlers
   const handleAddPayroll = (record: PayrollRecord) => {
-    setPayrolls((prev) => [record, ...prev]);
+    requestAdminAuth(
+      "Oylik maosh to'lash (Ish haqi)",
+      `Xodim "${record.employeeName}"ga ${record.totalNet.toLocaleString()} so'm oylik to'lash faqat Administrator ruxsati bilan amalga oshiriladi.`,
+      `Xodim: ${record.employeeName} | Summa: ${record.totalNet.toLocaleString()} so'm | Davr: ${record.periodLabel}`,
+      (verifiedAdmin, byPermission) => {
+        setPayrolls((prev) => [record, ...prev]);
 
-    // Avtomatik xarajat sifatida kiritish (kassa va buxgalteriya balansi uchun)
-    const newExp: Expense = {
-      id: `exp-pay-${Date.now()}`,
-      category: 'Ish haqi / Oylik',
-      amount: record.totalNet,
-      paymentSource: record.paymentMethod === 'cash' ? 'Kassa (Naqd)' : 'Hisob raqam / Karta',
-      paidTo: record.employeeName,
-      notes: `${record.periodLabel} uchun ish haqi to'lovi (#${record.payrollNumber})`,
-      createdAt: new Date().toISOString(),
-      createdBy: currentUser?.fullName || 'Menejer',
-      branchId: record.branchId || currentBranch?.id,
-      branchName: record.branchName || currentBranch?.name
-    };
-    setExpenses((prev) => [newExp, ...prev]);
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
 
-    showToast(`✓ "${record.employeeName}"ga ${record.totalNet.toLocaleString()} so'm maosh to'landi (#${record.payrollNumber})`);
+        // Avtomatik xarajat sifatida kiritish (kassa va buxgalteriya balansi uchun)
+        const newExp: Expense = {
+          id: `exp-pay-${Date.now()}`,
+          category: 'Ish haqi / Oylik',
+          amount: record.totalNet,
+          paymentSource: record.paymentMethod === 'cash' ? 'Kassa (Naqd)' : 'Hisob raqam / Karta',
+          paidTo: record.employeeName,
+          notes: `${record.periodLabel} uchun ish haqi to'lovi (#${record.payrollNumber})`,
+          createdAt: new Date().toISOString(),
+          createdBy: approvedName,
+          branchId: record.branchId || currentBranch?.id,
+          branchName: record.branchName || currentBranch?.name
+        };
+        setExpenses((prev) => [newExp, ...prev]);
+
+        addAuditLog({
+          action: 'payout',
+          entityType: 'payroll',
+          entityId: record.id,
+          entityTitle: `Ish haqi to'lovi #${record.payrollNumber}`,
+          details: `"${record.employeeName}"ga ${record.periodLabel} davri uchun ${record.totalNet.toLocaleString()} so'm oylik to'landi. To'lov turi: ${record.paymentMethod === 'cash' ? 'Naqd pul' : 'Bank kartasi'}${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          newValue: `${record.totalNet.toLocaleString()} so'm`,
+          adminApproved: true,
+          adminName: approvedName
+        });
+
+        showToast(`✓ "${record.employeeName}"ga ${record.totalNet.toLocaleString()} so'm maosh to'landi (#${record.payrollNumber})`);
+      },
+      'canManagePayroll'
+    );
   };
 
   const handleAddAdvance = (advance: EmployeeAdvance) => {
-    setAdvances((prev) => [advance, ...prev]);
+    requestAdminAuth(
+      "Xodimga avans to'lash",
+      `Xodim "${advance.employeeName}"ga ${advance.amount.toLocaleString()} so'm avans to'lash faqat Administrator ruxsati bilan amalga oshiriladi.`,
+      `Xodim: ${advance.employeeName} | Avans summasi: ${advance.amount.toLocaleString()} so'm | Oy: ${advance.periodMonth}`,
+      (verifiedAdmin, byPermission) => {
+        setAdvances((prev) => [advance, ...prev]);
 
-    // Avtomatik xarajat sifatida kiritish
-    const newExp: Expense = {
-      id: `exp-adv-${Date.now()}`,
-      category: 'Ish haqi / Oylik',
-      amount: advance.amount,
-      paymentSource: advance.paymentMethod === 'cash' ? 'Kassa (Naqd)' : 'Hisob raqam / Karta',
-      paidTo: advance.employeeName,
-      notes: `${advance.periodMonth} uchun avans (#${advance.advanceNumber})`,
-      createdAt: new Date().toISOString(),
-      createdBy: currentUser?.fullName || 'Menejer',
-      branchId: advance.branchId || currentBranch?.id,
-      branchName: advance.branchName || currentBranch?.name
-    };
-    setExpenses((prev) => [newExp, ...prev]);
+        const approvedName = verifiedAdmin?.fullName
+          ? verifiedAdmin.fullName
+          : byPermission
+            ? `${currentUser?.fullName} (Admin ruxsati bilan)`
+            : (currentUser?.fullName || 'Administrator');
 
-    showToast(`✓ "${advance.employeeName}"ga ${advance.amount.toLocaleString()} so'm avans berildi (#${advance.advanceNumber})`);
+        // Avtomatik xarajat sifatida kiritish
+        const newExp: Expense = {
+          id: `exp-adv-${Date.now()}`,
+          category: 'Ish haqi / Oylik',
+          amount: advance.amount,
+          paymentSource: advance.paymentMethod === 'cash' ? 'Kassa (Naqd)' : 'Hisob raqam / Karta',
+          paidTo: advance.employeeName,
+          notes: `${advance.periodMonth} uchun avans (#${advance.advanceNumber})`,
+          createdAt: new Date().toISOString(),
+          createdBy: approvedName,
+          branchId: advance.branchId || currentBranch?.id,
+          branchName: advance.branchName || currentBranch?.name
+        };
+        setExpenses((prev) => [newExp, ...prev]);
+
+        addAuditLog({
+          action: 'payout',
+          entityType: 'advance',
+          entityId: advance.id,
+          entityTitle: `Avans to'lovi #${advance.advanceNumber}`,
+          details: `"${advance.employeeName}"ga ${advance.periodMonth} oyi uchun ${advance.amount.toLocaleString()} so'm avans berildi. To'lov turi: ${advance.paymentMethod === 'cash' ? 'Naqd pul' : 'Bank kartasi'}${byPermission ? " [Admin ruxsati bilan]" : ""}`,
+          newValue: `${advance.amount.toLocaleString()} so'm`,
+          adminApproved: true,
+          adminName: approvedName
+        });
+
+        showToast(`✓ "${advance.employeeName}"ga ${advance.amount.toLocaleString()} so'm avans berildi (#${advance.advanceNumber})`);
+      },
+      'canManageAdvances'
+    );
   };
 
   // Update Dollar Exchange Rate
@@ -3151,9 +4118,9 @@ export default function Home() {
   }, [purchases, currentBranchId, isBranchAll, currentUser, currentBranch]);
 
   const branchFilteredEmployees = useMemo(() => {
-    if (isBranchAll) return employees;
-    return employees.filter((emp) => (emp.branchId || 'branch-1') === currentBranchId);
-  }, [employees, currentBranchId, isBranchAll]);
+    if (isBranchAll || currentUser?.systemRole === 'admin') return employees;
+    return employees.filter((emp) => !emp.branchId || emp.branchId === 'all' || emp.branchId === currentBranchId);
+  }, [employees, currentBranchId, isBranchAll, currentUser]);
 
   const branchFilteredPayrolls = useMemo(() => {
     if (isBranchAll) return payrolls;
@@ -3265,6 +4232,8 @@ export default function Home() {
               products={branchFilteredProducts}
               customers={customers}
               employees={branchFilteredEmployees}
+              allEmployees={employees}
+              branches={branches}
               customerOrders={branchFilteredOrders}
               onCompleteSale={handleCompleteSale}
               onAddCustomer={handleAddCustomer}
@@ -3286,6 +4255,7 @@ export default function Home() {
               products={branchFilteredProducts}
               customers={customers}
               employees={branchFilteredEmployees}
+              allEmployees={employees}
               exchangeRate={exchangeRate}
               baseCurrency={baseCurrency}
               currentUser={currentUser}
@@ -3299,6 +4269,7 @@ export default function Home() {
               onClearAllOrders={handleClearAllOrders}
               branches={branches}
               currentBranch={currentBranch}
+              receipts={receipts}
             />
           )}
 
@@ -3330,6 +4301,7 @@ export default function Home() {
               currentUser={currentUser}
               onReturnReceipt={handleReturnReceipt}
               onSaveEditReceipt={handleSaveEditReceipt}
+              onDeleteReceipt={handleDeleteReceipt}
               initialSubTab="pnl"
               branches={branches}
             />
@@ -3378,9 +4350,12 @@ export default function Home() {
               onCancelPurchase={handleCancelPurchase}
               onDeletePurchase={handleDeletePurchase}
               onAddProduct={handleAddProduct}
+              onImportProductsBatch={handleImportProductsBatch}
               onUpdateProduct={handleUpdateProduct}
+              onUpdateProductsBatch={handleUpdateProductsBatch}
               onDeleteProduct={handleDeleteProduct}
               onUpdateStock={handleUpdateStock}
+              onClearAllStock={handleClearAllStock}
               onAddProductCategory={handleAddProductCategory}
               onUpdateProductCategory={handleUpdateProductCategory}
               onDeleteProductCategory={handleDeleteProductCategory}
@@ -3420,6 +4395,9 @@ export default function Home() {
               debtPayments={customerDebtPayments}
               onAddCustomer={handleAddCustomer}
               onUpdateCustomer={handleUpdateCustomer}
+              onDeleteCustomer={handleDeleteCustomer}
+              onClearAllDebts={handleClearAllDebts}
+              onClearAllCustomers={handleClearAllCustomers}
               onUpdateCashback={handleUpdateCashback}
               onAddDebtPayment={handleAddCustomerDebtPayment}
               baseCurrency={baseCurrency}
@@ -3444,6 +4422,11 @@ export default function Home() {
               onUpdateCategory={handleUpdateCategory}
               onDeleteCategory={handleDeleteCategory}
               onDeleteExpense={handleDeleteExpense}
+              onDeleteReceipt={handleDeleteReceipt}
+              onClearCashFlow={handleClearCashFlow}
+              onDeleteAdvance={handleDeleteAdvance}
+              onClearAdvances={handleClearAdvances}
+              onDeletePayroll={handleDeletePayroll}
               todaySalesTotal={todaySalesTotal}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
@@ -3489,6 +4472,7 @@ export default function Home() {
               currentUser={currentUser}
               onReturnReceipt={handleReturnReceipt}
               onSaveEditReceipt={handleSaveEditReceipt}
+              onDeleteReceipt={handleDeleteReceipt}
               initialSubTab="sales_history"
               branches={branches}
             />
@@ -3503,6 +4487,11 @@ export default function Home() {
               onUpdateCategory={handleUpdateCategory}
               onDeleteCategory={handleDeleteCategory}
               onDeleteExpense={handleDeleteExpense}
+              onDeleteReceipt={handleDeleteReceipt}
+              onClearCashFlow={handleClearCashFlow}
+              onDeleteAdvance={handleDeleteAdvance}
+              onClearAdvances={handleClearAdvances}
+              onDeletePayroll={handleDeletePayroll}
               todaySalesTotal={todaySalesTotal}
               baseCurrency={baseCurrency}
               exchangeRate={exchangeRate}
@@ -3547,6 +4536,7 @@ export default function Home() {
               onAddBranch={handleAddBranch}
               onUpdateBranch={handleUpdateBranch}
               onDeleteBranch={handleDeleteBranch}
+              auditLogs={auditLogs}
               initialSubTab={settingsInitialTab}
             />
           )}
@@ -3644,6 +4634,22 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Admin Verification Modal for Protected Actions */}
+      <AdminAuthModal
+        isOpen={adminAuthModal.isOpen}
+        onClose={() => setAdminAuthModal((prev) => ({ ...prev, isOpen: false }))}
+        onSuccess={(verifiedAdmin) => {
+          const successCallback = adminAuthModal.onSuccess;
+          setAdminAuthModal((prev) => ({ ...prev, isOpen: false }));
+          successCallback(verifiedAdmin);
+        }}
+        title={adminAuthModal.title}
+        description={adminAuthModal.description}
+        actionDetails={adminAuthModal.actionDetails}
+        employees={employees}
+        currentUser={currentUser}
+      />
 
       {/* Real-time Notification Toast */}
       {toastMessage && (

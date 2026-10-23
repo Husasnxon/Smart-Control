@@ -14,6 +14,7 @@ import {
 } from '../types';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
 import { compressImage } from '../utils/imageCompressor';
+import { isTechnicianWithMontaj } from '../utils/technicianUtils';
 import { HandoverModal } from './HandoverModal';
 import { OnSiteEstimateModal } from './OnSiteEstimateModal';
 import { HddCalculatorModal } from './HddCalculatorModal';
@@ -124,18 +125,9 @@ export const TechnicianPortalScreen: React.FC<TechnicianPortalScreenProps> = ({
   // Device view mode: 'mobile' (default) or 'desktop'
   const [deviceMode, setDeviceMode] = useState<'mobile' | 'desktop'>('mobile');
 
-  // Filter technicians list
+  // Filter technicians list (Faqat montaj yoqilgan xodimlar)
   const techniciansList = useMemo(() => {
-    return (employees || []).filter(
-      e => e && (
-        e.systemRole === 'technician' || 
-        (e.role && (
-          e.role.toLowerCase().includes('usta') || 
-          e.role.toLowerCase().includes('muhandis') ||
-          e.role.toLowerCase().includes('montaj')
-        ))
-      )
-    );
+    return (employees || []).filter(isTechnicianWithMontaj);
   }, [employees]);
 
   const [selectedTechId, setSelectedTechId] = useState<string>(() => {

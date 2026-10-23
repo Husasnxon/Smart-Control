@@ -94,8 +94,8 @@ export async function POST(req: NextRequest) {
     if ((body as { reset?: boolean }).reset) {
       updatedStore = {
         timestamp: Date.now(),
-        products: [],
-        customers: [],
+        products: (body.products || existing.products || []).map((p: Product) => ({ ...p, stockQuantity: 0, serialNumbers: [] })),
+        customers: body.customers || existing.customers || [],
         receipts: [],
         expenses: [],
         customerOrders: [],
@@ -109,8 +109,8 @@ export async function POST(req: NextRequest) {
         employees: body.employees || existing.employees,
         branches: body.branches || existing.branches,
         stockTransfers: [],
-        exchangeRate: existing.exchangeRate || 12850,
-        baseCurrency: existing.baseCurrency || 'UZS',
+        exchangeRate: 12850,
+        baseCurrency: 'UZS',
         deletedProductIds: mergedDeletedProducts,
         deletedPurchaseIds: mergedDeletedPurchases
       };

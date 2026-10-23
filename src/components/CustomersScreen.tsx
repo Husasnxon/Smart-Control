@@ -37,6 +37,7 @@ import {
   RefreshCw,
   Wallet,
   Download,
+  Trash2,
   Bell,
   Send,
   Copy,
@@ -60,6 +61,9 @@ interface CustomersScreenProps {
   debtPayments: CustomerDebtPayment[];
   onAddCustomer: (customer: Customer) => void;
   onUpdateCustomer?: (customer: Customer) => void;
+  onDeleteCustomer?: (customerId: string) => void;
+  onClearAllDebts?: () => void;
+  onClearAllCustomers?: () => void;
   onUpdateCashback: (customerId: string, amountToAdd: number) => void;
   onAddDebtPayment: (payment: CustomerDebtPayment) => void;
   baseCurrency?: Currency;
@@ -90,6 +94,9 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
   debtPayments,
   onAddCustomer,
   onUpdateCustomer,
+  onDeleteCustomer,
+  onClearAllDebts,
+  onClearAllCustomers,
   onUpdateCashback,
   onAddDebtPayment,
   baseCurrency = 'UZS',
@@ -509,6 +516,22 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
+          {onClearAllDebts && totalDebtPool > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("DIQQAT! Barcha mijozlarning eski/namuna qarzdorliklarini 0 ga tushirmoqchimisiz?\n\n• Mijozlar ro'yxati saqlanib qoladi.\n• Barcha qarzdorliklar 0 so'm ($0 USD) qilib tozalanadi.\n• Keyingi nasiya savdolari yangi cheklar bo'yicha toza hisoblanadi.")) {
+                  onClearAllDebts();
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-bold text-xs bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 transition shadow-xs"
+              title="Barcha qarzdorliklarni 0 ga tushirish"
+            >
+              <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+              <span>Qarzlarni 0 Qilish</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => exportDebtsToExcel(customers, debtPayments, exchangeRate)}
@@ -995,6 +1018,21 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
                                       <Wallet className="w-3.5 h-3.5" />
                                       <span>To&apos;lov</span>
                                     </button>
+
+                                    {onDeleteCustomer && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (window.confirm(`"${cust.fullName}" mijozini butunlay o'chirmoqchimisiz?`)) {
+                                            onDeleteCustomer(cust.id);
+                                          }
+                                        }}
+                                        className="p-1.5 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-950/50 transition"
+                                        title="Mijozni o'chirish"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -1411,6 +1449,22 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
                   <option value={50}>50 tadan</option>
                   <option value={100}>100 tadan</option>
                 </select>
+
+                {onClearAllCustomers && customers.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("DIQQAT! Barcha mijozlar bazasini tozalab, ro'yxatni noldan boshlamoqchimisiz?\n\n• Mavjud barcha mijozlar o'chiriladi.\n• Keyin o'z yangi mijozlaringizni kiritishingiz mumkin bo'ladi.")) {
+                        onClearAllCustomers();
+                      }
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition"
+                    title="Barcha mijozlarni o'chirib tozalash"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Mijozlarni Tozalash</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1426,7 +1480,7 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
                       <th className="py-3 px-4 text-right">To&apos;plangan Cashback</th>
                       <th className="py-3 px-4 text-right">Jami Xaridlari</th>
                       <th className="py-3 px-4 text-right">Nasiya / Qarz</th>
-                      <th className="py-3 px-4 text-right">Bonus Qo&apos;shish</th>
+                      <th className="py-3 px-4 text-right">Amallar</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1474,14 +1528,30 @@ export const CustomersScreen: React.FC<CustomersScreenProps> = ({
                             )}
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => onUpdateCashback(customer.id, 5000)}
-                              className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-600 hover:text-white font-bold text-[11px] transition"
-                              title="+5 000 so'm rag'batlantirish cashbacki berish"
-                            >
-                              +5 000 cb
-                            </button>
+                            <div className="inline-flex items-center gap-1.5 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => onUpdateCashback(customer.id, 5000)}
+                                className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-600 hover:text-white font-bold text-[11px] transition"
+                                title="+5 000 so'm rag'batlantirish cashbacki berish"
+                              >
+                                +5 000 cb
+                              </button>
+                              {onDeleteCustomer && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (window.confirm(`"${customer.fullName}" mijozini butunlay o'chirmoqchimisiz?`)) {
+                                      onDeleteCustomer(customer.id);
+                                    }
+                                  }}
+                                  className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                                  title="Mijozni o'chirish"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

@@ -484,7 +484,7 @@ Rahmat!`;
                 <div className="mt-0.5 pt-0.5 border-t border-dotted border-black/30">
                   <span className="font-bold text-[9px]">Mas&apos;ul montajchi:</span>
                   <div className="text-[9px] pl-2">
-                    {receipt.technicians.map(t => t.fullName).join(', ')}
+                    {receipt.technicians.map(t => (t.branchName && receipt.branchName && t.branchName !== receipt.branchName) ? `${t.fullName} (${t.branchName})` : t.fullName).join(', ')}
                   </div>
                 </div>
               ) : receipt.technicianName ? (

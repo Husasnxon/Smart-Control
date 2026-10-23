@@ -7,7 +7,7 @@ export const INITIAL_PRODUCT_CATEGORIES: ProductCategory[] = [
   { id: 'pcat-4', name: 'Wi-Fi & Tarmoq uskunalari', description: 'Gigabit routerlar, PoE Switchlar, Access Pointlar', color: '#10B981' },
   { id: 'pcat-5', name: "Yong'in xavfsizligi tizimlari", description: "Tutun datchiklari, gaz sezgichlar, yong'in sirenalari", color: '#EF4444' },
   { id: 'pcat-6', name: 'Kabellar & Aksessuarlar', description: 'UTP Cat6, quvvat bloklari, BNC/RJ45, gofra, montaj qutilari', color: '#F59E0B' },
-  { id: 'pcat-7', name: "O'rnatish & Montaj xizmatlari", description: "Kamera o'rnatish, domofon montaj, kabel tortish va sozlash", color: '#EC4899' }
+  { id: 'pcat-7', name: 'Montaj', description: "Kamera o'rnatish, domofon montaj, kabel tortish va sozlash", color: '#EC4899' }
 ];
 
 export const INITIAL_PRODUCTS: Product[] = [
@@ -22,11 +22,11 @@ export const INITIAL_PRODUCTS: Product[] = [
     retailPrice: 488300,
     retailPriceUSD: 38.00,
     wholesalePrice: 439000,
-    stockQuantity: 1,
+    stockQuantity: 0,
     minStockAlert: 2,
     unit: 'dona',
     hasSerialNumber: true,
-    serialNumbers: ['SN-TC-3110-01'],
+    serialNumbers: [],
     warrantyMonths: 24,
     isService: false,
     branchId: 'branch-1',

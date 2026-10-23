@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SaleReceipt, Product, Customer, Employee, Currency } from '../types';
+import { SaleReceipt, Product, Customer, Employee, Currency, Branch } from '../types';
 import { formatDualMoney, formatMoney } from '../utils/formatters';
 import { 
   History, 
@@ -18,6 +18,7 @@ import {
   RotateCcw,
   Edit3,
   PackagePlus,
+  Trash2,
   AlertTriangle,
   FileText,
   DollarSign,
@@ -36,6 +37,7 @@ interface SalesHistoryScreenProps {
   products: Product[];
   customers: Customer[];
   employees: Employee[];
+  branches?: Branch[];
   exchangeRate: number;
   baseCurrency?: Currency;
   currentUser?: Employee | null;
@@ -63,6 +65,7 @@ interface SalesHistoryScreenProps {
       serialNumbers: string[];
     }[]
   ) => void;
+  onDeleteReceipt?: (receiptId: string) => void;
 }
 
 export const SalesHistoryScreen: React.FC<SalesHistoryScreenProps> = ({
@@ -70,11 +73,13 @@ export const SalesHistoryScreen: React.FC<SalesHistoryScreenProps> = ({
   products,
   customers,
   employees,
+  branches = [],
   exchangeRate,
   baseCurrency = 'UZS',
   currentUser,
   onReturnReceipt,
-  onSaveEditReceipt
+  onSaveEditReceipt,
+  onDeleteReceipt
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'returned' | 'debt'>('all');
@@ -547,6 +552,22 @@ export const SalesHistoryScreen: React.FC<SalesHistoryScreenProps> = ({
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
                           )}
+
+                          {/* 5. Delete Receipt (O'chirish) */}
+                          {onDeleteReceipt && currentUser?.permissions?.canDeleteReceipts !== false && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Rostdan ham ${receipt.receiptNumber} sotuv chekini butunlay o'chirmoqchimisiz?\n\nDiqqat: Ushbu chek o'chiriladi, kassa va P&L tushumi bekor qilinadi!`)) {
+                                  onDeleteReceipt(receipt.id);
+                                }
+                              }}
+                              className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition border border-rose-200 dark:border-rose-900/50"
+                              title="Sotuv chekini butunlay o'chirish"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -581,6 +602,7 @@ export const SalesHistoryScreen: React.FC<SalesHistoryScreenProps> = ({
         products={products}
         customers={customers}
         employees={employees}
+        branches={branches}
         exchangeRate={exchangeRate}
         onClose={() => setEditingReceipt(null)}
         onSaveEdit={onSaveEditReceipt}

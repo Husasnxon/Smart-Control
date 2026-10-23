@@ -169,40 +169,55 @@ export const OrderQuotationModal: React.FC<OrderQuotationModalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {order.items.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50">
-                      <td className="py-2.5 px-3 text-center text-slate-400 font-mono">
-                        {idx + 1}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="font-semibold text-slate-800 block">
-                          {item.productName}
-                        </span>
-                        {item.isService && (
-                          <span className="text-[9px] text-purple-600 font-medium">[Montaj / Sozlash Xizmati]</span>
-                        )}
-                        {item.hasSerialNumber && (
-                          <span className="text-[9px] text-sky-600 font-medium ml-1.5">[Kafolatli S/N]</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-center text-slate-500">
-                        {item.unit}
-                      </td>
-                      <td className="py-2.5 px-3 text-center font-bold font-mono">
-                        {item.quantity}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono">
-                        {order.currency === 'USD'
-                          ? `$${item.unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                          : `${Math.round(item.unitPrice).toLocaleString('uz-UZ')} so'm`}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-bold font-mono text-slate-900">
-                        {order.currency === 'USD'
-                          ? `$${item.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                          : `${Math.round(item.totalPrice).toLocaleString('uz-UZ')} so'm`}
-                      </td>
-                    </tr>
-                  ))}
+                  {order.items.map((item, idx) => {
+                    const retQty = item.returnedQuantity || 0;
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="py-2.5 px-3 text-center text-slate-400 font-mono">
+                          {idx + 1}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="font-semibold text-slate-800 block">
+                            {item.productName}
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            {item.isService && (
+                              <span className="text-[9px] text-purple-600 font-medium">[Montaj / Sozlash Xizmati]</span>
+                            )}
+                            {item.hasSerialNumber && (
+                              <span className="text-[9px] text-sky-600 font-medium">[Kafolatli S/N]</span>
+                            )}
+                            {retQty > 0 && (
+                              <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                                [Qaytarilgan: {retQty} {item.unit}]
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center text-slate-500">
+                          {item.unit}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-bold font-mono">
+                          {item.quantity}
+                          {retQty > 0 && (
+                            <span className="text-[10px] text-rose-600 block line-through">
+                              -{retQty}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono">
+                          {order.currency === 'USD'
+                            ? `$${item.unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : `${Math.round(item.unitPrice).toLocaleString('uz-UZ')} so'm`}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold font-mono text-slate-900">
+                          {order.currency === 'USD'
+                            ? `$${item.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : `${Math.round(item.totalPrice).toLocaleString('uz-UZ')} so'm`}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -228,12 +243,22 @@ export const OrderQuotationModal: React.FC<OrderQuotationModalProps> = ({
                     </span>
                   </div>
                 )}
+                {order.totalRefunded && order.totalRefunded > 0 && (
+                  <div className="flex justify-between text-rose-600 font-semibold border-t border-rose-200 pt-1">
+                    <span>Vozvrat (Qaytarilgan):</span>
+                    <span className="font-mono">
+                      {order.currency === 'USD'
+                        ? `-$${(order.exchangeRate ? (order.totalRefunded / order.exchangeRate) : order.totalRefunded).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : `-${Math.round(order.totalRefunded).toLocaleString('uz-UZ')} so'm`}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm font-black text-slate-900 border-t border-slate-300 pt-1.5">
-                  <span>JAMI QIYMAT:</span>
+                  <span>{order.totalRefunded && order.totalRefunded > 0 ? "SOF JAMI QIYMAT:" : "JAMI QIYMAT:"}</span>
                   <span className="font-mono text-sky-700">
                     {order.currency === 'USD'
-                      ? `$${order.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      : `${Math.round(order.totalAmount).toLocaleString('uz-UZ')} so'm`}
+                      ? `$${Math.max(0, order.totalAmount - (order.exchangeRate ? (order.totalRefunded || 0) / order.exchangeRate : (order.totalRefunded || 0))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `${Math.round(Math.max(0, order.totalAmount - (order.totalRefunded || 0))).toLocaleString('uz-UZ')} so'm`}
                   </span>
                 </div>
                 {order.exchangeRate > 0 && (
@@ -241,8 +266,8 @@ export const OrderQuotationModal: React.FC<OrderQuotationModalProps> = ({
                     <span>{order.currency === 'USD' ? 'So\'m ekvivalentida:' : '$ USD ekvivalentida:'}</span>
                     <span className="font-mono text-slate-800">
                       {order.currency === 'USD'
-                        ? `~ ${Math.round(order.totalAmount * order.exchangeRate).toLocaleString('uz-UZ')} so'm`
-                        : `~ $${(order.totalAmount / order.exchangeRate).toFixed(2)} USD`}
+                        ? `~ ${Math.round(Math.max(0, (order.totalAmount * order.exchangeRate) - (order.totalRefunded || 0))).toLocaleString('uz-UZ')} so'm`
+                        : `~ $${(Math.max(0, order.totalAmount - (order.totalRefunded || 0)) / order.exchangeRate).toFixed(2)} USD`}
                     </span>
                   </div>
                 )}

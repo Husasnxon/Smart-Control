@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   SaleReceipt, 
   Product, 
   Customer, 
   Employee, 
   CartItem, 
-  AssignedTechnician 
+  AssignedTechnician,
+  Branch
 } from '../types';
 import { 
   X, 
@@ -26,12 +27,14 @@ import {
   CreditCard,
   User
 } from 'lucide-react';
+import { isTechnicianWithMontaj, categorizeTechniciansByBranch, getTechnicianBranchName } from '../utils/technicianUtils';
 
 interface EditReceiptModalProps {
   receipt: SaleReceipt | null;
   products: Product[];
   customers: Customer[];
   employees: Employee[];
+  branches?: Branch[];
   exchangeRate: number;
   onClose: () => void;
   onSaveEdit: (
@@ -54,12 +57,18 @@ const EditReceiptModalContent: React.FC<EditReceiptModalContentProps> = ({
   products,
   customers,
   employees,
+  branches = [],
   exchangeRate,
   onClose,
   onSaveEdit
 }) => {
   // Active Tab
   const [activeTab, setActiveTab] = useState<'add_items' | 'edit_details'>('add_items');
+
+  // Ustalar faqat ish haqida montaj belgilangan bo'lsa va filiallar bo'yicha ajratilgan
+  const { currentBranchTechs, otherBranchTechs, otherBranchesGrouped } = useMemo(() => {
+    return categorizeTechniciansByBranch(employees, receipt.branchId, branches);
+  }, [employees, receipt.branchId, branches]);
 
   // Escape key handler to close modal without saving
   useEffect(() => {
@@ -182,6 +191,10 @@ const EditReceiptModalContent: React.FC<EditReceiptModalContentProps> = ({
     const emp = employees.find((e) => e.id === empId);
     if (!emp || assignedTechnicians.some((t) => t.id === empId)) return;
 
+    const defaultUZS = emp.commissionPerInstall || 0;
+    const defaultUSD = Number((defaultUZS / exchangeRate).toFixed(2));
+    const branchName = emp.branchName || getTechnicianBranchName(emp, branches);
+
     setAssignedTechnicians((prev) => [
       ...prev,
       {
@@ -189,8 +202,10 @@ const EditReceiptModalContent: React.FC<EditReceiptModalContentProps> = ({
         fullName: emp.fullName,
         phone: emp.phone,
         role: emp.role,
-        wageUSD: 0,
-        wageUZS: 0
+        wageUSD: defaultUSD,
+        wageUZS: defaultUZS,
+        branchId: emp.branchId,
+        branchName: branchName
       }
     ]);
   };
@@ -735,13 +750,32 @@ const EditReceiptModalContent: React.FC<EditReceiptModalContentProps> = ({
                     className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200"
                   >
                     <option value="">+ Usta qo&apos;shish</option>
-                    {employees
-                      .filter((e) => !assignedTechnicians.some((t) => t.id === e.id))
-                      .map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.fullName} ({e.role})
-                        </option>
-                      ))}
+                    {/* Shu filial ustalari */}
+                    {currentBranchTechs.length > 0 && (
+                      <optgroup label={`📍 Shu filial (${receipt.branchName || 'Joriy'}) ustalari`}>
+                        {currentBranchTechs
+                          .filter((e: Employee) => !assignedTechnicians.some((t) => t.id === e.id))
+                          .map((e: Employee) => (
+                            <option key={e.id} value={e.id}>
+                              {e.fullName} ({e.role})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    {/* Boshqa filiallar ustalari guruhi */}
+                    {Object.entries(otherBranchesGrouped).map(([bId, group]: [string, { branch: Branch; technicians: Employee[] }]) => {
+                      const available = group.technicians.filter((e: Employee) => !assignedTechnicians.some((t) => t.id === e.id));
+                      if (available.length === 0) return null;
+                      return (
+                        <optgroup key={bId} label={`🏢 ${group.branch.name} ustalari`}>
+                          {available.map((e: Employee) => (
+                            <option key={e.id} value={e.id}>
+                              {e.fullName} ({e.role}) - {group.branch.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -757,9 +791,16 @@ const EditReceiptModalContent: React.FC<EditReceiptModalContentProps> = ({
                         className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
                       >
                         <div>
-                          <span className="font-bold text-slate-800 dark:text-slate-100 block">
-                            {t.fullName}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-800 dark:text-slate-100 block">
+                              {t.fullName}
+                            </span>
+                            {t.branchName && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold">
+                                🏢 {t.branchName}
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[10px] text-slate-500">{t.role} &bull; {t.phone}</span>
                         </div>
 

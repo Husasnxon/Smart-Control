@@ -23,12 +23,14 @@ interface ExcelImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportProducts: (importedProducts: Product[], mode: 'append' | 'merge') => void;
+  exchangeRate?: number;
 }
 
 export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   isOpen,
   onClose,
-  onImportProducts
+  onImportProducts,
+  exchangeRate = 12850
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -58,7 +60,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
     setParseErrors([]);
 
     try {
-      const result = await parseProductsFromExcel(file);
+      const result = await parseProductsFromExcel(file, exchangeRate);
       setParsedProducts(result.products);
       setParseErrors(result.errors);
     } catch (err: unknown) {

@@ -14,8 +14,10 @@ import {
   EmployeePermissions,
   SystemRole,
   DEFAULT_ROLE_PERMISSIONS,
-  Branch
+  Branch,
+  AuditLog
 } from '../types';
+import { AuditLogScreen } from './AuditLogScreen';
 import { 
   getTelegramSettings, 
   saveTelegramSettings, 
@@ -54,6 +56,7 @@ import {
   Wrench, 
   BookOpen, 
   ShieldCheck, 
+  ShieldAlert, 
   TrendingDown, 
   Trash2, 
   HardDrive,
@@ -114,7 +117,8 @@ interface SettingsScreenProps {
   onAddBranch?: (branch: Branch) => void;
   onUpdateBranch?: (branch: Branch) => void;
   onDeleteBranch?: (branchId: string) => void;
-  initialSubTab?: 'telegram' | 'reports' | 'store' | 'branches' | 'backup' | 'permissions' | 'ai' | 'integrations';
+  auditLogs?: AuditLog[];
+  initialSubTab?: 'telegram' | 'reports' | 'store' | 'branches' | 'backup' | 'permissions' | 'ai' | 'integrations' | 'audit';
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -136,9 +140,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onAddBranch,
   onUpdateBranch,
   onDeleteBranch,
+  auditLogs = [],
   initialSubTab
 }) => {
-  const [activeTab, setActiveTab] = useState<'telegram' | 'reports' | 'store' | 'branches' | 'backup' | 'permissions' | 'ai' | 'integrations'>(
+  const [activeTab, setActiveTab] = useState<'telegram' | 'reports' | 'store' | 'branches' | 'backup' | 'permissions' | 'ai' | 'integrations' | 'audit'>(
     initialSubTab || 'branches'
   );
 
@@ -808,7 +813,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             }`}
           >
             <Globe className="w-4 h-4 text-emerald-400" />
-            <span>Integratsiyalar (Sayt, Instagram, IP Telefoniya)</span>
+            <span>Integratsiyalar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('audit')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              activeTab === 'audit'
+                ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 text-rose-500" />
+            <span>🛡️ Xavfsizlik & Audit Tarixi</span>
           </button>
         </div>
 
@@ -2348,12 +2366,40 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canReturnReceipts')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canReturnReceipts !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activeEmployee?.permissions?.canReturnReceipts ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canReturnReceipts !== false ? 'left-6' : 'left-1'
+                              activeEmployee?.permissions?.canReturnReceipts ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN DELETE RECEIPTS */}
+                      <div className="pt-3 flex items-start justify-between gap-3 bg-rose-50/40 dark:bg-rose-950/20 p-2.5 rounded-xl border border-rose-200/60 dark:border-rose-900/40">
+                        <div>
+                          <div className="text-xs font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                            <span>Sotuv chekini o&apos;chirish</span>
+                            <span className="text-[9px] font-bold text-rose-600 bg-rose-100 dark:bg-rose-900/60 px-1.5 py-0.2 rounded">
+                              Xavfli
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Sotilgan chekni butunlay o&apos;chirish (omborga tovarlarni qaytarish)
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeleteReceipts')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canDeleteReceipts ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canDeleteReceipts ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2566,6 +2612,59 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         </button>
                       </div>
 
+                      {/* CAN CANCEL PURCHASES */}
+                      <div className="pt-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Kirim nakladnoyini bekor qilish
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Ta&apos;minotchi prixod nakladnoyini bekor qilib, tovarlarni ombordan chiqarish
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canCancelPurchases')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canCancelPurchases ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canCancelPurchases ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN DELETE PURCHASES */}
+                      <div className="pt-3 flex items-start justify-between gap-3 bg-rose-50/40 dark:bg-rose-950/20 p-2.5 rounded-xl border border-rose-200/60 dark:border-rose-900/40">
+                        <div>
+                          <div className="text-xs font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                            <span>Prixod nakladnoyini butunlay o&apos;chirish</span>
+                            <span className="text-[9px] font-bold text-rose-600 bg-rose-100 dark:bg-rose-900/60 px-1.5 py-0.2 rounded">
+                              Xavfli
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Kirim nakladnoyini tizimdan butunlay o&apos;chirib tashlash
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeletePurchases')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canDeletePurchases ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canDeletePurchases ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
                       {/* CAN ADJUST STOCK */}
                       <div className="pt-3 flex items-start justify-between gap-3">
                         <div>
@@ -2737,6 +2836,84 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
                               activeEmployee?.permissions?.canCreateExpenses ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN DELETE EXPENSES */}
+                      <div className="pt-3 flex items-start justify-between gap-3 bg-rose-50/40 dark:bg-rose-950/20 p-2.5 rounded-xl border border-rose-200/60 dark:border-rose-900/40">
+                        <div>
+                          <div className="text-xs font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                            <span>Kassa chiqimi yoki tushumini o&apos;chirish</span>
+                            <span className="text-[9px] font-bold text-rose-600 bg-rose-100 dark:bg-rose-900/60 px-1.5 py-0.2 rounded">
+                              Moliya
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Moliya yozuvini (kirim/chiqim) o&apos;chirish yoki kassa tushumlarini tozalash
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeleteExpenses')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canDeleteExpenses ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canDeleteExpenses ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN MANAGE PAYROLL */}
+                      <div className="pt-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Oylik maosh berish va o&apos;chirish
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Xodimlarga ish haqini hisoblash, to&apos;lash va oylik yozuvlarini boshqarish
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canManagePayroll')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canManagePayroll ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canManagePayroll ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN MANAGE ADVANCES */}
+                      <div className="pt-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Avans to&apos;lash va o&apos;chirish
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Xodimlarga avans berish, o&apos;chirish yoki avanslarni tozalash
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canManageAdvances')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canManageAdvances ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canManageAdvances ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2931,6 +3108,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         { key: 'canMakeSales', label: 'Kassada tovar sotish', category: 'Kassa' },
                         { key: 'canEditReceipts', label: 'Sotilgan chekni tahrirlash (Redakt)', category: 'Kassa', highlight: true },
                         { key: 'canReturnReceipts', label: 'Tovarni qaytarish (Vozvrat)', category: 'Kassa' },
+                        { key: 'canDeleteReceipts', label: "Sotuv chekini o'chirish", category: 'Kassa', highlight: true },
                         { key: 'canGiveDiscount', label: 'Chegirma (skidka) berish', category: 'Kassa' },
                         { key: 'canEditPrice', label: "Narxni qo'lda o'zgartirish", category: 'Kassa' },
                         { key: 'canCloseZReport', label: 'Smenani yopish (Z-Hisobot)', category: 'Kassa' },
@@ -2938,12 +3116,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         { key: 'canViewCostPrice', label: "Tannarx va sof foydani ko'rish", category: 'Ombor', highlight: true },
                         { key: 'canManageProducts', label: "Tovar qo'shish & tahrirlash", category: 'Ombor' },
                         { key: 'canCreatePurchases', label: 'Kirim nakladnoy (Приход)', category: 'Ombor' },
+                        { key: 'canCancelPurchases', label: 'Kirim nakladnoyini bekor qilish', category: 'Ombor' },
+                        { key: 'canDeletePurchases', label: "Prixod nakladnoyini o'chirish", category: 'Ombor', highlight: true },
                         { key: 'canAdjustStock', label: 'Ombor inventarizatsiyasi', category: 'Ombor' },
                         { key: 'canManageService', label: 'Servis zayavkalari', category: 'Servis' },
                         { key: 'canReplaceDevices', label: 'Qurilmani almashtirish (Zamen)', category: 'Servis' },
                         { key: 'canViewExpenses', label: "Xarajatlar ro'yxatini ko'rish", category: 'Moliya' },
                         { key: 'canCreateExpenses', label: 'Kassadan chiqim kiritish', category: 'Moliya' },
+                        { key: 'canDeleteExpenses', label: "Kassa chiqimi/tushumini o'chirish", category: 'Moliya', highlight: true },
                         { key: 'canViewPayroll', label: "Oylik maosh va avanslarni ko'rish", category: 'Moliya' },
+                        { key: 'canManagePayroll', label: "Oylik maosh berish va o'chirish", category: 'Moliya', highlight: true },
+                        { key: 'canManageAdvances', label: "Avans to'lash va o'chirish", category: 'Moliya', highlight: true },
                         { key: 'canManageSettings', label: 'Tizim sozlamalari & Bot', category: 'Admin' },
                         { key: 'canManagePermissions', label: 'Huquqlar matritsasi', category: 'Admin' },
                         { key: 'canAccessAllBranches', label: 'Barcha filiallarni boshqarish', category: 'Filiallar', highlight: true }
@@ -3738,6 +3921,19 @@ Body: {
               </div>
             )}
           </div>
+        )}
+
+        {/* ============================================================= */}
+        {/* TAB 9: XAVFSIZLIK & AUDIT JURNALI */}
+        {/* ============================================================= */}
+        {activeTab === 'audit' && (
+          <AuditLogScreen
+            logs={auditLogs}
+            employees={employees}
+            currentUser={currentUser}
+            baseCurrency={baseCurrency}
+            exchangeRate={exchangeRate}
+          />
         )}
       </div>
 
