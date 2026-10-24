@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductCategory, PurchaseInvoice, PurchaseItem, PurchasePaymentRecord, Currency, Employee, Branch } from '../types';
 import { DEFAULT_SUPPLIERS } from '../data/mockData';
 import { formatNumberWithSpaces, formatUSDNumber } from '../utils/formatters';
+import { adjustProductStockForBranch } from '../utils/productUtils';
 import { 
   X, 
   Plus, 
@@ -717,20 +718,23 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
     // Calculate updated products state
     const updatedProducts = [...products];
 
+    const targetBranchId = selectedBranchId || targetBranch?.id || 'branch-1';
+    const defaultBranchId = branches.find(b => b.isMain)?.id || 'branch-1';
+
     // If editing an existing purchase invoice, first revert its old items from inventory
     if (editingPurchase) {
+      const oldBranchId = editingPurchase.branchId || targetBranchId;
       editingPurchase.items.forEach((oldItem) => {
         const existingIdx = updatedProducts.findIndex((p) => p.id === oldItem.productId);
         if (existingIdx >= 0) {
-          const existing = updatedProducts[existingIdx];
-          const oldSerialsSet = new Set(oldItem.serialNumbers || []);
-          const revertedSerials = (existing.serialNumbers || []).filter((sn) => !oldSerialsSet.has(sn));
-
-          updatedProducts[existingIdx] = {
-            ...existing,
-            stockQuantity: Math.max(0, existing.stockQuantity - oldItem.quantity),
-            serialNumbers: revertedSerials
-          };
+          updatedProducts[existingIdx] = adjustProductStockForBranch(
+            updatedProducts[existingIdx],
+            oldBranchId,
+            -oldItem.quantity,
+            [],
+            oldItem.serialNumbers || [],
+            defaultBranchId
+          );
         }
       });
     }
@@ -741,22 +745,24 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
 
       if (existingIdx >= 0) {
         const existing = updatedProducts[existingIdx];
-        const existingSerials = existing.serialNumbers || [];
-        // Append new serial numbers without duplicating
-        const newSerialsCombined = Array.from(new Set([...existingSerials, ...item.serialNumbers]));
-
-        updatedProducts[existingIdx] = {
+        const baseUpdated = {
           ...existing,
           name: item.productName || existing.name,
           category: item.category || existing.category,
-          stockQuantity: existing.stockQuantity + item.quantity,
           costPrice: item.costPrice > 0 ? item.costPrice : existing.costPrice,
           costPriceUSD: item.costPriceUSD > 0 ? item.costPriceUSD : existing.costPriceUSD,
           retailPrice: item.retailPrice > 0 ? item.retailPrice : existing.retailPrice,
           retailPriceUSD: item.retailPriceUSD > 0 ? item.retailPriceUSD : existing.retailPriceUSD,
           hasSerialNumber: existing.hasSerialNumber || item.hasSerialNumber,
-          serialNumbers: newSerialsCombined
         };
+        updatedProducts[existingIdx] = adjustProductStockForBranch(
+          baseUpdated,
+          targetBranchId,
+          item.quantity,
+          item.serialNumbers || [],
+          [],
+          defaultBranchId
+        );
       } else {
         // Create new catalog product if added as a new product in invoice
         const newProduct: Product = {
@@ -777,8 +783,10 @@ export const NewPurchaseModal: React.FC<NewPurchaseModalProps> = ({
           serialNumbers: item.serialNumbers,
           warrantyMonths: 24,
           isService: false,
-          branchId: selectedBranchId || targetBranch?.id || 'branch-1',
-          branchName: targetBranch?.name || warehouseName || 'Asosiy Ombor'
+          branchId: targetBranchId,
+          branchName: targetBranch?.name || warehouseName || 'Asosiy Ombor',
+          branchStocks: { [targetBranchId]: item.quantity },
+          branchSerials: item.serialNumbers && item.serialNumbers.length > 0 ? { [targetBranchId]: item.serialNumbers } : undefined
         };
         updatedProducts.push(newProduct);
       }

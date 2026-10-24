@@ -47,6 +47,12 @@ import { AdminAuthModal } from '../components/AdminAuthModal';
 import { getTelegramSettings, sendTelegramMessage, generateDailySalesReport } from '../utils/telegram';
 import { isTodayDate, getNowFormatted } from '../utils/formatters';
 import { playOrderNotificationSound } from '../utils/sound';
+import { 
+  mapProductsForCurrentBranch, 
+  adjustProductStockForBranch, 
+  getProductStockForBranch,
+  transferProductStock
+} from '../utils/productUtils';
 import { CheckCircle2, X } from 'lucide-react';
 
 interface CloudSyncPayload {
@@ -1329,12 +1335,13 @@ export default function Home() {
 
   // Complete a sale
   const handleCompleteSale = (newReceipt: SaleReceipt) => {
+    const saleBranchId = newReceipt.branchId || currentBranch?.id || defaultBranchId;
     // 0. Hard validation: Ensure no physical out-of-stock items can ever be sold
     for (const item of newReceipt.items) {
       if (!item.product.isService) {
         const prod = products.find((p) => p.id === item.product.id);
         const avail = prod
-          ? (prod.hasSerialNumber ? (prod.serialNumbers?.length || 0) : (prod.stockQuantity || 0))
+          ? getProductStockForBranch(prod, saleBranchId, defaultBranchId)
           : 0;
         if (avail <= 0 || item.quantity > avail) {
           showToast(`❌ Xatolik: «${item.product.name}» tovari omborda mavjud emas (Omborda: ${avail}, So'ralgan: ${item.quantity})! Sotuv rad etildi.`);
@@ -1345,37 +1352,30 @@ export default function Home() {
 
     const finalReceipt: SaleReceipt = {
       ...newReceipt,
+      branchId: saleBranchId,
       cashierName: currentUser ? currentUser.fullName : (newReceipt.cashierName || 'Farrux A.')
     };
 
     // 1. Add receipt
     setReceipts((prev) => [finalReceipt, ...prev]);
 
-    // 2. Decrement stock from products with S/N and Service logic
+    // 2. Decrement stock from products with per-branch stock logic
     setProducts((prev) =>
       prev.map((prod) => {
         const soldItem = newReceipt.items.find((item) => item.product.id === prod.id);
         if (soldItem) {
-          // O'rnatish va montaj xizmatlarida jismoniy ombor qoldig'i kamaytirilmaydi
-          if (prod.isService) {
-            return prod;
-          }
-
-          // Seriya raqamli mahsulot bo'lsa, sotilgan S/N lar ombordan chiqariladi
-          if (prod.hasSerialNumber && soldItem.selectedSerialNumbers && soldItem.selectedSerialNumbers.length > 0) {
-            const currentSerials = prod.serialNumbers || [];
-            const remainingSerials = currentSerials.filter(
-              (sn) => !soldItem.selectedSerialNumbers?.includes(sn)
-            );
-            return {
-              ...prod,
-              serialNumbers: remainingSerials,
-              stockQuantity: remainingSerials.length
-            };
-          }
-
-          const newQty = Math.max(0, prod.stockQuantity - soldItem.quantity);
-          return { ...prod, stockQuantity: newQty };
+          if (prod.isService) return prod;
+          const serialsToRemove = (prod.hasSerialNumber && soldItem.selectedSerialNumbers)
+            ? soldItem.selectedSerialNumbers
+            : [];
+          return adjustProductStockForBranch(
+            prod,
+            saleBranchId,
+            -soldItem.quantity,
+            [],
+            serialsToRemove,
+            defaultBranchId
+          );
         }
         return prod;
       })
@@ -1596,27 +1596,22 @@ export default function Home() {
       (verifiedAdmin, byPermission) => {
         let totalRefundSum = 0;
 
-        // 1. Reconcile Products (Add stock and S/N back to inventory)
+        const returnBranchId = targetReceipt.branchId || currentBranch?.id || defaultBranchId;
+        // 1. Reconcile Products (Add stock and S/N back to branch inventory)
         setProducts((prev) =>
           prev.map((prod) => {
             const returnedMatch = returnData.itemsToReturn.find((it) => it.productId === prod.id);
             if (returnedMatch) {
-              const newQty = prod.isService ? prod.stockQuantity : prod.stockQuantity + returnedMatch.quantity;
-              
-              const updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
-              if (returnedMatch.serialNumbers && returnedMatch.serialNumbers.length > 0) {
-                returnedMatch.serialNumbers.forEach((sn) => {
-                  if (!updatedSerials.includes(sn)) {
-                    updatedSerials.push(sn);
-                  }
-                });
-              }
-
-              return {
-                ...prod,
-                stockQuantity: newQty,
-                serialNumbers: prod.hasSerialNumber ? updatedSerials : prod.serialNumbers
-              };
+              if (prod.isService) return prod;
+              const serialsToAdd = returnedMatch.serialNumbers || [];
+              return adjustProductStockForBranch(
+                prod,
+                returnBranchId,
+                returnedMatch.quantity,
+                serialsToAdd,
+                [],
+                defaultBranchId
+              );
             }
             return prod;
           })
@@ -1823,25 +1818,22 @@ export default function Home() {
       `Chek #${updatedReceipt.receiptNumber} ma'lumotlarini o'zgartirish faqat Administrator ruxsati bilan amalga oshiriladi.`,
       `Chek: #${updatedReceipt.receiptNumber} | Yangi summa: ${updatedReceipt.totalAmount.toLocaleString()} so'm`,
       (verifiedAdmin, byPermission) => {
-        // 1. Deduct newly added items from inventory
+        const editReceiptBranchId = updatedReceipt.branchId || currentBranch?.id || defaultBranchId;
+        // 1. Deduct newly added items from branch inventory
         if (newItemsStockDelta && newItemsStockDelta.length > 0) {
           setProducts((prev) =>
             prev.map((prod) => {
               const delta = newItemsStockDelta.find((d) => d.productId === prod.id);
               if (delta) {
                 if (prod.isService) return prod;
-
-                const newStock = Math.max(0, prod.stockQuantity - delta.quantity);
-                let updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
-                if (delta.serialNumbers.length > 0) {
-                  updatedSerials = updatedSerials.filter((s) => !delta.serialNumbers.includes(s));
-                }
-
-                return {
-                  ...prod,
-                  stockQuantity: newStock,
-                  serialNumbers: prod.hasSerialNumber ? updatedSerials : prod.serialNumbers
-                };
+                return adjustProductStockForBranch(
+                  prod,
+                  editReceiptBranchId,
+                  -delta.quantity,
+                  [],
+                  delta.serialNumbers || [],
+                  defaultBranchId
+                );
               }
               return prod;
             })
@@ -2246,24 +2238,23 @@ export default function Home() {
 
     setReceipts((prev) => [newReceipt, ...prev]);
 
+    const shipmentBranchId = shipment.branchId || currentBranch?.id || defaultBranchId;
     setProducts((prev) =>
       prev.map((prod) => {
         const shippedItem = shipment.items.find((item) => item.productId === prod.id);
         if (shippedItem) {
           if (prod.isService) return prod;
-
-          const newStock = Math.max(0, prod.stockQuantity - shippedItem.quantity);
-          let updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
-
-          if (shippedItem.selectedSerialNumbers && shippedItem.selectedSerialNumbers.length > 0) {
-            updatedSerials = updatedSerials.filter((s) => !shippedItem.selectedSerialNumbers?.includes(s));
-          }
-
-          return {
-            ...prod,
-            stockQuantity: newStock,
-            serialNumbers: prod.hasSerialNumber ? updatedSerials : prod.serialNumbers
-          };
+          const serialsToRemove = (prod.hasSerialNumber && shippedItem.selectedSerialNumbers)
+            ? shippedItem.selectedSerialNumbers
+            : [];
+          return adjustProductStockForBranch(
+            prod,
+            shipmentBranchId,
+            -shippedItem.quantity,
+            [],
+            serialsToRemove,
+            defaultBranchId
+          );
         }
         return prod;
       })
@@ -2533,7 +2524,25 @@ export default function Home() {
   // Update Stock
   const handleUpdateStock = (productId: string, newStock: number) => {
     recordLocalMutation('products');
-    const finalProducts = products.map((p) => (p.id === productId ? { ...p, stockQuantity: newStock } : p));
+    const finalProducts = products.map((p) => {
+      if (p.id !== productId) return p;
+      if (p.isService) return p;
+      if (currentBranchId && currentBranchId !== 'all') {
+        const branchStocks: Record<string, number> = { ...(p.branchStocks || {}) };
+        if (Object.keys(branchStocks).length === 0) {
+          const initBranch = p.branchId || defaultBranchId;
+          branchStocks[initBranch] = p.stockQuantity || 0;
+        }
+        branchStocks[currentBranchId] = newStock;
+        const totalStock = Object.values(branchStocks).reduce((acc, v) => acc + (v || 0), 0);
+        return {
+          ...p,
+          branchStocks,
+          stockQuantity: totalStock,
+        };
+      }
+      return { ...p, stockQuantity: newStock };
+    });
     setProducts(finalProducts);
     try {
       localStorage.setItem('sc_products', JSON.stringify(finalProducts));
@@ -2547,7 +2556,27 @@ export default function Home() {
   // Update Product (Redakt qilish)
   const handleUpdateProduct = (updatedProduct: Product) => {
     recordLocalMutation('products');
-    const finalProducts = products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
+    const finalProducts = products.map((p) => {
+      if (p.id !== updatedProduct.id) return p;
+      if (p.isService) return updatedProduct;
+      // If editing in a specific branch, update that branch's stock in branchStocks
+      if (currentBranchId && currentBranchId !== 'all') {
+        const branchStocks: Record<string, number> = { ...(p.branchStocks || {}) };
+        if (Object.keys(branchStocks).length === 0) {
+          const initBranch = p.branchId || defaultBranchId;
+          branchStocks[initBranch] = p.stockQuantity || 0;
+        }
+        branchStocks[currentBranchId] = updatedProduct.stockQuantity || 0;
+        const totalStock = Object.values(branchStocks).reduce((acc, v) => acc + (v || 0), 0);
+        return {
+          ...updatedProduct,
+          branchStocks,
+          stockQuantity: totalStock,
+          branchSerials: p.branchSerials,
+        };
+      }
+      return updatedProduct;
+    });
     setProducts(finalProducts);
     try {
       localStorage.setItem('sc_products', JSON.stringify(finalProducts));
@@ -2680,22 +2709,19 @@ export default function Home() {
         recordLocalMutation('products');
 
         let updatedProducts = [...products];
+        const purchaseBranchId = target.branchId || currentBranch?.id || defaultBranchId;
         if (target.items && target.items.length > 0) {
           target.items.forEach((item) => {
             updatedProducts = updatedProducts.map((prod) => {
               if (prod.id === item.productId || prod.name === item.productName) {
-                const currentStock = prod.stockQuantity || 0;
-                const newStock = Math.max(0, currentStock - (item.quantity || 1));
-                let newSerialNumbers = prod.serialNumbers || [];
-                if (item.serialNumbers && item.serialNumbers.length > 0) {
-                  const itemSns = new Set(item.serialNumbers);
-                  newSerialNumbers = newSerialNumbers.filter((sn) => !itemSns.has(sn));
-                }
-                return {
-                  ...prod,
-                  stockQuantity: newStock,
-                  serialNumbers: newSerialNumbers,
-                };
+                return adjustProductStockForBranch(
+                  prod,
+                  purchaseBranchId,
+                  -(item.quantity || 1),
+                  [],
+                  item.serialNumbers || [],
+                  defaultBranchId
+                );
               }
               return prod;
             });
@@ -2755,22 +2781,19 @@ export default function Home() {
         // Agar prixod bekor qilinmagan bo'lsa (ya'ni tovarlar omborga kirgan bo'lsa),
         // ushbu tovarlar sonini ombor qoldig'idan kamaytirish va seriya raqamlarini tozalash
         let updatedProducts = [...products];
+        const delPurchaseBranchId = target.branchId || currentBranch?.id || defaultBranchId;
         if (target.status !== 'cancelled' && target.items && target.items.length > 0) {
           target.items.forEach((item) => {
             updatedProducts = updatedProducts.map((prod) => {
               if (prod.id === item.productId || prod.name === item.productName) {
-                const currentStock = prod.stockQuantity || 0;
-                const newStock = Math.max(0, currentStock - (item.quantity || 1));
-                let newSerialNumbers = prod.serialNumbers || [];
-                if (item.serialNumbers && item.serialNumbers.length > 0) {
-                  const itemSns = new Set(item.serialNumbers);
-                  newSerialNumbers = newSerialNumbers.filter((sn) => !itemSns.has(sn));
-                }
-                return {
-                  ...prod,
-                  stockQuantity: newStock,
-                  serialNumbers: newSerialNumbers,
-                };
+                return adjustProductStockForBranch(
+                  prod,
+                  delPurchaseBranchId,
+                  -(item.quantity || 1),
+                  [],
+                  item.serialNumbers || [],
+                  defaultBranchId
+                );
               }
               return prod;
             });
@@ -3214,26 +3237,21 @@ export default function Home() {
         recordLocalMutation('receipts');
         recordLocalMutation('products');
         let updatedProducts = products;
+        const delReceiptBranchId = receiptToDelete.branchId || currentBranch?.id || defaultBranchId;
         if (receiptToDelete.status !== 'returned') {
           updatedProducts = products.map((prod) => {
             const item = receiptToDelete.items.find((i) => i.product.id === prod.id);
             if (item) {
-              if (prod.isService) {
-                return prod;
-              }
-              if (prod.hasSerialNumber) {
-                const restoredSerials = item.selectedSerialNumbers ? [...(prod.serialNumbers || []), ...item.selectedSerialNumbers] : (prod.serialNumbers || []);
-                const uniqueSerials = Array.from(new Set(restoredSerials));
-                return {
-                  ...prod,
-                  stockQuantity: uniqueSerials.length,
-                  serialNumbers: uniqueSerials
-                };
-              }
-              return {
-                ...prod,
-                stockQuantity: Math.max(0, prod.stockQuantity + item.quantity)
-              };
+              if (prod.isService) return prod;
+              const serialsToAdd = item.selectedSerialNumbers || [];
+              return adjustProductStockForBranch(
+                prod,
+                delReceiptBranchId,
+                item.quantity,
+                serialsToAdd,
+                [],
+                defaultBranchId
+              );
             }
             return prod;
           });
@@ -4122,11 +4140,11 @@ export default function Home() {
   // If currentBranchId is 'all' or empty, superadmin sees all data.
   // Otherwise, filter items by item.branchId === currentBranchId (or fallback to 'branch-1' if item.branchId is undefined)
   const isBranchAll = currentBranchId === 'all';
+  const defaultBranchId = branches.find(b => b.isMain)?.id || 'branch-1';
 
   const branchFilteredProducts = useMemo(() => {
-    if (isBranchAll) return products;
-    return products.filter((p) => (p.branchId || 'branch-1') === currentBranchId);
-  }, [products, currentBranchId, isBranchAll]);
+    return mapProductsForCurrentBranch(products, currentBranchId, defaultBranchId);
+  }, [products, currentBranchId, defaultBranchId]);
 
   const branchFilteredReceipts = useMemo(() => {
     if (isBranchAll) return receipts;

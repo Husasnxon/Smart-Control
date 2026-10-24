@@ -1370,6 +1370,24 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
                                 {product.stockQuantity} {product.unit}
                               </span>
                             )}
+                            {branches && branches.length > 1 && (!currentBranch || currentBranch.id === 'all') && !isService && (
+                              <div className="flex flex-wrap items-center justify-center gap-1 mt-1">
+                                {branches.map(b => {
+                                  const bQty = product.branchStocks?.[b.id] !== undefined
+                                    ? product.branchStocks[b.id]
+                                    : ((product.branchId || 'branch-1') === b.id ? product.stockQuantity : 0);
+                                  return (
+                                    <span 
+                                      key={b.id} 
+                                      className={`text-[9px] px-1.5 py-0.5 rounded-md font-mono ${bQty > 0 ? 'bg-cyan-50 dark:bg-cyan-950/50 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}
+                                      title={`${b.name}: ${bQty} ${product.unit}`}
+                                    >
+                                      {b.name.replace(' Filiali', '').replace(' Filial', '')}: <strong className="font-bold">{bQty}</strong>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </td>
 
                           {/* Stock Valuation */}

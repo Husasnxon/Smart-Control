@@ -18,6 +18,11 @@ import {
   ArrowLeftRight
 } from 'lucide-react';
 import { formatMoney, formatDualMoney } from '../utils/formatters';
+import { 
+  getProductStockForBranch, 
+  getProductSerialsForBranch, 
+  transferProductStock 
+} from '../utils/productUtils';
 
 interface NewStockTransferModalProps {
   isOpen: boolean;
@@ -83,12 +88,21 @@ export const NewStockTransferModal: React.FC<NewStockTransferModalProps> = ({
   if (!isOpen) return null;
 
   const activeBranches = branches.filter(b => b.status === 'active');
+  const defaultBranchId = branches.find(b => b.isMain)?.id || 'branch-1';
   const selectedProduct = products.find(p => p.id === selectedProductId);
 
-  // Filter available products (exclude services, only tangible goods with stock > 0)
+  const selectedProductSourceStock = selectedProduct
+    ? getProductStockForBranch(selectedProduct, fromBranchId, defaultBranchId)
+    : 0;
+  const selectedProductSourceSerials = selectedProduct
+    ? getProductSerialsForBranch(selectedProduct, fromBranchId, defaultBranchId)
+    : [];
+
+  // Filter available products (exclude services, only tangible goods with stock > 0 in the source branch)
   const availableProducts = products.filter(p => {
     if (p.isService) return false;
-    if (p.stockQuantity <= 0) return false;
+    const stockInSource = getProductStockForBranch(p, fromBranchId, defaultBranchId);
+    if (stockInSource <= 0) return false;
     if (!productSearch.trim()) return true;
     const q = productSearch.toLowerCase();
     return (
@@ -104,8 +118,9 @@ export const NewStockTransferModal: React.FC<NewStockTransferModalProps> = ({
     const prod = products.find(p => p.id === prodId);
     if (prod) {
       setTransferQty(1);
-      if (prod.hasSerialNumber && prod.serialNumbers && prod.serialNumbers.length > 0) {
-        setSelectedSerials([prod.serialNumbers[0]]);
+      const branchSns = getProductSerialsForBranch(prod, fromBranchId, defaultBranchId);
+      if (prod.hasSerialNumber && branchSns.length > 0) {
+        setSelectedSerials([branchSns[0]]);
       } else {
         setSelectedSerials([]);
       }
@@ -135,8 +150,8 @@ export const NewStockTransferModal: React.FC<NewStockTransferModalProps> = ({
       return;
     }
 
-    if (transferQty > selectedProduct.stockQuantity) {
-      setErrorMessage(`Omborda faqat ${selectedProduct.stockQuantity} ta ${selectedProduct.unit} mavjud!`);
+    if (transferQty > selectedProductSourceStock) {
+      setErrorMessage(`Tanlangan filial omborida faqat ${selectedProductSourceStock} ta ${selectedProduct.unit} mavjud!`);
       return;
     }
 
@@ -227,23 +242,19 @@ export const NewStockTransferModal: React.FC<NewStockTransferModalProps> = ({
       notes: notes.trim() || undefined
     };
 
-    // Deduct stock and transferred serial numbers from source products
+    // Move stock and transferred serial numbers between branches
     const updatedProducts = products.map(prod => {
       const transferred = transferItems.find(it => it.productId === prod.id);
       if (!transferred) return prod;
 
-      const newStock = Math.max(0, prod.stockQuantity - transferred.quantity);
-      let newSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
-
-      if (transferred.serialNumbers && transferred.serialNumbers.length > 0) {
-        newSerials = newSerials.filter(sn => !transferred.serialNumbers?.includes(sn));
-      }
-
-      return {
-        ...prod,
-        stockQuantity: newStock,
-        serialNumbers: newSerials
-      };
+      return transferProductStock(
+        prod,
+        fromBranchId,
+        toBranchId,
+        transferred.quantity,
+        transferred.serialNumbers || [],
+        defaultBranchId
+      );
     });
 
     onSaveTransfer(newTransfer, updatedProducts);
@@ -363,11 +374,14 @@ export const NewStockTransferModal: React.FC<NewStockTransferModalProps> = ({
                   className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-purple-500"
                 >
                   <option value="">-- Mahsulotni tanlang ({availableProducts.length} ta) --</option>
-                  {availableProducts.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} (Qoldiq: {p.stockQuantity} {p.unit}) - {formatMoney(p.retailPrice, baseCurrency, exchangeRate)}
-                    </option>
-                  ))}
+                  {availableProducts.map(p => {
+                    const bStock = getProductStockForBranch(p, fromBranchId, defaultBranchId);
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name} (Qoldiq: {bStock} {p.unit}) - {formatMoney(p.retailPrice, baseCurrency, exchangeRate)}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -379,17 +393,17 @@ export const NewStockTransferModal: React.FC<NewStockTransferModalProps> = ({
                 <input
                   type="number"
                   min="1"
-                  max={selectedProduct?.stockQuantity || 1}
+                  max={selectedProductSourceStock || 1}
                   value={transferQty}
                   onChange={(e) => setTransferQty(Math.max(1, parseInt(e.target.value) || 1))}
-                  disabled={!selectedProduct || (selectedProduct?.hasSerialNumber && (selectedProduct.serialNumbers?.length || 0) > 0)}
+                  disabled={!selectedProduct || (selectedProduct?.hasSerialNumber && selectedProductSourceSerials.length > 0)}
                   className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
             </div>
 
             {/* Serial Numbers Checkbox Selector if product has serials */}
-            {selectedProduct && selectedProduct.hasSerialNumber && selectedProduct.serialNumbers && selectedProduct.serialNumbers.length > 0 && (
+            {selectedProduct && selectedProduct.hasSerialNumber && selectedProductSourceSerials.length > 0 && (
               <div className="bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 p-3.5 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
@@ -397,12 +411,12 @@ export const NewStockTransferModal: React.FC<NewStockTransferModalProps> = ({
                     <span>Ko&apos;chirilayotgan Seriya Raqamlarini (S/N) Tanlang:</span>
                   </span>
                   <span className="font-mono text-purple-700 dark:text-purple-300 font-bold">
-                    Tanlandi: {selectedSerials.length} / {selectedProduct.stockQuantity} ta
+                    Tanlandi: {selectedSerials.length} / {selectedProductSourceStock} ta
                   </span>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1">
-                  {selectedProduct.serialNumbers.map(sn => {
+                  {selectedProductSourceSerials.map(sn => {
                     const isSelected = selectedSerials.includes(sn);
                     return (
                       <button

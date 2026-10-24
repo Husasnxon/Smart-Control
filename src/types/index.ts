@@ -31,6 +31,8 @@ export interface Product {
   color?: string;
   branchId?: string;       // Biriktirilgan filial ID si
   branchName?: string;     // Biriktirilgan filial nomi
+  branchStocks?: Record<string, number>;    // Filiallar bo'yicha qoldiqlar (masalan: { "branch-1": 2, "branch-2": 0 })
+  branchSerials?: Record<string, string[]>; // Filiallar bo'yicha seriya raqamlari
 }
 
 export interface Customer {
