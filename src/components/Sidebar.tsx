@@ -106,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (!tabs.includes('crm')) {
         tabs.splice(2, 0, 'crm');
       }
-      if (!tabs.includes('technician_portal')) {
+      if (currentUser.systemRole === 'admin' && !tabs.includes('technician_portal')) {
         tabs.push('technician_portal');
       }
     } else if (currentUser.systemRole === 'cashier') {

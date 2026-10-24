@@ -2237,7 +2237,7 @@ export const INITIAL_EMPLOYEES: Employee[] = [
   {
     "id": "emp-1792750582219",
     "fullName": "Mehmonov Yunusxon",
-    "role": "Kassir / Menejer",
+    "role": "Menejer",
     "phone": "+998 97 594 11 34",
     "status": "active",
     "salaryType": "fixed_plus_percentage",
@@ -2272,7 +2272,7 @@ export const INITIAL_EMPLOYEES: Employee[] = [
   {
     "id": "emp-1792750496753",
     "fullName": "Asqarov Amirxon",
-    "role": "Kassir / Menejer",
+    "role": "Menejer",
     "phone": "+998 97 686 26 03",
     "status": "active",
     "salaryType": "hybrid",

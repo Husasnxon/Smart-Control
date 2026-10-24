@@ -468,6 +468,18 @@ export default function Home() {
           if (Array.isArray(parsedEmp)) {
             // Guarantee technician_portal is included for all technicians
             parsedEmp = parsedEmp.map((emp) => {
+              // Guarantee Amirxon and Yunusxon are Managers with proper manager tabs and permissions
+              if (emp.fullName?.includes('Amirxon') || emp.fullName?.includes('Yunusxon')) {
+                emp.systemRole = 'manager';
+                emp.role = 'Menejer';
+                emp.allowedTabs = [...DEFAULT_ROLE_TABS.manager];
+              }
+
+              // Ensure permissions are always strictly defined!
+              if (!emp.permissions) {
+                emp.permissions = { ...DEFAULT_ROLE_PERMISSIONS[emp.systemRole || 'cashier'] };
+              }
+
               if (emp.systemRole === 'technician' || (emp.role && emp.role.toLowerCase().includes('usta') && emp.systemRole !== 'admin' && emp.systemRole !== 'manager')) {
                 return { ...emp, allowedTabs: ['technician_portal'] as ActiveTab[] };
               }
@@ -479,7 +491,7 @@ export default function Home() {
                 if (!tabs.includes('crm')) {
                   tabs.splice(2, 0, 'crm');
                 }
-                if (!tabs.includes('technician_portal')) {
+                if (emp.systemRole === 'admin' && !tabs.includes('technician_portal')) {
                   tabs.push('technician_portal');
                 }
                 return { ...emp, allowedTabs: tabs };
@@ -973,7 +985,29 @@ export default function Home() {
               // Local has real custom staff, remote has stale mock data. Keep local and update cloud!
               pushDataToCloudRef.current?.();
             } else {
-              setEmployees(remote.employees);
+              setEmployees((currentLocal) => {
+                const merged = (remote.employees || []).map((remEmp) => {
+                  const localEmp = currentLocal.find((le) => le.id === remEmp.id);
+                  if (!localEmp) return remEmp;
+                  // Intelligent merge: NEVER let stale remote cloud wipe out local permissions or role changes!
+                  return {
+                    ...remEmp,
+                    role: localEmp.role || remEmp.role,
+                    systemRole: localEmp.systemRole || remEmp.systemRole,
+                    permissions: localEmp.permissions || remEmp.permissions || { ...DEFAULT_ROLE_PERMISSIONS[localEmp.systemRole || remEmp.systemRole || 'cashier'] },
+                    allowedTabs: localEmp.allowedTabs && localEmp.allowedTabs.length > 0 ? localEmp.allowedTabs : remEmp.allowedTabs
+                  };
+                });
+                currentLocal.forEach((le) => {
+                  if (!merged.some((m) => m.id === le.id)) {
+                    merged.push(le);
+                  }
+                });
+                try {
+                  localStorage.setItem('sc_employees', JSON.stringify(merged));
+                } catch (e) {}
+                return merged;
+              });
             }
           }
           if (remote.shipments) {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Employee, PayrollRecord, EmployeeAdvance, SalaryType, SaleReceipt, Expense, SystemRole, ActiveTab, DEFAULT_ROLE_TABS, Branch } from '../types';
+import { Employee, PayrollRecord, EmployeeAdvance, SalaryType, SaleReceipt, Expense, SystemRole, ActiveTab, DEFAULT_ROLE_TABS, DEFAULT_ROLE_PERMISSIONS, Branch } from '../types';
 import {
   Users,
   UserCheck,
@@ -313,6 +313,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       password: newPassword.trim() || '123',
       pin: newPin.trim() || '0000',
       systemRole: newSystemRole,
+      permissions: DEFAULT_ROLE_PERMISSIONS[newSystemRole] || DEFAULT_ROLE_PERMISSIONS.cashier,
       allowedTabs: newAllowedTabs && newAllowedTabs.length > 0 ? newAllowedTabs : DEFAULT_ROLE_TABS[newSystemRole],
       branchId: finalBranchId,
       branchName: finalBranchName,
@@ -354,8 +355,19 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
     setEditUsername(emp.username || emp.fullName.toLowerCase().replace(/\s+/g, '').slice(0, 8));
     setEditPassword(emp.password || '123');
     setEditPin(emp.pin || '0000');
-    setEditSystemRole(emp.systemRole || (emp.role === 'Bosh Administrator' ? 'admin' : emp.role.includes('Kassir') ? 'cashier' : 'technician'));
-    setEditAllowedTabs(emp.allowedTabs || (emp.systemRole ? DEFAULT_ROLE_TABS[emp.systemRole] : DEFAULT_ROLE_TABS['technician']));
+    const resolvedRole: SystemRole = emp.systemRole 
+      ? emp.systemRole 
+      : emp.role?.toLowerCase().includes('admin') 
+      ? 'admin' 
+      : emp.role?.toLowerCase().includes('menejer') || emp.role?.toLowerCase().includes('manager')
+      ? 'manager'
+      : emp.role?.toLowerCase().includes('kassir')
+      ? 'cashier'
+      : emp.role?.toLowerCase().includes('ombor')
+      ? 'warehouse'
+      : 'technician';
+    setEditSystemRole(resolvedRole);
+    setEditAllowedTabs(emp.allowedTabs || (DEFAULT_ROLE_TABS[resolvedRole] || DEFAULT_ROLE_TABS['technician']));
     setEditIsBlocked(!!emp.isBlocked);
     setEditBranchId(emp.branchId || '');
   };
@@ -382,6 +394,7 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
       password: editPassword.trim(),
       pin: editPin.trim(),
       systemRole: editSystemRole,
+      permissions: editingEmployee.permissions || DEFAULT_ROLE_PERMISSIONS[editSystemRole] || DEFAULT_ROLE_PERMISSIONS.cashier,
       allowedTabs: editAllowedTabs,
       branchId: editBranchId || undefined,
       branchName: assignedBranch ? assignedBranch.name : undefined,
@@ -1190,13 +1203,16 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                     onChange={(e) => {
                       const selectedRole = e.target.value;
                       setNewRole(selectedRole);
-                      if (selectedRole === 'Kassir / Menejer') {
-                        setNewSystemRole('cashier');
-                        setNewAllowedTabs(DEFAULT_ROLE_TABS['cashier']);
-                      } else if (selectedRole === 'Bosh Administrator') {
+                      if (selectedRole === 'Menejer' || selectedRole.toLowerCase().includes('menejer')) {
+                        setNewSystemRole('manager');
+                        setNewAllowedTabs(DEFAULT_ROLE_TABS['manager']);
+                      } else if (selectedRole === 'Bosh Administrator' || selectedRole.toLowerCase().includes('admin')) {
                         setNewSystemRole('admin');
                         setNewAllowedTabs(DEFAULT_ROLE_TABS['admin']);
-                      } else if (selectedRole === 'Omborchi') {
+                      } else if (selectedRole === 'Kassir' || selectedRole.toLowerCase().includes('kassir')) {
+                        setNewSystemRole('cashier');
+                        setNewAllowedTabs(DEFAULT_ROLE_TABS['cashier']);
+                      } else if (selectedRole === 'Omborchi' || selectedRole.toLowerCase().includes('ombor')) {
                         setNewSystemRole('warehouse');
                         setNewAllowedTabs(DEFAULT_ROLE_TABS['warehouse']);
                       } else {
@@ -1205,11 +1221,15 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
                       }
                     }}
                     className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white outline-none">
+                    <option value="Menejer">Menejer (Boshqaruv & Savdo)</option>
+                    <option value="Kassir / Menejer">Kassir / Menejer</option>
+                    <option value="Kassir">Kassir / Sotuvchi</option>
+                    <option value="Bosh Administrator">Bosh Administrator</option>
                     <option value="Montajchi Usta">Montajchi Usta</option>
                     <option value="Bosh Muhandis">Bosh Muhandis</option>
                     <option value="Tarmoq Sozlovchi">Tarmoq Sozlovchi</option>
-                    <option value="Kassir / Menejer">Kassir / Menejer</option>
                     <option value="Xavfsizlik Mutaxassisi">Xavfsizlik Mutaxassisi</option>
+                    <option value="Omborchi">Omborchi</option>
                   </select>
                 </div>
                 <div>
@@ -1479,14 +1499,37 @@ export const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Lavozimi</label>
-                  <select value={editRole} onChange={(e) => setEditRole(e.target.value)}
+                  <select 
+                    value={editRole} 
+                    onChange={(e) => {
+                      const selectedRole = e.target.value;
+                      setEditRole(selectedRole);
+                      if (selectedRole === 'Menejer' || selectedRole.toLowerCase().includes('menejer')) {
+                        setEditSystemRole('manager');
+                        setEditAllowedTabs(DEFAULT_ROLE_TABS['manager']);
+                      } else if (selectedRole === 'Bosh Administrator' || selectedRole.toLowerCase().includes('admin')) {
+                        setEditSystemRole('admin');
+                        setEditAllowedTabs(DEFAULT_ROLE_TABS['admin']);
+                      } else if (selectedRole === 'Kassir' || selectedRole.toLowerCase().includes('kassir')) {
+                        setEditSystemRole('cashier');
+                        setEditAllowedTabs(DEFAULT_ROLE_TABS['cashier']);
+                      } else if (selectedRole === 'Omborchi' || selectedRole.toLowerCase().includes('ombor')) {
+                        setEditSystemRole('warehouse');
+                        setEditAllowedTabs(DEFAULT_ROLE_TABS['warehouse']);
+                      } else {
+                        setEditSystemRole('technician');
+                        setEditAllowedTabs(DEFAULT_ROLE_TABS['technician']);
+                      }
+                    }}
                     className="w-full mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white">
+                    <option value="Menejer">Menejer (Boshqaruv & Savdo)</option>
+                    <option value="Kassir / Menejer">Kassir / Menejer</option>
+                    <option value="Kassir">Kassir / Sotuvchi</option>
+                    <option value="Bosh Administrator">Bosh Administrator</option>
                     <option value="Montajchi Usta">Montajchi Usta</option>
                     <option value="Bosh Muhandis">Bosh Muhandis</option>
                     <option value="Tarmoq Sozlovchi">Tarmoq Sozlovchi</option>
-                    <option value="Kassir / Menejer">Kassir / Menejer</option>
                     <option value="Xavfsizlik Mutaxassisi">Xavfsizlik Mutaxassisi</option>
-                    <option value="Bosh Administrator">Bosh Administrator</option>
                     <option value="Omborchi">Omborchi</option>
                   </select>
                 </div>

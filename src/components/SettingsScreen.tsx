@@ -14,6 +14,7 @@ import {
   EmployeePermissions,
   SystemRole,
   DEFAULT_ROLE_PERMISSIONS,
+  DEFAULT_ROLE_TABS,
   Branch,
   AuditLog
 } from '../types';
@@ -288,12 +289,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const handleSaveExplicitly = (emp?: Employee) => {
     if (!emp || !onUpdateEmployee) return;
-    const empRole = (emp.systemRole || (emp.role === 'admin' || emp.role === 'manager' || emp.role === 'cashier' || emp.role === 'technician' || emp.role === 'warehouse' ? emp.role : 'cashier')) as SystemRole;
-    const currentPerms: EmployeePermissions = emp.permissions || DEFAULT_ROLE_PERMISSIONS[empRole] || DEFAULT_ROLE_PERMISSIONS.cashier;
+    const empRole: SystemRole = (emp.systemRole || (
+      emp.role?.toLowerCase().includes('admin') ? 'admin' :
+      emp.role?.toLowerCase().includes('menejer') || emp.role?.toLowerCase().includes('manager') ? 'manager' :
+      emp.role?.toLowerCase().includes('kassir') ? 'cashier' :
+      emp.role?.toLowerCase().includes('ombor') ? 'warehouse' : 'technician'
+    )) as SystemRole;
+
+    const currentPerms: EmployeePermissions = {
+      ...(DEFAULT_ROLE_PERMISSIONS[empRole] || DEFAULT_ROLE_PERMISSIONS.cashier),
+      ...(emp.permissions || {})
+    };
+
     onUpdateEmployee({
       ...emp,
+      systemRole: empRole,
       permissions: currentPerms
     });
+
     setExplicitSaveToast(true);
     setPermissionsSavedToast(true);
     setTimeout(() => {
@@ -333,12 +346,34 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const effectiveEmployeeId = employees.some(e => e.id === selectedEmployeeId) ? selectedEmployeeId : (employees[0]?.id || '');
   const activeEmployee = employees.find(e => e.id === effectiveEmployeeId) || employees[0];
 
+  const effectiveRole: SystemRole = (activeEmployee?.systemRole || (
+    activeEmployee?.role?.toLowerCase().includes('admin') ? 'admin' :
+    activeEmployee?.role?.toLowerCase().includes('menejer') || activeEmployee?.role?.toLowerCase().includes('manager') ? 'manager' :
+    activeEmployee?.role?.toLowerCase().includes('kassir') ? 'cashier' :
+    activeEmployee?.role?.toLowerCase().includes('ombor') ? 'warehouse' : 'technician'
+  )) as SystemRole;
+
+  const activePermissions: EmployeePermissions = {
+    ...(DEFAULT_ROLE_PERMISSIONS[effectiveRole] || DEFAULT_ROLE_PERMISSIONS.cashier),
+    ...(activeEmployee?.permissions || {})
+  };
+
   const handleTogglePermission = (empId: string, key: keyof EmployeePermissions) => {
     const targetEmp = employees.find(e => e.id === empId);
     if (!targetEmp || !onUpdateEmployee) return;
 
-    const empRole = (targetEmp.systemRole || (targetEmp.role === 'admin' || targetEmp.role === 'manager' || targetEmp.role === 'cashier' || targetEmp.role === 'technician' || targetEmp.role === 'warehouse' ? targetEmp.role : 'cashier')) as SystemRole;
-    const currentPerms: EmployeePermissions = targetEmp.permissions || DEFAULT_ROLE_PERMISSIONS[empRole] || DEFAULT_ROLE_PERMISSIONS.cashier;
+    const empRole: SystemRole = (targetEmp.systemRole || (
+      targetEmp.role?.toLowerCase().includes('admin') ? 'admin' :
+      targetEmp.role?.toLowerCase().includes('menejer') || targetEmp.role?.toLowerCase().includes('manager') ? 'manager' :
+      targetEmp.role?.toLowerCase().includes('kassir') ? 'cashier' :
+      targetEmp.role?.toLowerCase().includes('ombor') ? 'warehouse' : 'technician'
+    )) as SystemRole;
+
+    const currentPerms: EmployeePermissions = {
+      ...(DEFAULT_ROLE_PERMISSIONS[empRole] || DEFAULT_ROLE_PERMISSIONS.cashier),
+      ...(targetEmp.permissions || {})
+    };
+
     const updatedPerms: EmployeePermissions = {
       ...currentPerms,
       [key]: !currentPerms[key]
@@ -346,11 +381,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
     onUpdateEmployee({
       ...targetEmp,
+      systemRole: empRole,
       permissions: updatedPerms
     });
 
     setPermissionsSavedToast(true);
-    setTimeout(() => setPermissionsSavedToast(false), 2000);
+    setTimeout(() => setPermissionsSavedToast(false), 2500);
   };
 
   const handleApplyPresetRole = (empId: string, role: SystemRole) => {
@@ -358,14 +394,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     if (!targetEmp || !onUpdateEmployee) return;
 
     const presetPerms = DEFAULT_ROLE_PERMISSIONS[role];
+    const roleTitle = role === 'admin' ? 'Bosh Administrator' : role === 'manager' ? 'Menejer' : role === 'cashier' ? 'Kassir / Sotuvchi' : role === 'warehouse' ? 'Omborchi' : 'Montajchi Usta';
     onUpdateEmployee({
       ...targetEmp,
+      role: roleTitle,
       systemRole: role,
+      allowedTabs: [...DEFAULT_ROLE_TABS[role]],
       permissions: { ...presetPerms }
     });
 
+    setExplicitSaveToast(true);
     setPermissionsSavedToast(true);
-    setTimeout(() => setPermissionsSavedToast(false), 2000);
+    setTimeout(() => {
+      setExplicitSaveToast(false);
+      setPermissionsSavedToast(false);
+    }, 2500);
   };
 
   const [prevExchangeRate, setPrevExchangeRate] = useState(exchangeRate);
@@ -2121,11 +2164,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                               {activeEmployee?.fullName}
                             </h3>
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                              {activeEmployee?.role === 'admin' && '👑 Tizim Rahbari (Admin)'}
-                              {activeEmployee?.role === 'manager' && '💼 Menejer'}
-                              {activeEmployee?.role === 'cashier' && '💳 Kassir / Sotuvchi'}
-                              {activeEmployee?.role === 'technician' && '🛠️ Usta / Montajchi'}
-                              {activeEmployee?.role === 'warehouse' && '📦 Omborchi'}
+                              {(effectiveRole === 'admin') && '👑 Tizim Rahbari (Admin)'}
+                              {(effectiveRole === 'manager') && '📊 Menejer (Boshqaruv & Savdo)'}
+                              {(effectiveRole === 'cashier') && '💳 Kassir / Sotuvchi'}
+                              {(effectiveRole === 'technician') && '🛠️ Usta / Montajchi'}
+                              {(effectiveRole === 'warehouse') && '📦 Omborchi'}
                             </span>
                           </div>
                           <p className="text-xs text-slate-400 mt-0.5">
@@ -2135,32 +2178,55 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       </div>
                     </div>
 
-                    {/* Employee selector dropdown & Save button */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="relative">
+                    {/* Employee selector dropdown, Role switcher & Save button */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-slate-400">Xodimni tanlang:</span>
                         <select
                           value={activeEmployee?.id}
                           onChange={(e) => setSelectedEmployeeId(e.target.value)}
                           aria-label="Xodimni tanlash"
-                          className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                          className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
                         >
                           {employees.map((emp) => (
                             <option key={emp.id} value={emp.id}>
-                              {emp.fullName} ({emp.role})
+                              {emp.fullName} ({emp.systemRole === 'admin' ? '👑 Admin' : emp.systemRole === 'manager' || emp.role?.toLowerCase().includes('menejer') ? '📊 Menejer' : emp.systemRole === 'cashier' ? '💳 Kassir' : emp.systemRole === 'warehouse' ? '📦 Omborchi' : '🔧 Usta'})
                             </option>
                           ))}
                         </select>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleSaveExplicitly(activeEmployee)}
-                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5 cursor-pointer"
-                        title="O'zgarishlarni saqlash"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>✓ Huquqlarni Saqlash</span>
-                      </button>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-slate-400">Tizimdagi Asosiy Roli:</span>
+                        <select
+                          value={effectiveRole}
+                          onChange={(e) => {
+                            const newRole = e.target.value as SystemRole;
+                            handleApplyPresetRole(activeEmployee.id, newRole);
+                          }}
+                          aria-label="Lavozim rolini o'zgartirish"
+                          className="px-3.5 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/40 text-xs font-black text-indigo-700 dark:text-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        >
+                          <option value="manager">📊 Menejer (Boshqaruv & Savdo)</option>
+                          <option value="admin">👑 Administrator (To&apos;liq)</option>
+                          <option value="cashier">💳 Kassir / Sotuvchi</option>
+                          <option value="technician">🔧 Montajchi / Usta</option>
+                          <option value="warehouse">📦 Omborchi</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col justify-end">
+                        <span className="text-[10px] font-bold text-transparent select-none">Action</span>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveExplicitly(activeEmployee)}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5 cursor-pointer"
+                          title="Barcha huquqlarni tizimda saqlash"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>✓ Huquqlarni Saqlash</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -2283,12 +2349,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'onlyAssignedOrders')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.onlyAssignedOrders ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.onlyAssignedOrders ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.onlyAssignedOrders ? 'left-6' : 'left-1'
+                              activePermissions.onlyAssignedOrders ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2308,12 +2374,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canCreateOrders')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canCreateOrders !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canCreateOrders !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canCreateOrders !== false ? 'left-6' : 'left-1'
+                              activePermissions.canCreateOrders !== false ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2333,12 +2399,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canCreateShipments')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canCreateShipments !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canCreateShipments !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canCreateShipments !== false ? 'left-6' : 'left-1'
+                              activePermissions.canCreateShipments !== false ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2361,12 +2427,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeleteOrders')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canDeleteOrders ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canDeleteOrders ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canDeleteOrders ? 'left-6' : 'left-1'
+                              activePermissions.canDeleteOrders ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2389,12 +2455,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeleteLeads')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canDeleteLeads ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canDeleteLeads ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canDeleteLeads ? 'left-6' : 'left-1'
+                              activePermissions.canDeleteLeads ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2438,12 +2504,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canViewStock')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canViewStock !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canViewStock !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canViewStock !== false ? 'left-6' : 'left-1'
+                              activePermissions.canViewStock !== false ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2468,12 +2534,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canViewCostPrice')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canViewCostPrice ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canViewCostPrice ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canViewCostPrice ? 'left-6' : 'left-1'
+                              activePermissions.canViewCostPrice ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2493,12 +2559,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canManageProducts')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canManageProducts ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canManageProducts ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canManageProducts ? 'left-6' : 'left-1'
+                              activePermissions.canManageProducts ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2518,12 +2584,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canCreatePurchases')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canCreatePurchases ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canCreatePurchases ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canCreatePurchases ? 'left-6' : 'left-1'
+                              activePermissions.canCreatePurchases ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2543,12 +2609,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canCancelPurchases')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canCancelPurchases ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canCancelPurchases ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canCancelPurchases ? 'left-6' : 'left-1'
+                              activePermissions.canCancelPurchases ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2571,12 +2637,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeletePurchases')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canDeletePurchases ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canDeletePurchases ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canDeletePurchases ? 'left-6' : 'left-1'
+                              activePermissions.canDeletePurchases ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2599,12 +2665,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canAdjustStock')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canAdjustStock ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canAdjustStock ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canAdjustStock ? 'left-6' : 'left-1'
+                              activePermissions.canAdjustStock ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2648,12 +2714,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canViewExpenses')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canViewExpenses ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canViewExpenses ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canViewExpenses ? 'left-6' : 'left-1'
+                              activePermissions.canViewExpenses ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2673,12 +2739,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canCreateExpenses')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canCreateExpenses ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canCreateExpenses ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canCreateExpenses ? 'left-6' : 'left-1'
+                              activePermissions.canCreateExpenses ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2701,12 +2767,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeleteExpenses')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canDeleteExpenses ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canDeleteExpenses ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canDeleteExpenses ? 'left-6' : 'left-1'
+                              activePermissions.canDeleteExpenses ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2726,12 +2792,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canManagePayroll')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canManagePayroll ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canManagePayroll ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canManagePayroll ? 'left-6' : 'left-1'
+                              activePermissions.canManagePayroll ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2751,12 +2817,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canManageAdvances')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canManageAdvances ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canManageAdvances ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canManageAdvances ? 'left-6' : 'left-1'
+                              activePermissions.canManageAdvances ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2781,12 +2847,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canViewPayroll')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canViewPayroll ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canViewPayroll ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canViewPayroll ? 'left-6' : 'left-1'
+                              activePermissions.canViewPayroll ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2833,12 +2899,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canMakeSales')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canMakeSales !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canMakeSales !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canMakeSales !== false ? 'left-6' : 'left-1'
+                              activePermissions.canMakeSales !== false ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2863,12 +2929,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canEditReceipts')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canEditReceipts ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canEditReceipts ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canEditReceipts ? 'left-6' : 'left-1'
+                              activePermissions.canEditReceipts ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2888,12 +2954,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canReturnReceipts')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canReturnReceipts ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canReturnReceipts ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canReturnReceipts ? 'left-6' : 'left-1'
+                              activePermissions.canReturnReceipts ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2916,12 +2982,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeleteReceipts')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canDeleteReceipts ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canDeleteReceipts ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canDeleteReceipts ? 'left-6' : 'left-1'
+                              activePermissions.canDeleteReceipts ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2941,12 +3007,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canGiveDiscount')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canGiveDiscount !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canGiveDiscount !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canGiveDiscount !== false ? 'left-6' : 'left-1'
+                              activePermissions.canGiveDiscount !== false ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2969,12 +3035,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canEditPrice')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canEditPrice ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canEditPrice ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canEditPrice ? 'left-6' : 'left-1'
+                              activePermissions.canEditPrice ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -2994,12 +3060,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canCloseZReport')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canCloseZReport !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canCloseZReport !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canCloseZReport !== false ? 'left-6' : 'left-1'
+                              activePermissions.canCloseZReport !== false ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -3043,12 +3109,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canManageService')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canManageService !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canManageService !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canManageService !== false ? 'left-6' : 'left-1'
+                              activePermissions.canManageService !== false ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -3068,12 +3134,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canReplaceDevices')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canReplaceDevices ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canReplaceDevices ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canReplaceDevices ? 'left-6' : 'left-1'
+                              activePermissions.canReplaceDevices ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -3117,12 +3183,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canManageSettings')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canManageSettings ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canManageSettings ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canManageSettings ? 'left-6' : 'left-1'
+                              activePermissions.canManageSettings ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -3147,12 +3213,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canManagePermissions')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canManagePermissions ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canManagePermissions ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canManagePermissions ? 'left-6' : 'left-1'
+                              activePermissions.canManagePermissions ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>
@@ -3177,12 +3243,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           type="button"
                           onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canAccessAllBranches')}
                           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canAccessAllBranches ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                            activePermissions.canAccessAllBranches ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
                             className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canAccessAllBranches ? 'left-6' : 'left-1'
+                              activePermissions.canAccessAllBranches ? 'left-6' : 'left-1'
                             }`}
                           />
                         </button>

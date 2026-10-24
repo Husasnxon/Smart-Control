@@ -335,7 +335,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, EmployeePermissions> =
 
 export const DEFAULT_ROLE_TABS: Record<SystemRole, ActiveTab[]> = {
   admin: ['dashboard', 'financial_reports', 'crm', 'pos', 'orders', 'inventory', 'warranty', 'technician_portal', 'employees', 'customers', 'expenses', 'ai_advisor', 'sales_history', 'settings'],
-  manager: ['dashboard', 'financial_reports', 'crm', 'pos', 'orders', 'inventory', 'warranty', 'technician_portal', 'customers', 'sales_history'],
+  manager: ['dashboard', 'financial_reports', 'crm', 'pos', 'orders', 'inventory', 'warranty', 'customers', 'sales_history', 'expenses'],
   cashier: ['crm', 'pos', 'orders', 'customers', 'warranty', 'sales_history'],
   technician: ['technician_portal'],
   warehouse: ['inventory', 'orders', 'warranty'],
