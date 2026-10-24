@@ -485,8 +485,10 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       technicianWageUZS: newIsService ? (newTechnicianWageUZS || undefined) : undefined,
       warrantyMonths: newWarrantyMonths,
       imageUrl: newImageUrl.trim() || undefined,
-      branchId: currentBranch?.id,
-      branchName: currentBranch?.name,
+      branchId: (currentBranch && currentBranch.id !== 'all') ? currentBranch.id : (branches.find(b => b.isMain)?.id || 'branch-1'),
+      branchName: (currentBranch && currentBranch.id !== 'all') ? currentBranch.name : (branches.find(b => b.isMain)?.name || 'Bosh Filial'),
+      branchStocks: !newIsService ? { [((currentBranch && currentBranch.id !== 'all') ? currentBranch.id : (branches.find(b => b.isMain)?.id || 'branch-1'))]: finalStock } : undefined,
+      branchSerials: !newIsService && parsedSerials.length > 0 ? { [((currentBranch && currentBranch.id !== 'all') ? currentBranch.id : (branches.find(b => b.isMain)?.id || 'branch-1'))]: parsedSerials } : undefined,
     };
 
     onAddProduct(newProd);
