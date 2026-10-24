@@ -284,6 +284,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   });
   const [permissionsViewMode, setPermissionsViewMode] = useState<'cards' | 'matrix'>('cards');
   const [permissionsSavedToast, setPermissionsSavedToast] = useState(false);
+  const [explicitSaveToast, setExplicitSaveToast] = useState(false);
+
+  const handleSaveExplicitly = (emp?: Employee) => {
+    if (!emp || !onUpdateEmployee) return;
+    const empRole = (emp.systemRole || (emp.role === 'admin' || emp.role === 'manager' || emp.role === 'cashier' || emp.role === 'technician' || emp.role === 'warehouse' ? emp.role : 'cashier')) as SystemRole;
+    const currentPerms: EmployeePermissions = emp.permissions || DEFAULT_ROLE_PERMISSIONS[empRole] || DEFAULT_ROLE_PERMISSIONS.cashier;
+    onUpdateEmployee({
+      ...emp,
+      permissions: currentPerms
+    });
+    setExplicitSaveToast(true);
+    setPermissionsSavedToast(true);
+    setTimeout(() => {
+      setExplicitSaveToast(false);
+      setPermissionsSavedToast(false);
+    }, 3500);
+  };
 
   // Background automated scheduler for Telegram reports
   const handleSendReportRef = useRef<((type: 'daily' | 'low_stock' | 'techs' | 'debts' | 'service') => Promise<void>) | null>(null);
@@ -746,7 +763,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const activeServiceCount = serviceTickets.filter(t => t.status === 'received' || t.status === 'in_diagnosis' || t.status === 'in_repair').length;
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-slate-900">
+    <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-slate-50 dark:bg-slate-900">
       {/* Top Header */}
       <div className="bg-white dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-sm">
         <div className="flex items-center gap-3">
@@ -798,7 +815,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </div>
 
       {/* Main Body */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-44 space-y-5">
         {/* Navigation Tabs */}
         <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
           <button
@@ -2070,10 +2087,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </div>
 
             {/* Notification if changes were made */}
-            {permissionsSavedToast && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-150">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>Xodim huquqlari muvaffaqiyatli yangilandi va tizimda saqlandi!</span>
+            {(permissionsSavedToast || explicitSaveToast) && (
+              <div className="p-4 bg-emerald-500/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 rounded-2xl text-xs font-bold flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-150 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                  <span>
+                    <strong>{activeEmployee?.fullName}</strong> huquqlari muvaffaqiyatli saqlandi va tizimda tasdiqlandi!
+                  </span>
+                </div>
+                <span className="text-[10px] bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-full shadow-sm">
+                  ✓ Saqlandi
+                </span>
               </div>
             )}
 
@@ -2111,8 +2135,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       </div>
                     </div>
 
-                    {/* Employee selector dropdown */}
-                    <div className="flex items-center gap-2">
+                    {/* Employee selector dropdown & Save button */}
+                    <div className="flex flex-wrap items-center gap-2">
                       <div className="relative">
                         <select
                           value={activeEmployee?.id}
@@ -2127,6 +2151,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           ))}
                         </select>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSaveExplicitly(activeEmployee)}
+                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5 cursor-pointer"
+                        title="O'zgarishlarni saqlash"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>✓ Huquqlarni Saqlash</span>
+                      </button>
                     </div>
                   </div>
 
@@ -2204,8 +2238,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </div>
 
                 {/* 6 Category Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* GROUP 1: SMETA & OTGRUZKALAR */}
+                                {/* 6 Category Cards in 2 Clean Columns (No blank voids) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                  {/* LEFT COLUMN: Zakazlar (1), Ombor (3), Moliya (5) */}
+                  <div className="space-y-6">
+                    {/* GROUP 1: SMETA & OTGRUZKALAR */}
                   <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
                     <div className="p-4 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
@@ -2365,217 +2402,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </div>
                   </div>
 
-                  {/* GROUP 2: KASSA & SAVDO (MOYSKLAD TALABI) */}
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-4 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-                          🛒
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                            2. Kassa & Savdo (Chek Huquqlari)
-                          </h4>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                            Kassir chek urish, tahrirlash va skidka imkoniyatlari
-                          </p>
-                        </div>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                        Kassa
-                      </span>
-                    </div>
-
-                    <div className="p-4 divide-y divide-slate-100 dark:divide-slate-800 flex-1 space-y-3">
-                      {/* CAN MAKE SALES */}
-                      <div className="pt-2 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                            Kassada tovar sotish va chek urish
-                          </div>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            Kassa oynasidan foydalanish va mijozlardan to&apos;lov qabul qilish
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canMakeSales')}
-                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canMakeSales !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                        >
-                          <span
-                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canMakeSales !== false ? 'left-6' : 'left-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      {/* CAN EDIT RECEIPTS (KEY MOYSKLAD REQUIREMENT) */}
-                      <div className="pt-3 flex items-start justify-between gap-3 bg-amber-50/60 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-800/60">
-                        <div className="pr-2">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-black text-amber-900 dark:text-amber-200">
-                              Sotilgan chek/tovarni redakt qilish (Tahrirlash)
-                            </span>
-                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-amber-600 text-white">
-                              MOYSKLAD
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-amber-700 dark:text-amber-300/80 mt-0.5 leading-relaxed">
-                            O&apos;chirilganda kassir/xodim avvalgi sotilgan chekka tovar qo&apos;sha olmaydi va uning ma&apos;lumotlarini o&apos;zgartira olmaydi.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canEditReceipts')}
-                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canEditReceipts ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                        >
-                          <span
-                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canEditReceipts ? 'left-6' : 'left-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      {/* CAN RETURN RECEIPTS */}
-                      <div className="pt-3 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                            Tovarni qaytarish (Vozvrat qilish)
-                          </div>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            Xaridor qaytargan tovarlarni qabul qilish va pulini qaytarish
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canReturnReceipts')}
-                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canReturnReceipts ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                        >
-                          <span
-                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canReturnReceipts ? 'left-6' : 'left-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      {/* CAN DELETE RECEIPTS */}
-                      <div className="pt-3 flex items-start justify-between gap-3 bg-rose-50/40 dark:bg-rose-950/20 p-2.5 rounded-xl border border-rose-200/60 dark:border-rose-900/40">
-                        <div>
-                          <div className="text-xs font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
-                            <span>Sotuv chekini o&apos;chirish</span>
-                            <span className="text-[9px] font-bold text-rose-600 bg-rose-100 dark:bg-rose-900/60 px-1.5 py-0.2 rounded">
-                              Xavfli
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                            Sotilgan chekni butunlay o&apos;chirish (omborga tovarlarni qaytarish)
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeleteReceipts')}
-                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canDeleteReceipts ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                        >
-                          <span
-                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canDeleteReceipts ? 'left-6' : 'left-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      {/* CAN GIVE DISCOUNT */}
-                      <div className="pt-3 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                            Chegirma (skidka) berish
-                          </div>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            Kassada mijozga chegirma foizini qo&apos;llash
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canGiveDiscount')}
-                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canGiveDiscount !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                        >
-                          <span
-                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canGiveDiscount !== false ? 'left-6' : 'left-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      {/* CAN EDIT PRICE */}
-                      <div className="pt-3 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                            <span>Sotuv narxini qo&apos;lda o&apos;zgartirish</span>
-                            <span className="text-[9px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.2 rounded">
-                              Nazorat
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            Tovar narxini o&apos;zboshimchalik bilan kiritish
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canEditPrice')}
-                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canEditPrice ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                        >
-                          <span
-                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canEditPrice ? 'left-6' : 'left-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      {/* CAN CLOSE Z REPORT */}
-                      <div className="pt-3 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                            Smenani yopish va Z-Hisobot chiqarish
-                          </div>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            Kassa kunini yakunlab, hisobotni tasdiqlash
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canCloseZReport')}
-                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canCloseZReport !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                        >
-                          <span
-                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canCloseZReport !== false ? 'left-6' : 'left-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* GROUP 3: OMBOR & TOVARLAR */}
+                    {/* GROUP 3: OMBOR & TOVARLAR */}
                   <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
                     <div className="p-4 bg-sky-500/10 border-b border-sky-500/20 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
@@ -2785,81 +2612,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </div>
                   </div>
 
-                  {/* GROUP 4: SERVIS & KAFOLAT */}
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-4 bg-purple-500/10 border-b border-purple-500/20 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
-                          🔧
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                            4. Servis & Kafolat (Ustaxona)
-                          </h4>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                            Kafolat arizalari va nosoz qurilmalarni almashtirish
-                          </p>
-                        </div>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-purple-500/20 text-purple-700 dark:text-purple-300">
-                        Servis
-                      </span>
-                    </div>
-
-                    <div className="p-4 divide-y divide-slate-100 dark:divide-slate-800 flex-1 space-y-3">
-                      {/* CAN MANAGE SERVICE */}
-                      <div className="pt-2 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                            Servis zayavkalarini boshqarish
-                          </div>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            Kafolatli ta&apos;mir arizalarini qabul qilish va xulosa yozish
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canManageService')}
-                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canManageService !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                        >
-                          <span
-                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canManageService !== false ? 'left-6' : 'left-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      {/* CAN REPLACE DEVICES */}
-                      <div className="pt-3 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                            Ombordan yangi qurilmaga almashtirish (Zamen)
-                          </div>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            Nosoz qurilma o&apos;rniga ombordagi yangi S/N qurilmani berish
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canReplaceDevices')}
-                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                            activeEmployee?.permissions?.canReplaceDevices ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                        >
-                          <span
-                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
-                              activeEmployee?.permissions?.canReplaceDevices ? 'left-6' : 'left-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* GROUP 5: MOLIYA & ISH HAQQI */}
+                    {/* GROUP 5: MOLIYA & ISH HAQQI */}
                   <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
                     <div className="p-4 bg-rose-500/10 border-b border-rose-500/20 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
@@ -3040,8 +2793,295 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       </div>
                     </div>
                   </div>
+                  </div>
 
-                  {/* GROUP 6: TIZIM & BOSHQARUV */}
+                  {/* RIGHT COLUMN: Kassa (2), Servis (4), Tizim (6) */}
+                  <div className="space-y-6">
+                    {/* GROUP 2: KASSA & SAVDO (MOYSKLAD TALABI) */}
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-4 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                          🛒
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                            2. Kassa & Savdo (Chek Huquqlari)
+                          </h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Kassir chek urish, tahrirlash va skidka imkoniyatlari
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                        Kassa
+                      </span>
+                    </div>
+
+                    <div className="p-4 divide-y divide-slate-100 dark:divide-slate-800 flex-1 space-y-3">
+                      {/* CAN MAKE SALES */}
+                      <div className="pt-2 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Kassada tovar sotish va chek urish
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Kassa oynasidan foydalanish va mijozlardan to&apos;lov qabul qilish
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canMakeSales')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canMakeSales !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canMakeSales !== false ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN EDIT RECEIPTS (KEY MOYSKLAD REQUIREMENT) */}
+                      <div className="pt-3 flex items-start justify-between gap-3 bg-amber-50/60 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-800/60">
+                        <div className="pr-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black text-amber-900 dark:text-amber-200">
+                              Sotilgan chek/tovarni redakt qilish (Tahrirlash)
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-amber-600 text-white">
+                              MOYSKLAD
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-amber-700 dark:text-amber-300/80 mt-0.5 leading-relaxed">
+                            O&apos;chirilganda kassir/xodim avvalgi sotilgan chekka tovar qo&apos;sha olmaydi va uning ma&apos;lumotlarini o&apos;zgartira olmaydi.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canEditReceipts')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canEditReceipts ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canEditReceipts ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN RETURN RECEIPTS */}
+                      <div className="pt-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Tovarni qaytarish (Vozvrat qilish)
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Xaridor qaytargan tovarlarni qabul qilish va pulini qaytarish
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canReturnReceipts')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canReturnReceipts ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canReturnReceipts ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN DELETE RECEIPTS */}
+                      <div className="pt-3 flex items-start justify-between gap-3 bg-rose-50/40 dark:bg-rose-950/20 p-2.5 rounded-xl border border-rose-200/60 dark:border-rose-900/40">
+                        <div>
+                          <div className="text-xs font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                            <span>Sotuv chekini o&apos;chirish</span>
+                            <span className="text-[9px] font-bold text-rose-600 bg-rose-100 dark:bg-rose-900/60 px-1.5 py-0.2 rounded">
+                              Xavfli
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Sotilgan chekni butunlay o&apos;chirish (omborga tovarlarni qaytarish)
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canDeleteReceipts')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canDeleteReceipts ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canDeleteReceipts ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN GIVE DISCOUNT */}
+                      <div className="pt-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Chegirma (skidka) berish
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Kassada mijozga chegirma foizini qo&apos;llash
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canGiveDiscount')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canGiveDiscount !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canGiveDiscount !== false ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN EDIT PRICE */}
+                      <div className="pt-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                            <span>Sotuv narxini qo&apos;lda o&apos;zgartirish</span>
+                            <span className="text-[9px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.2 rounded">
+                              Nazorat
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Tovar narxini o&apos;zboshimchalik bilan kiritish
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canEditPrice')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canEditPrice ? 'bg-rose-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canEditPrice ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN CLOSE Z REPORT */}
+                      <div className="pt-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Smenani yopish va Z-Hisobot chiqarish
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Kassa kunini yakunlab, hisobotni tasdiqlash
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canCloseZReport')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canCloseZReport !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canCloseZReport !== false ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                    {/* GROUP 4: SERVIS & KAFOLAT */}
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-4 bg-purple-500/10 border-b border-purple-500/20 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                          🔧
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                            4. Servis & Kafolat (Ustaxona)
+                          </h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Kafolat arizalari va nosoz qurilmalarni almashtirish
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-purple-500/20 text-purple-700 dark:text-purple-300">
+                        Servis
+                      </span>
+                    </div>
+
+                    <div className="p-4 divide-y divide-slate-100 dark:divide-slate-800 flex-1 space-y-3">
+                      {/* CAN MANAGE SERVICE */}
+                      <div className="pt-2 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Servis zayavkalarini boshqarish
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Kafolatli ta&apos;mir arizalarini qabul qilish va xulosa yozish
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canManageService')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canManageService !== false ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canManageService !== false ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* CAN REPLACE DEVICES */}
+                      <div className="pt-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Ombordan yangi qurilmaga almashtirish (Zamen)
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Nosoz qurilma o&apos;rniga ombordagi yangi S/N qurilmani berish
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => activeEmployee && handleTogglePermission(activeEmployee.id, 'canReplaceDevices')}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                            activeEmployee?.permissions?.canReplaceDevices ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform absolute top-1 ${
+                              activeEmployee?.permissions?.canReplaceDevices ? 'left-6' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                    {/* GROUP 6: TIZIM & BOSHQARUV */}
                   <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
                     <div className="p-4 bg-indigo-500/10 border-b border-indigo-500/20 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
@@ -3148,6 +3188,42 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         </button>
                       </div>
                     </div>
+                  </div>
+                  </div>
+                </div>
+
+                {/* STICKY FLOATING BOTTOM ACTION BAR */}
+                <div className="sticky bottom-4 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-4 rounded-2xl border-2 border-emerald-500/40 shadow-2xl flex flex-wrap items-center justify-between gap-4 mt-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-md">
+                      ✓
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Huquqlari sozlangan xodim:</span>
+                        <span className="text-sm font-black text-slate-900 dark:text-white">
+                          {activeEmployee?.fullName} ({activeEmployee?.role})
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center gap-1 border border-emerald-300 dark:border-emerald-800">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Avtomatik Saqlanadi
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Siz o&apos;zgartirgan har bir ruxsat tugmasi darhol tizim xotirasiga va bulutga yozib boriladi.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSaveExplicitly(activeEmployee)}
+                      className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-black text-xs shadow-lg shadow-emerald-600/30 transition flex items-center gap-2 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>✓ Barcha Huquqlarni Saqlash</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -3264,6 +3340,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Matrix View Bottom Save Bar */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      Barcha xodimlar katakchalari orqali kiritilgan o&apos;zgarishlar avtomatik saqlanadi.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveExplicitly(activeEmployee)}
+                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition flex items-center gap-2 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>✓ Jadval Huquqlarini Saqlash</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -4328,6 +4422,16 @@ Body: {
                 <span>Ha, O&apos;chirish</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Fixed Toast for Explicit Save */}
+      {explicitSaveToast && (
+        <div className="fixed bottom-6 right-6 z-50 p-4 bg-emerald-600 text-white rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 duration-200">
+          <CheckCircle2 className="w-6 h-6 shrink-0" />
+          <div>
+            <div className="font-black text-sm">{activeEmployee?.fullName || "Xodim"} huquqlari saqlandi!</div>
+            <div className="text-xs text-emerald-100">Barcha ruxsat va cheklovlar tizimda muvaffaqiyatli yangilandi.</div>
           </div>
         </div>
       )}
