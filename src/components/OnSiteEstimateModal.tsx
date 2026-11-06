@@ -168,6 +168,17 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
       return [];
     }
   });
+
+  // Deleted template IDs (both built-in and custom)
+  const [deletedTemplateIds, setDeletedTemplateIds] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('sc_deleted_estimate_template_ids');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isCreatingTemplate, setIsCreatingTemplate] = useState<boolean>(false);
   const [newTemplateName, setNewTemplateName] = useState<string>('');
   const [templateSuccessToast, setTemplateSuccessToast] = useState<string | null>(null);
@@ -253,10 +264,11 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
     });
   }, [items]);
 
-  // All available templates (custom ones first, then builtin)
+  // All available templates (custom ones first, then builtin, excluding deleted ones)
   const allTemplates = useMemo(() => {
-    return [...customTemplates, ...BUILTIN_TEMPLATES];
-  }, [customTemplates]);
+    const combined = [...customTemplates, ...BUILTIN_TEMPLATES];
+    return combined.filter((t) => !deletedTemplateIds.includes(t.id));
+  }, [customTemplates, deletedTemplateIds]);
 
   // Add single product to estimate
   const handleAddItem = (product: Product) => {
@@ -388,20 +400,46 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
     setTimeout(() => setTemplateSuccessToast(null), 4000);
   };
 
-  // Delete custom template
-  const handleDeleteCustomTemplate = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!window.confirm("Ushbu shablonni o'chirishni tasdiqlaysizmi?")) return;
-    const updated = customTemplates.filter((t) => t.id !== id);
-    setCustomTemplates(updated);
-    if (activeTemplateId === id) {
-      setActiveTemplateId(null);
+  // Delete template (custom or built-in)
+  const handleDeleteTemplate = (id: string, name: string, isCustom?: boolean, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm(`"${name}" shablonini ro'yxatdan butunlay o'chirishni tasdiqlaysizmi?`)) return;
+
+    if (isCustom) {
+      const updated = customTemplates.filter((t) => t.id !== id);
+      setCustomTemplates(updated);
+      try {
+        localStorage.setItem('sc_custom_estimate_templates', JSON.stringify(updated));
+      } catch (err) {
+        console.error(err);
+      }
     }
+
+    const updatedDeleted = Array.from(new Set([...deletedTemplateIds, id]));
+    setDeletedTemplateIds(updatedDeleted);
     try {
-      localStorage.setItem('sc_custom_estimate_templates', JSON.stringify(updated));
+      localStorage.setItem('sc_deleted_estimate_template_ids', JSON.stringify(updatedDeleted));
     } catch (err) {
       console.error(err);
     }
+
+    if (activeTemplateId === id) {
+      setActiveTemplateId(null);
+    }
+
+    setTemplateSuccessToast(`✓ "${name}" shabloni muvaffaqiyatli o'chirildi!`);
+    setTimeout(() => setTemplateSuccessToast(null), 3000);
+  };
+
+  // Restore deleted default templates
+  const handleRestoreDefaultTemplates = () => {
+    if (!window.confirm("Barcha o'chirilgan standart shablonlarni qayta tiklamoqchimisiz?")) return;
+    setDeletedTemplateIds([]);
+    try {
+      localStorage.removeItem('sc_deleted_estimate_template_ids');
+    } catch {}
+    setTemplateSuccessToast("✓ Barcha standart shablonlar qayta tiklandi!");
+    setTimeout(() => setTemplateSuccessToast(null), 3000);
   };
 
   const handleUpdateQty = (productId: string, delta: number) => {
@@ -789,6 +827,17 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
                 Tayyor Smeta Shablonlari & Paketlar
               </span>
               <div className="flex items-center gap-1.5">
+                {deletedTemplateIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleRestoreDefaultTemplates}
+                    className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1 transition"
+                    title="O'chirilgan standart shablonlarni qayta tiklash"
+                  >
+                    <RotateCcw className="w-3 h-3 text-cyan-400" />
+                    <span>Tiklash ({deletedTemplateIds.length})</span>
+                  </button>
+                )}
                 {items.length > 0 && (
                   <button
                     type="button"
@@ -874,16 +923,14 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
                             {tpl.badge}
                           </span>
                         )}
-                        {tpl.isCustom && (
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteCustomTemplate(tpl.id, e)}
-                            className="text-slate-500 hover:text-rose-400 p-0.5"
-                            title="Shablonni o'chirish"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteTemplate(tpl.id, tpl.name, tpl.isCustom, e)}
+                          className="text-slate-400 hover:text-rose-400 p-1 hover:bg-rose-500/20 rounded transition"
+                          title="Ushbu shablonni ro'yxatdan o'chirish"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
 
