@@ -335,20 +335,6 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        {/* Z-Report / Smena Yopish Button (Only for admin or cashier) */}
-        {onOpenZReport && currentUser?.systemRole !== 'technician' && (
-          <button
-            type="button"
-            onClick={onOpenZReport}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition shadow-sm"
-            title="Smenani yopish va Z-Hisobot chiqarish"
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Z-Hisobot (Smena)</span>
-            <span className="md:hidden">Z-Hisobot</span>
-          </button>
-        )}
-
         {/* Current User Pill / Switcher */}
         {currentUser && (
           <div 

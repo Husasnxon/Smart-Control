@@ -214,29 +214,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => onNavigateTab('financial_reports')}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-600/25 flex items-center gap-2 transition active:scale-[0.98]"
-            title="Foyda va Zarar (P&L) hisoboti, tovarlar marjasi va ustalar tahliliga o'tish"
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span>📊 Hisobotlar & P&L</span>
-          </button>
-          <button
-            onClick={() => onNavigateTab('pos')}
-            className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 flex items-center gap-1.5 transition active:scale-[0.98]"
-          >
-            <ShoppingBag className="w-4 h-4 text-emerald-400" />
-            <span>Kassa (Savdo)</span>
-          </button>
+        {/* Action Button: AI Tahlil */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => onNavigateTab('ai_advisor')}
-            className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 transition"
+            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition active:scale-[0.98]"
+            title="Sun'iy intellekt tahlili va tavsiyalari"
           >
-            <Sparkles className="w-4 h-4" />
-            <span className="hidden sm:inline">AI Tahlil</span>
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            <span>AI Tahlilchi</span>
           </button>
         </div>
       </div>

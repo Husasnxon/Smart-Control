@@ -300,21 +300,21 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
       <div className="no-print print:hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
         
         {/* MODAL HEADER */}
-        <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+        <div className="px-5 sm:px-6 py-4 bg-slate-900 dark:bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-black text-sm">
-              Z
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-black text-sm shrink-0">
+              <Lock className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-black tracking-wide">
+                <h3 className="text-base font-extrabold tracking-tight text-white">
                   Z-Hisobot: Smenani Yopish
                 </h3>
-                <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                   Kun Yopilishi
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 mt-0.5">
                 Kassa tushumlarini tekshirish, naqd pulni inkassatsiya qilish va hisobotni yuborish
               </p>
             </div>
@@ -323,7 +323,7 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition"
+            className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -334,12 +334,14 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
           
           {/* Shift Successful Closure Banner */}
           {isShiftClosed ? (
-            <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 p-6 rounded-2xl text-center space-y-3">
-              <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto animate-bounce" />
-              <h4 className="text-lg font-black text-emerald-900 dark:text-emerald-200">
+            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-6 rounded-2xl text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <h4 className="text-lg font-black text-emerald-950 dark:text-emerald-200">
                 Smena Muvaffaqiyatli Yopildi!
               </h4>
-              <p className="text-xs text-emerald-700 dark:text-emerald-300 max-w-md mx-auto leading-relaxed">
+              <p className="text-xs text-emerald-800 dark:text-emerald-300 max-w-md mx-auto leading-relaxed">
                 Z-Hisobot arxivlandi. Kassadagi barcha hisob-kitoblar yakunlandi va tizim xotirasiga muhrlandi.
               </p>
 
@@ -365,36 +367,36 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
           ) : (
             <>
               {/* Meta strip: Date, Cashier, Branch */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs">
                 <div>
                   <span className="text-[10px] text-slate-400 block font-medium">Sana va Vaqt:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">{nowDisplay}</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 font-mono text-[11px]">{nowDisplay}</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block font-medium">Mas&apos;ul Kassir:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{cashierName}</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 text-[11px] truncate block">{cashierName}</span>
                 </div>
                 <div className="col-span-2 sm:col-span-1">
                   <span className="text-[10px] text-slate-400 block font-medium">Filial:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{branchName}</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 text-[11px] truncate block">{branchName}</span>
                 </div>
               </div>
 
               {/* Total Sales Big Banner */}
-              <div className="bg-gradient-to-br from-slate-900 to-slate-850 p-4 sm:p-5 rounded-2xl text-white shadow-md border border-slate-800">
+              <div className="bg-slate-900 dark:bg-slate-950 p-4 sm:p-5 rounded-2xl text-white shadow-sm border border-slate-800">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     Bugungi Jami Kassa Savdosi
                   </span>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono">
                     {stats.receiptsCount} ta chek
                   </span>
                 </div>
                 <div className="mt-2 flex items-baseline justify-between flex-wrap gap-2">
                   <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">
-                    {formatNumberWithSpaces(stats.totalSales)} <span className="text-sm font-bold text-slate-300">so&apos;m</span>
+                    {formatNumberWithSpaces(stats.totalSales)} <span className="text-xs font-bold text-slate-400 uppercase">so&apos;m</span>
                   </div>
-                  <div className="text-sm font-bold font-mono text-cyan-400">
+                  <div className="text-xs font-semibold font-mono text-slate-400">
                     ≈ ${formatUSDNumber(stats.totalSalesUSD)} USD
                   </div>
                 </div>
@@ -402,73 +404,73 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
 
               {/* Breakdown of Payments Grid */}
               <div className="space-y-2">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                   To&apos;lov Turlari Bo&apos;yicha Taqsimot
                 </span>
                 
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                    <span className="text-slate-500 flex items-center gap-1.5 font-medium">
-                      <Coins className="w-3.5 h-3.5 text-emerald-500" /> Naqd so&apos;m:
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5 font-medium text-[11px]">
+                      <Coins className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Naqd so&apos;m:
                     </span>
-                    <strong className="font-mono text-slate-900 dark:text-white">
+                    <strong className="font-mono text-slate-900 dark:text-white font-bold text-xs">
                       {formatNumberWithSpaces(stats.cashUZS)}
                     </strong>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                    <span className="text-slate-500 flex items-center gap-1.5 font-medium">
-                      <CreditCard className="w-3.5 h-3.5 text-blue-500" /> Karta (Humo/Uz):
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5 font-medium text-[11px]">
+                      <CreditCard className="w-3.5 h-3.5 text-blue-500 shrink-0" /> Karta (Humo/Uz):
                     </span>
-                    <strong className="font-mono text-slate-900 dark:text-white">
+                    <strong className="font-mono text-slate-900 dark:text-white font-bold text-xs">
                       {formatNumberWithSpaces(stats.cardUZS)}
                     </strong>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                    <span className="text-slate-500 flex items-center gap-1.5 font-medium">
-                      <DollarSign className="w-3.5 h-3.5 text-cyan-500" /> Naqd ($ USD):
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5 font-medium text-[11px]">
+                      <DollarSign className="w-3.5 h-3.5 text-cyan-500 shrink-0" /> Naqd ($ USD):
                     </span>
-                    <strong className="font-mono text-cyan-600 dark:text-cyan-400">
+                    <strong className="font-mono text-slate-900 dark:text-white font-bold text-xs">
                       ${formatUSDNumber(stats.cashUSD)}
                     </strong>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                    <span className="text-slate-500 flex items-center gap-1.5 font-medium">
-                      <BookOpen className="w-3.5 h-3.5 text-amber-500" /> Nasiya (Qarz):
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5 font-medium text-[11px]">
+                      <BookOpen className="w-3.5 h-3.5 text-amber-500 shrink-0" /> Nasiya (Qarz):
                     </span>
-                    <strong className="font-mono text-amber-600 dark:text-amber-400">
+                    <strong className="font-mono text-slate-900 dark:text-white font-bold text-xs">
                       {formatNumberWithSpaces(stats.debtUZS)}
                     </strong>
                   </div>
                 </div>
 
                 {/* Expenses strip */}
-                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 flex items-center justify-between text-xs">
-                  <span className="text-rose-800 dark:text-rose-300 font-bold flex items-center gap-1.5">
-                    <TrendingDown className="w-4 h-4 text-rose-600" /> Kunlik Xarajatlar (Chiqim):
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between text-xs">
+                  <span className="text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1.5 text-[11px]">
+                    <TrendingDown className="w-3.5 h-3.5 text-rose-500 shrink-0" /> Kunlik Xarajatlar (Chiqim):
                   </span>
-                  <strong className="font-mono text-rose-600 dark:text-rose-400">
+                  <strong className="font-mono text-rose-600 dark:text-rose-400 font-bold text-xs">
                     - {formatNumberWithSpaces(stats.expensesTotal)} so&apos;m
                   </strong>
                 </div>
               </div>
 
               {/* DRAWER CASH RECONCILIATION & COUNTING - SO'M VA $ ALOHIDA */}
-              <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-3">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                    <Lock className="w-4 h-4 text-amber-600" />
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     Kassadagi Naqd Pulni Sanash (Inkassatsiya)
                   </span>
-                  <span className="text-[10px] text-amber-700 dark:text-amber-400">
-                    Kutilayotgan: <strong>{formatNumberWithSpaces(stats.expectedCashUZS)} so&apos;m</strong> {stats.expectedCashUSD > 0 && <>| <strong className="text-cyan-700 dark:text-cyan-400">${formatUSDNumber(stats.expectedCashUSD)}</strong></>}
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Kutilgan: <strong className="font-mono text-slate-700 dark:text-slate-300">{formatNumberWithSpaces(stats.expectedCashUZS)} so&apos;m</strong> {stats.expectedCashUSD > 0 && <>| <strong className="font-mono text-slate-700 dark:text-slate-300">${formatUSDNumber(stats.expectedCashUSD)}</strong></>}
                   </span>
                 </div>
 
                 {/* 1. SO'M (UZS) NAQD SANASH */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white/70 dark:bg-slate-900/60 p-3 rounded-xl border border-amber-200/70 dark:border-amber-900/40">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                       Kassadagi Haqiqiy So&apos;m (UZS):
@@ -480,7 +482,7 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
                         onChange={(e) => setActualCashUZSInput(e.target.value)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => (e.target as HTMLInputElement).select()}
-                        className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-xl px-3 py-2 text-sm font-black font-mono text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/40"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-black font-mono text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/40"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">UZS</span>
                     </div>
@@ -488,17 +490,17 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
 
                   <div>
                     <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      So&apos;m Tafovuti (Kutilgan: {formatNumberWithSpaces(stats.expectedCashUZS)}):
+                      So&apos;m Tafovuti:
                     </span>
-                    <div className={`p-2 rounded-xl text-xs font-bold font-mono flex items-center justify-between ${
+                    <div className={`p-2 rounded-xl text-xs font-bold font-mono flex items-center justify-between border ${
                       differenceUZS === 0
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50'
                         : differenceUZS > 0
-                        ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
-                        : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                        ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/50'
+                        : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/50'
                     }`}>
-                      <span>
-                        {differenceUZS === 0 ? '🟢 Mos' : differenceUZS > 0 ? '🟡 Ortiqcha' : '🔴 Kamomad'}
+                      <span className="text-[11px]">
+                        {differenceUZS === 0 ? '🟢 Balans mos' : differenceUZS > 0 ? '🟡 Ortiqcha' : '🔴 Kamomad'}
                       </span>
                       <span>
                         {differenceUZS > 0 ? `+${formatNumberWithSpaces(differenceUZS)}` : formatNumberWithSpaces(differenceUZS)} so&apos;m
@@ -508,7 +510,7 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
                 </div>
 
                 {/* 2. DOLLAR ($ USD) NAQD SANASH */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-cyan-50/50 dark:bg-cyan-950/20 p-3 rounded-xl border border-cyan-200/70 dark:border-cyan-900/40">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                       Kassadagi Haqiqiy Dollar ($ USD):
@@ -521,25 +523,25 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
                         onChange={(e) => setActualCashUSDInput(e.target.value)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => (e.target as HTMLInputElement).select()}
-                        className="w-full bg-white dark:bg-slate-900 border border-cyan-300 dark:border-cyan-800 rounded-xl px-3 py-2 text-sm font-black font-mono text-cyan-700 dark:text-cyan-300 outline-none focus:ring-2 focus:ring-cyan-500/40"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-black font-mono text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/40"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-cyan-600 dark:text-cyan-400 font-bold">$ USD</span>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">$ USD</span>
                     </div>
                   </div>
 
                   <div>
                     <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Dollar Tafovuti (Kutilgan: ${formatUSDNumber(stats.expectedCashUSD)}):
+                      Dollar Tafovuti:
                     </span>
-                    <div className={`p-2 rounded-xl text-xs font-bold font-mono flex items-center justify-between ${
+                    <div className={`p-2 rounded-xl text-xs font-bold font-mono flex items-center justify-between border ${
                       differenceUSD === 0
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50'
                         : differenceUSD > 0
-                        ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
-                        : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                        ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/50'
+                        : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/50'
                     }`}>
-                      <span>
-                        {differenceUSD === 0 ? '🟢 Mos' : differenceUSD > 0 ? '🟡 Ortiqcha' : '🔴 Kamomad'}
+                      <span className="text-[11px]">
+                        {differenceUSD === 0 ? '🟢 Balans mos' : differenceUSD > 0 ? '🟡 Ortiqcha' : '🔴 Kamomad'}
                       </span>
                       <span>
                         {differenceUSD > 0 ? `+$${formatUSDNumber(differenceUSD)}` : `$${formatUSDNumber(differenceUSD)}`}
@@ -551,15 +553,15 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
 
               {/* Notes input */}
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">
-                  Smena bo&apos;yicha qo&apos;shimcha izoh yoki tafsilot (ixtiyoriy):
+                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                  Smena bo&apos;yicha qo&apos;shimcha izoh (ixtiyoriy):
                 </label>
                 <input
                   type="text"
                   placeholder="Masalan: Inkassatsiyaga topshirildi, qoldiq 500 ming qoldirildi..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500/40"
+                  className="w-full bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500/40"
                 />
               </div>
 
@@ -570,7 +572,7 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
                     ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                     : 'bg-rose-50 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
                 }`}>
-                  {telegramStatus.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  {telegramStatus.success ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
                   <span>{telegramStatus.message}</span>
                 </div>
               )}
@@ -581,19 +583,17 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
 
         {/* MODAL FOOTER */}
         {!isShiftClosed && (
-          <div className="px-6 py-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <div className="px-5 sm:px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
             
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handlePrintZReport}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-[0.98]"
-                title="Termal printerda Z-hisobot slipini chiqarish"
-              >
-                <Printer className="w-4 h-4 text-slate-500" />
-                <span>Chop Etish</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handlePrintZReport}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-[0.98]"
+              title="Termal printerda Z-hisobot slipini chiqarish"
+            >
+              <Printer className="w-4 h-4 text-slate-500" />
+              <span>Chop Etish</span>
+            </button>
 
             <div className="flex items-center gap-2">
               <button
@@ -607,10 +607,10 @@ export const ZReportModal: React.FC<ZReportModalProps> = ({
               <button
                 type="button"
                 onClick={handleConfirmCloseShift}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg shadow-amber-600/20 transition active:scale-[0.98]"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 transition active:scale-[0.98]"
               >
                 <Lock className="w-4 h-4" />
-                <span>Smenani Yopish (Avtomatik Telegramga Yuborish)</span>
+                <span>Smenani Yopish (Telegramga Yuborish)</span>
               </button>
             </div>
 
