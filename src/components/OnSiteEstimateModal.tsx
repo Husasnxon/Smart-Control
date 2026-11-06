@@ -33,7 +33,8 @@ import {
   ChevronRight,
   Check,
   Building,
-  Coins
+  Coins,
+  RotateCcw
 } from 'lucide-react';
 
 interface TemplateDefinition {
@@ -170,6 +171,7 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
   const [isCreatingTemplate, setIsCreatingTemplate] = useState<boolean>(false);
   const [newTemplateName, setNewTemplateName] = useState<string>('');
   const [templateSuccessToast, setTemplateSuccessToast] = useState<string | null>(null);
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
 
   // HDD Calculator Modal state
   const [isHddCalcOpen, setIsHddCalcOpen] = useState<boolean>(false);
@@ -189,6 +191,7 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
         setProjectName(targetOrder.projectName || '');
         setComment(targetOrder.comment || '');
         setItems(targetOrder.items ? JSON.parse(JSON.stringify(targetOrder.items)) : []);
+        setActiveTemplateId(null);
       } else {
         setSelectedCustomerId('');
         setCustomerName('');
@@ -197,6 +200,7 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
         setProjectName('');
         setComment('');
         setItems([]);
+        setActiveTemplateId(null);
       }
       setSubmittedAttempt(false);
     }
@@ -332,11 +336,21 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
 
     if (newItems.length > 0) {
       setItems(newItems);
+      setActiveTemplateId(tpl.id);
       setTemplateSuccessToast(`✓ "${tpl.name}" shabloni yuklandi (${newItems.length} ta pozitsiya)!`);
       setTimeout(() => setTemplateSuccessToast(null), 4000);
     } else {
       alert("Shablondagi tovarlar hozirgi ombor katalogidan topilmadi.");
     }
+  };
+
+  // Clear template and all items
+  const handleClearTemplate = () => {
+    if (items.length === 0) return;
+    setItems([]);
+    setActiveTemplateId(null);
+    setTemplateSuccessToast("✓ Shablon va barcha tovarlar tozalandi");
+    setTimeout(() => setTemplateSuccessToast(null), 3000);
   };
 
   // Save current estimate as a custom template
@@ -380,6 +394,9 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
     if (!window.confirm("Ushbu shablonni o'chirishni tasdiqlaysizmi?")) return;
     const updated = customTemplates.filter((t) => t.id !== id);
     setCustomTemplates(updated);
+    if (activeTemplateId === id) {
+      setActiveTemplateId(null);
+    }
     try {
       localStorage.setItem('sc_custom_estimate_templates', JSON.stringify(updated));
     } catch (err) {
@@ -771,14 +788,27 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
                 <Zap className="w-3.5 h-3.5 text-amber-400" />
                 Tayyor Smeta Shablonlari & Paketlar
               </span>
-              <button
-                type="button"
-                onClick={() => setIsCreatingTemplate((prev) => !prev)}
-                className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center gap-1 transition"
-              >
-                <BookmarkPlus className="w-3 h-3" />
-                <span>+ Smetani Shablon Qilish</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                {items.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearTemplate}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 flex items-center gap-1 transition shadow-sm"
+                    title="Yuklangan shablon va barcha tovarlarni smetadan tozalash"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Shablonni tozalash</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingTemplate((prev) => !prev)}
+                  className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center gap-1 transition"
+                >
+                  <BookmarkPlus className="w-3 h-3" />
+                  <span>+ Smetani Shablon Qilish</span>
+                </button>
+              </div>
             </div>
 
             {/* Save New Custom Template Box */}
@@ -815,49 +845,80 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
 
             {/* Horizontal Scrollable Templates Carousel */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {allTemplates.map((tpl) => (
-                <div
-                  key={tpl.id}
-                  onClick={() => handleApplyTemplate(tpl)}
-                  className={`p-2.5 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-1.5 select-none ${
-                    tpl.isCustom
-                      ? 'bg-amber-950/40 hover:bg-amber-950/60 border-amber-800/80 ring-1 ring-amber-500/30'
-                      : 'bg-slate-950 hover:bg-slate-800/80 border-slate-800'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-1.5">
-                    <span className="text-xs font-bold text-white line-clamp-1">{tpl.name}</span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {tpl.badge && (
-                        <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
-                          tpl.isCustom ? 'bg-amber-500/30 text-amber-300' : 'bg-purple-900/60 text-purple-300'
-                        }`}>
-                          {tpl.badge}
-                        </span>
-                      )}
-                      {tpl.isCustom && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteCustomTemplate(tpl.id, e)}
-                          className="text-slate-500 hover:text-rose-400 p-0.5"
-                          title="Shablonni o'chirish"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+              {allTemplates.map((tpl) => {
+                const isActive = activeTemplateId === tpl.id;
+                return (
+                  <div
+                    key={tpl.id}
+                    onClick={() => handleApplyTemplate(tpl)}
+                    className={`p-2.5 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-1.5 select-none ${
+                      isActive
+                        ? 'bg-purple-950/70 hover:bg-purple-900/60 border-purple-500 ring-2 ring-purple-500/50 shadow-lg shadow-purple-950/60'
+                        : tpl.isCustom
+                        ? 'bg-amber-950/40 hover:bg-amber-950/60 border-amber-800/80 ring-1 ring-amber-500/30'
+                        : 'bg-slate-950 hover:bg-slate-800/80 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-1.5">
+                      <span className="text-xs font-bold text-white line-clamp-1">{tpl.name}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isActive && (
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5">
+                            <Check className="w-2.5 h-2.5" /> Faol
+                          </span>
+                        )}
+                        {tpl.badge && !isActive && (
+                          <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
+                            tpl.isCustom ? 'bg-amber-500/30 text-amber-300' : 'bg-purple-900/60 text-purple-300'
+                          }`}>
+                            {tpl.badge}
+                          </span>
+                        )}
+                        {tpl.isCustom && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteCustomTemplate(tpl.id, e)}
+                            className="text-slate-500 hover:text-rose-400 p-0.5"
+                            title="Shablonni o'chirish"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 line-clamp-2 leading-tight">
+                      {tpl.description}
+                    </p>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10px] font-bold">
+                      {isActive ? (
+                        <>
+                          <span className="text-emerald-400 flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Yuklangan ({tpl.itemRules.length} ta)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleClearTemplate();
+                            }}
+                            className="text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30 flex items-center gap-1 transition"
+                            title="Shablon tovarlarini smetadan tozalash"
+                          >
+                            <RotateCcw className="w-2.5 h-2.5" /> Tozalash
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-purple-400">1-bosishda yuklash</span>
+                          <ChevronRight className="w-3.5 h-3.5 text-purple-400" />
+                        </>
                       )}
                     </div>
                   </div>
-
-                  <p className="text-[10px] text-slate-400 line-clamp-2 leading-tight">
-                    {tpl.description}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10px] font-bold text-purple-400">
-                    <span>1-bosishda yuklash</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -953,10 +1014,23 @@ export const OnSiteEstimateModal: React.FC<OnSiteEstimateModalProps> = ({
           {/* 4. Selected Items in Cart & S/N Entry */}
           <div className="p-3.5 bg-slate-900 rounded-2xl border border-slate-800 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                Tanlangan Jihozlar va Xizmatlar ({items.length})
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                  Tanlangan Jihozlar va Xizmatlar ({items.length})
+                </span>
+                {items.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearTemplate}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 flex items-center gap-1 transition"
+                    title="Barcha tanlangan tovarlarni tozalash"
+                  >
+                    <Trash2 className="w-2.5 h-2.5" />
+                    <span>Tozalash</span>
+                  </button>
+                )}
+              </div>
               <span className="text-xs font-mono font-bold text-cyan-400">
                 Jami: ${totalAmountUSD} (≈ {formatNumberWithSpaces(totalAmountUZS)} so&apos;m)
               </span>
