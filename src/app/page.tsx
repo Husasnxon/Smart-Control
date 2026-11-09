@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ActiveTab, Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, EmployeePermissions, CustomerOrder, ShipmentOrder, AssignedTechnician, PaymentDetails, CartItem, Currency, PurchaseInvoice, PurchasePaymentRecord, ServiceTicket, CustomerDebtPayment, ZReport, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_TABS, DEFAULT_ROLE_PERMISSIONS, Branch, StockTransfer, AuditLog, AuditAction, AuditEntityType } from '../types';
+import { ActiveTab, Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, EmployeePermissions, CustomerOrder, ShipmentOrder, AssignedTechnician, PaymentDetails, CartItem, Currency, PurchaseInvoice, PurchasePaymentRecord, ServiceTicket, CustomerDebtPayment, ZReport, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_TABS, DEFAULT_ROLE_PERMISSIONS, Branch, StockTransfer, AuditLog, AuditAction, AuditEntityType, InstallationProject, ProjectReturnRecord } from '../types';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_CUSTOMERS, 
@@ -22,7 +22,9 @@ import {
   INITIAL_CRM_OBJECTS,
   INITIAL_CRM_REMINDERS,
   INITIAL_BRANCHES,
-  INITIAL_STOCK_TRANSFERS
+  INITIAL_STOCK_TRANSFERS,
+  INITIAL_INSTALLATION_PROJECTS,
+  INITIAL_PROJECT_RETURNS
 } from '../data/mockData';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
@@ -109,6 +111,8 @@ export default function Home() {
   const [payrolls, setPayrolls] = useState<PayrollRecord[]>(INITIAL_PAYROLLS);
   const [advances, setAdvances] = useState<EmployeeAdvance[]>(INITIAL_ADVANCES);
   const [handovers, setHandovers] = useState<ObjectHandover[]>(INITIAL_HANDOVERS);
+  const [installationProjects, setInstallationProjects] = useState<InstallationProject[]>(INITIAL_INSTALLATION_PROJECTS);
+  const [projectReturns, setProjectReturns] = useState<ProjectReturnRecord[]>(INITIAL_PROJECT_RETURNS);
   const [aiInsights] = useState<AIInsight[]>(INITIAL_AI_INSIGHTS);
   const [crmLeads, setCrmLeads] = useState<CrmLead[]>(INITIAL_CRM_LEADS);
   const [crmObjectPassports, setCrmObjectPassports] = useState<CrmObjectPassport[]>(INITIAL_CRM_OBJECTS);
@@ -667,6 +671,20 @@ export default function Home() {
       const savedHandovers = localStorage.getItem('sc_handovers');
       if (savedHandovers) setHandovers(JSON.parse(savedHandovers));
 
+      const savedProjects = localStorage.getItem('sc_installation_projects');
+      if (savedProjects) {
+        try {
+          setInstallationProjects(JSON.parse(savedProjects));
+        } catch (e) {}
+      }
+
+      const savedProjectReturns = localStorage.getItem('sc_project_returns');
+      if (savedProjectReturns) {
+        try {
+          setProjectReturns(JSON.parse(savedProjectReturns));
+        } catch (e) {}
+      }
+
       const savedLeads = localStorage.getItem('sc_crm_leads');
       if (savedLeads) setCrmLeads(JSON.parse(savedLeads));
 
@@ -825,6 +843,8 @@ export default function Home() {
       localStorage.setItem('sc_payrolls', JSON.stringify(payrolls));
       localStorage.setItem('sc_advances', JSON.stringify(advances));
       localStorage.setItem('sc_handovers', JSON.stringify(handovers));
+      localStorage.setItem('sc_installation_projects', JSON.stringify(installationProjects));
+      localStorage.setItem('sc_project_returns', JSON.stringify(projectReturns));
       localStorage.setItem('sc_branches', JSON.stringify(branches));
       localStorage.setItem('sc_current_branch_id', currentBranchId);
       localStorage.setItem('sc_stock_transfers', JSON.stringify(stockTransfers));
@@ -835,7 +855,7 @@ export default function Home() {
     } catch (e) {
       console.error("Local storage save error", e);
     }
-  }, [products, productCategories, customers, receipts, expenses, expenseCategories, employees, customerOrders, shipments, purchases, serviceTickets, customerDebtPayments, payrolls, advances, handovers, branches, currentBranchId, stockTransfers, baseCurrency, isLoaded]);
+  }, [products, productCategories, customers, receipts, expenses, expenseCategories, employees, customerOrders, shipments, purchases, serviceTickets, customerDebtPayments, payrolls, advances, handovers, installationProjects, projectReturns, branches, currentBranchId, stockTransfers, baseCurrency, isLoaded]);
 
   const syncFunctionRef = useRef<((force?: boolean) => Promise<void>) | null>(null);
 
@@ -1993,6 +2013,74 @@ export default function Home() {
       handovers: []
     });
     showToast("✓ Barcha buyurtmalar, hisob-kitoblar va otgruzkalar tozalandi!");
+  };
+
+  const handleSaveProject = (project: InstallationProject) => {
+    setInstallationProjects((prev) => {
+      const idx = prev.findIndex(p => p.id === project.id);
+      let updated: InstallationProject[];
+      if (idx >= 0) {
+        updated = [...prev];
+        updated[idx] = project;
+      } else {
+        updated = [project, ...prev];
+      }
+      try {
+        localStorage.setItem('sc_installation_projects', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    showToast(`✓ Loyiha #${project.projectNumber} saqlandi!`);
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    setInstallationProjects((prev) => {
+      const updated = prev.filter(p => p.id !== projectId);
+      try {
+        localStorage.setItem('sc_installation_projects', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    showToast("✓ Loyiha o'chirildi.");
+  };
+
+  const handleSaveProjectReturn = (ret: ProjectReturnRecord) => {
+    setProjectReturns((prev) => {
+      const updated = [ret, ...prev];
+      try {
+        localStorage.setItem('sc_project_returns', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    // Return products back to warehouse stock and free serial numbers
+    if (ret.items && ret.items.length > 0) {
+      setProducts((prev) =>
+        prev.map((prod) => {
+          const retItem = ret.items.find((it) => it.productId === prod.id || it.productName.toLowerCase() === prod.name.toLowerCase());
+          if (retItem) {
+            if (prod.isService) return prod;
+            const newStock = prod.stockQuantity + retItem.quantity;
+            let updatedSerials = prod.serialNumbers ? [...prod.serialNumbers] : [];
+            if (retItem.serialNumbers && retItem.serialNumbers.length > 0) {
+              retItem.serialNumbers.forEach((sn) => {
+                if (!updatedSerials.includes(sn)) {
+                  updatedSerials.push(sn);
+                }
+              });
+            }
+            return {
+              ...prod,
+              stockQuantity: newStock,
+              serialNumbers: prod.hasSerialNumber ? updatedSerials : prod.serialNumbers
+            };
+          }
+          return prod;
+        })
+      );
+    }
+
+    showToast(`✓ #${ret.returnNumber} tovarlar omborga qaytarildi va qoldiqqa qo'shildi!`);
   };
 
   const handleDirectApproveEstimate = (order: CustomerOrder) => {
@@ -4324,6 +4412,11 @@ export default function Home() {
               branches={branches}
               currentBranch={currentBranch}
               receipts={receipts}
+              projects={installationProjects}
+              onSaveProject={handleSaveProject}
+              onDeleteProject={handleDeleteProject}
+              projectReturns={projectReturns}
+              onSaveProjectReturn={handleSaveProjectReturn}
             />
           )}
 

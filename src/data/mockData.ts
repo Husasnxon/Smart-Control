@@ -1,4 +1,4 @@
-import { Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, PurchaseInvoice, ServiceTicket, CustomerDebtPayment, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_PERMISSIONS, Branch, StockTransfer } from '../types';
+import { Product, Customer, SaleReceipt, AIInsight, Expense, ExpenseCategory, ProductCategory, Employee, CustomerOrder, ShipmentOrder, PurchaseInvoice, ServiceTicket, CustomerDebtPayment, PayrollRecord, EmployeeAdvance, ObjectHandover, CrmLead, CrmObjectPassport, CrmReminder, DEFAULT_ROLE_PERMISSIONS, Branch, StockTransfer, InstallationProject, ProjectReturnRecord } from '../types';
 
 export const INITIAL_PRODUCT_CATEGORIES: ProductCategory[] = [
   { id: 'pcat-1', name: 'IP kamera', description: 'IP xavfsizlik kameralari', color: '#06B6D4' },
@@ -2392,6 +2392,10 @@ export const INITIAL_EXPENSE_CATEGORIES: ExpenseCategory[] = [
 export const INITIAL_CUSTOMER_ORDERS: CustomerOrder[] = [];
 
 export const INITIAL_SHIPMENTS: ShipmentOrder[] = [];
+
+export const INITIAL_INSTALLATION_PROJECTS: InstallationProject[] = [];
+
+export const INITIAL_PROJECT_RETURNS: ProjectReturnRecord[] = [];
 
 export const DEFAULT_SUPPLIERS = [
   'Isroilov Husniddinxon',

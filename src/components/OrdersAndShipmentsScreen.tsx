@@ -13,9 +13,12 @@ import {
   Currency,
   ObjectHandover,
   Branch,
-  SaleReceipt
+  SaleReceipt,
+  InstallationProject,
+  ProjectReturnRecord
 } from '../types';
 import { formatDualMoney, formatMoney, formatNumberWithSpaces, formatUSDNumber, getNowFormatted } from '../utils/formatters';
+import { InstallationProjectsTab } from './InstallationProjectsTab';
 import { 
   FileSpreadsheet, 
   Plus, 
@@ -82,6 +85,11 @@ interface OrdersAndShipmentsScreenProps {
   branches?: Branch[];
   currentBranch?: Branch | null;
   receipts?: SaleReceipt[];
+  projects?: InstallationProject[];
+  onSaveProject?: (project: InstallationProject) => void;
+  onDeleteProject?: (projectId: string) => void;
+  projectReturns?: ProjectReturnRecord[];
+  onSaveProjectReturn?: (ret: ProjectReturnRecord) => void;
 }
 
 const generateShipmentId = () => `shipment-${Date.now()}`;
@@ -106,10 +114,15 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   onClearAllOrders,
   branches = [],
   currentBranch = null,
-  receipts = []
+  receipts = [],
+  projects = [],
+  onSaveProject,
+  onDeleteProject,
+  projectReturns = [],
+  onSaveProjectReturn
 }) => {
-  // Main Sub-tabs: 'orders' (Hisob-kitob / Zakaz) or 'shipments' (Otgruzka) or 'handovers' (Obyekt topshirish)
-  const [activeSubTab, setActiveSubTab] = useState<'orders' | 'shipments' | 'handovers'>('orders');
+  // Main Sub-tabs: 'projects' (Loyihalar) or 'orders' (Hisob-kitob / Zakaz) or 'shipments' (Otgruzka) or 'handovers' (Obyekt topshirish)
+  const [activeSubTab, setActiveSubTab] = useState<'projects' | 'orders' | 'shipments' | 'handovers'>('projects');
 
   // Search queries & filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -142,6 +155,9 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   const [formCustomerId, setFormCustomerId] = useState('');
   const [formDeliveryAddress, setFormDeliveryAddress] = useState('');
   const [formProjectName, setFormProjectName] = useState('');
+  const [formProjectId, setFormProjectId] = useState('');
+  const [formIsDopSmeta, setFormIsDopSmeta] = useState(false);
+  const [formEstimatePhaseName, setFormEstimatePhaseName] = useState('');
   const [formComment, setFormComment] = useState('');
   const [formCurrency, setFormCurrency] = useState<'UZS' | 'USD'>('UZS');
   const [formItems, setFormItems] = useState<OrderItem[]>([]);
@@ -183,13 +199,24 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   }, []);
 
   // Open Order Modal for New or Edit
-  const handleOpenNewOrder = () => {
+  const handleOpenNewOrder = (prefill?: {
+    projectId?: string;
+    projectName?: string;
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    deliveryAddress?: string;
+    isDop?: boolean;
+  }) => {
     setEditingOrder(null);
     setFormOrganization('WST Namangan');
     setFormWarehouse('Asosiy ombor');
-    setFormCustomerId('');
-    setFormDeliveryAddress('');
-    setFormProjectName('');
+    setFormCustomerId(prefill?.customerId || '');
+    setFormDeliveryAddress(prefill?.deliveryAddress || '');
+    setFormProjectName(prefill?.projectName || '');
+    setFormProjectId(prefill?.projectId || '');
+    setFormIsDopSmeta(!!prefill?.isDop);
+    setFormEstimatePhaseName(prefill?.isDop ? "Qo'shimcha Smeta" : "Boshlang'ich Smeta");
     setFormComment('');
     setFormCurrency(baseCurrency || 'UZS');
     setFormItems([]);
@@ -204,6 +231,9 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
     setFormCustomerId(order.customerId || '');
     setFormDeliveryAddress(order.deliveryAddress || '');
     setFormProjectName(order.projectName || '');
+    setFormProjectId(order.projectId || '');
+    setFormIsDopSmeta(!!order.isAdditionalEstimate);
+    setFormEstimatePhaseName(order.estimatePhaseName || '');
     setFormComment(order.comment || '');
     setFormCurrency(order.currency || 'UZS');
     setFormItems([...order.items]);
@@ -333,6 +363,9 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
       warehouseName: formWarehouse,
       deliveryAddress: formDeliveryAddress.trim() || undefined,
       projectName: formProjectName.trim() || undefined,
+      projectId: formProjectId || (projects?.find(p => p.name.toLowerCase() === formProjectName.trim().toLowerCase())?.id) || undefined,
+      isAdditionalEstimate: formIsDopSmeta,
+      estimatePhaseName: formEstimatePhaseName.trim() || undefined,
       comment: formComment.trim() || undefined,
       currency: formCurrency,
       exchangeRate: rate,
@@ -373,6 +406,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
       warehouseName: order.warehouseName,
       deliveryAddress: order.deliveryAddress,
       projectName: order.projectName,
+      projectId: order.projectId,
       comment: order.comment,
       currency: order.currency,
       exchangeRate: order.exchangeRate,
@@ -396,14 +430,26 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
   };
 
   // Open New Shipment directly
-  const handleOpenNewShipment = () => {
+  const handleOpenNewShipment = (prefill?: {
+    projectId?: string;
+    projectName?: string;
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    deliveryAddress?: string;
+  }) => {
     const newShipmentNumber = `OTG-${2000 + shipments.length + 1}`;
     const newShipment: ShipmentOrder = {
       id: `shipment-${Date.now()}`,
       shipmentNumber: newShipmentNumber,
       createdAt: getNowFormatted(),
       organization: 'WST Namangan',
-      customerName: 'Standart Xaridor',
+      customerId: prefill?.customerId,
+      customerName: prefill?.customerName || 'Standart Xaridor',
+      customerPhone: prefill?.customerPhone,
+      deliveryAddress: prefill?.deliveryAddress,
+      projectName: prefill?.projectName,
+      projectId: prefill?.projectId,
       warehouseName: 'Asosiy ombor',
       currency: baseCurrency || 'UZS',
       exchangeRate: exchangeRate > 0 ? exchangeRate : 12850,
@@ -896,7 +942,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
 
           {activeSubTab === 'orders' && canCreateOrders && (
             <button
-              onClick={handleOpenNewOrder}
+              onClick={() => handleOpenNewOrder()}
               className="px-4 py-2.5 rounded-xl font-extrabold text-xs bg-sky-600 hover:bg-sky-700 text-white shadow-lg shadow-sky-600/30 transition flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
@@ -906,7 +952,7 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
 
           {activeSubTab === 'shipments' && canCreateShipments && (
             <button
-              onClick={handleOpenNewShipment}
+              onClick={() => handleOpenNewShipment()}
               className="px-4 py-2.5 rounded-xl font-extrabold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/30 transition flex items-center gap-2"
             >
               <Truck className="w-4 h-4" />
@@ -1008,17 +1054,32 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
       {/* Main Sub-Tabs & Search Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-2">
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+          <button
+            onClick={() => setActiveSubTab('projects')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              activeSubTab === 'projects'
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm shadow-indigo-600/30'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+            }`}
+          >
+            <Building2 className="w-4 h-4 text-indigo-300" />
+            <span>📁 1. Loyihalar & Bosqichlar</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-950/80 text-indigo-200 font-mono border border-indigo-700">
+              {(projects || []).length}
+            </span>
+          </button>
+
           <button
             onClick={() => setActiveSubTab('orders')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeSubTab === 'orders'
                 ? 'bg-sky-600 text-white shadow-sm'
                 : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100'
             }`}
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span>1. Mijoz uchun Hisob-kitob (Zakaz / Smeta)</span>
+            <span>2. Smetalar (Zakazlar)</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-900/60 text-white font-mono">
               {enrichedOrders.length}
             </span>
@@ -1026,14 +1087,14 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
 
           <button
             onClick={() => setActiveSubTab('shipments')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeSubTab === 'shipments'
                 ? 'bg-sky-600 text-white shadow-sm'
                 : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100'
             }`}
           >
             <Truck className="w-4 h-4" />
-            <span>2. Otgruzka (Yuklash & S/N)</span>
+            <span>3. Otgruzka (Yuklash & S/N)</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-900/60 text-white font-mono">
               {enrichedShipments.length}
             </span>
@@ -1041,14 +1102,14 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
 
           <button
             onClick={() => setActiveSubTab('handovers')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeSubTab === 'handovers'
                 ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/20'
                 : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100'
             }`}
           >
             <Camera className="w-4 h-4 text-purple-400" />
-            <span>3. Obyekt Topshirish & Foto-Aktlar</span>
+            <span>4. Obyekt Topshirish & Foto-Aktlar</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-900/60 text-white font-mono">
               {handovers.length}
             </span>
@@ -1060,13 +1121,44 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder={activeSubTab === 'orders' ? "Zakaz №, mijoz, manzil..." : "Otgruzka №, mijoz..."}
+            placeholder={activeSubTab === 'projects' ? "Loyiha, mijoz, manzil..." : activeSubTab === 'orders' ? "Zakaz №, mijoz, manzil..." : "Otgruzka №, mijoz..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
           />
         </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* SUB-TAB 0: PROJECTS / UZOQ MUDDATLI LOYIHALAR */}
+      {/* ======================================================== */}
+      {activeSubTab === 'projects' && (
+        <InstallationProjectsTab
+          projects={projects || []}
+          onSaveProject={onSaveProject || (() => {})}
+          onDeleteProject={onDeleteProject}
+          orders={orders}
+          onSaveOrder={onSaveOrder}
+          shipments={shipments}
+          onSaveShipment={onSaveShipment}
+          projectReturns={projectReturns || []}
+          onSaveProjectReturn={onSaveProjectReturn || (() => {})}
+          products={products}
+          customers={customers}
+          employees={employees}
+          currentUser={currentUser}
+          exchangeRate={exchangeRate}
+          baseCurrency={baseCurrency}
+          receipts={receipts}
+          handovers={handovers}
+          onOpenNewOrderModal={(prefill) => {
+            handleOpenNewOrder(prefill);
+          }}
+          onOpenNewShipmentModal={(prefill) => {
+            handleOpenNewShipment(prefill);
+          }}
+        />
+      )}
 
       {/* ======================================================== */}
       {/* SUB-TAB 1: ORDERS / HISOB-KITOB (ZAKAZLAR) LIST */}
@@ -1793,18 +1885,60 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-                  {/* Loyiha nomi / Izoh */}
+                  {/* Loyiha tanlash yoki kiritish */}
                   <div>
-                    <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 block mb-1">
-                      Loyiha nomi / Shartnoma:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Masalan: 4 ta kamera montaj..."
-                      value={formProjectName}
-                      onChange={(e) => setFormProjectName(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                        📁 Bog&apos;langan Loyiha (Obyekt):
+                      </label>
+                      {projects && projects.length > 0 && (
+                        <span className="text-[10px] text-indigo-500 font-semibold">
+                          Mavjud loyihalar
+                        </span>
+                      )}
+                    </div>
+                    {projects && projects.length > 0 ? (
+                      <div className="space-y-1.5">
+                        <select
+                          value={formProjectId}
+                          onChange={(e) => {
+                            const pId = e.target.value;
+                            setFormProjectId(pId);
+                            const matchedProj = projects.find(p => p.id === pId);
+                            if (matchedProj) {
+                              setFormProjectName(matchedProj.name);
+                              if (matchedProj.customerId) setFormCustomerId(matchedProj.customerId);
+                              if (matchedProj.address) setFormDeliveryAddress(matchedProj.address);
+                            }
+                          }}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
+                        >
+                          <option value="">-- Alohida yakka buyurtma (Loyihasiz) --</option>
+                          {projects.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.projectNumber}: {p.name} ({p.customerName})
+                            </option>
+                          ))}
+                        </select>
+                        {!formProjectId && (
+                          <input
+                            type="text"
+                            placeholder="Yoki yangi loyiha nomi..."
+                            value={formProjectName}
+                            onChange={(e) => setFormProjectName(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder="Masalan: Grand Hotel Mehmonxonasi..."
+                        value={formProjectName}
+                        onChange={(e) => setFormProjectName(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
+                      />
+                    )}
                   </div>
 
                   {/* O'rnatish manzili */}
@@ -1820,6 +1954,40 @@ export const OrdersAndShipmentsScreen: React.FC<OrdersAndShipmentsScreenProps> =
                       className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
+
+                  {/* Bosqich nomi / Dop-smeta agar loyiha tanlangan bo'lsa */}
+                  {formProjectId && (
+                    <div className="sm:col-span-2 p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="isDopCheckbox"
+                          checked={formIsDopSmeta}
+                          onChange={(e) => {
+                            setFormIsDopSmeta(e.target.checked);
+                            if (e.target.checked && !formEstimatePhaseName) {
+                              setFormEstimatePhaseName("Qo'shimcha Smeta");
+                            }
+                          }}
+                          className="w-4 h-4 text-indigo-600 rounded"
+                        />
+                        <label htmlFor="isDopCheckbox" className="text-xs font-bold text-indigo-900 dark:text-indigo-200 cursor-pointer">
+                          Ushbu smeta loyihaga qo&apos;shimcha (Dop-Smeta / 2-bosqich) hisoblanadi
+                        </label>
+                      </div>
+
+                      {formIsDopSmeta && (
+                        <input
+                          type="text"
+                          placeholder="Bosqich nomi (masalan: 3-qavat va hovli)"
+                          value={formEstimatePhaseName}
+                          onChange={(e) => setFormEstimatePhaseName(e.target.value)}
+                          className="bg-white dark:bg-slate-900 border border-indigo-300 dark:border-indigo-700 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white outline-none font-medium w-64"
+                        />
+                      )}
+                    </div>
+                  )}
+
                   {/* Izoh */}
                   <div className="sm:col-span-2">
                     <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 block mb-1">

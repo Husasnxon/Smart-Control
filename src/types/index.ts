@@ -445,6 +445,9 @@ export interface CustomerOrder {
   warehouseName: string; // "Asosiy ombor"
   deliveryAddress?: string;
   projectName?: string;
+  projectId?: string; // Bog'langan umumiy loyiha (obyekt) ID si
+  isAdditionalEstimate?: boolean; // Qo'shimcha smeta (Dop-smeta / Bosqich)
+  estimatePhaseName?: string; // Masalan: "Boshlang'ich smeta", "1-Dop: Hovli va 3-qavat"
   comment?: string;
   currency: 'UZS' | 'USD';
   exchangeRate: number;
@@ -488,6 +491,9 @@ export interface ShipmentOrder {
   warehouseName: string;  // "Asosiy ombor"
   deliveryAddress?: string;
   projectName?: string;
+  projectId?: string; // Bog'langan umumiy loyiha (obyekt) ID si
+  isAdditionalEstimate?: boolean; // Qo'shimcha smeta (Dop-smeta / Bosqich)
+  estimatePhaseName?: string; // Masalan: "Boshlang'ich smeta", "1-Dop: Hovli va 3-qavat"
   comment?: string;
   currency: 'UZS' | 'USD';
   exchangeRate: number;
@@ -528,6 +534,7 @@ export interface ObjectHandover {
   customerPhone: string;
   installationAddress: string;
   projectName?: string;
+  projectId?: string; // Bog'langan umumiy loyiha ID si
   gpsLocation?: {
     latitude: number;
     longitude: number;
@@ -574,6 +581,53 @@ export interface ObjectHandover {
   createdAt: string;              // e.g. "2026-10-05 17:30"
   createdBy: string;              // Topshirgan usta ismi
   status: 'submitted' | 'approved' | 'rejected';
+}
+
+export interface InstallationProject {
+  id: string;
+  projectNumber: string;               // e.g. "PRJ-1001"
+  name: string;                        // e.g. "Grand Hotel Mehmonxonasi", "Akfa 3-bino"
+  customerId?: string;
+  customerName: string;
+  customerPhone: string;
+  address: string;
+  startDate: string;                   // "2026-11-09"
+  targetEndDate?: string;              // "2027-01-31"
+  actualEndDate?: string;
+  status: 'planning' | 'in_progress' | 'completed' | 'on_hold' | 'cancelled';
+  technicians?: AssignedTechnician[];
+  primaryTechnicianId?: string;
+  primaryTechnicianName?: string;
+  branchId?: string;
+  branchName?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ProjectReturnRecord {
+  id: string;
+  returnNumber: string;                // e.g. "VOZ-1001"
+  projectId: string;
+  projectName?: string;
+  customerId?: string;
+  customerName?: string;
+  createdAt: string;
+  createdBy?: string;
+  items: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    unit: string;
+    unitPrice: number;
+    unitPriceUSD?: number;
+    totalPrice: number;
+    serialNumbers?: string[];
+  }[];
+  totalAmount: number;
+  totalAmountUSD?: number;
+  notes?: string;
+  returnedToWarehouse: boolean;
 }
 
 export interface PurchaseItem {
